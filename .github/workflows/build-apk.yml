@@ -23,10 +23,10 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Setup Gradle
+      - name: Download Gradle Wrapper & Build
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Build Debug APK
+      - name: Compile and Build Debug APK
         run: gradle assembleDebug
 
       - name: Upload APK Artifact
