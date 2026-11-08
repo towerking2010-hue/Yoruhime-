@@ -60,6 +60,8 @@ fun ARCameraBackground(
 
     var previewView by remember { mutableStateOf<PreviewView?>(null) }
 
+    var cameraProviderInstance by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+
     LaunchedEffect(isCameraActive) {
         if (isCameraActive && !hasPermission) {
             permissionLauncher.launch(Manifest.permission.CAMERA)
@@ -67,43 +69,46 @@ fun ARCameraBackground(
     }
 
     LaunchedEffect(isCameraActive, hasPermission, isFrontCamera, previewView) {
-        if (!isCameraActive || !hasPermission || previewView == null) return@LaunchedEffect
+        if (!isCameraActive || !hasPermission || previewView == null) {
+            cameraProviderInstance?.unbindAll()
+            return@LaunchedEffect
+        }
 
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-        val cameraProvider = cameraProviderFuture.get()
+        cameraProviderFuture.addListener({
+            try {
+                val cameraProvider = cameraProviderFuture.get()
+                cameraProviderInstance = cameraProvider
 
-        val lensFacing = if (isFrontCamera) {
-            CameraSelector.LENS_FACING_FRONT
-        } else {
-            CameraSelector.LENS_FACING_BACK
-        }
-        val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
+                val lensFacing = if (isFrontCamera) {
+                    CameraSelector.LENS_FACING_FRONT
+                } else {
+                    CameraSelector.LENS_FACING_BACK
+                }
+                val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
 
-        val preview = Preview.Builder().build().also {
-            it.surfaceProvider = previewView!!.surfaceProvider
-        }
+                val preview = Preview.Builder().build().also {
+                    it.surfaceProvider = previewView?.surfaceProvider
+                }
 
-        try {
-            cameraProvider.unbindAll()
-            cameraProvider.bindToLifecycle(
-                lifecycleOwner,
-                cameraSelector,
-                preview
-            )
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    cameraSelector,
+                    preview
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }, ContextCompat.getMainExecutor(context))
     }
 
     DisposableEffect(isCameraActive) {
         onDispose {
-            if (!isCameraActive) {
-                try {
-                    val cameraProvider = ProcessCameraProvider.getInstance(context).get()
-                    cameraProvider.unbindAll()
-                } catch (e: Exception) {
-                    // Ignore unbind errors on dispose
-                }
+            try {
+                cameraProviderInstance?.unbindAll()
+            } catch (e: Exception) {
+                // Ignore unbind errors on dispose
             }
         }
     }

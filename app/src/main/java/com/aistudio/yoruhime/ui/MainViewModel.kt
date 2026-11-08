@@ -103,18 +103,23 @@ class MainViewModel(
 
         viewModelScope.launch {
             _isLoading.value = true
-            val response = repository.sendUserMessage(
-                userText = userText,
-                isOnlineMode = _isOnlineMode.value,
-                apiKey = _apiKey.value,
-                imageBitmap = imageBitmap
-            )
-            _currentEmotion.value = response.emotion
-            _isLoading.value = false
+            try {
+                val response = repository.sendUserMessage(
+                    userText = userText,
+                    isOnlineMode = _isOnlineMode.value,
+                    apiKey = _apiKey.value,
+                    imageBitmap = imageBitmap
+                )
+                _currentEmotion.value = response.emotion
 
-            // Auto voice output for high-tier tsundere emotional states (blush, angry)
-            if (response.emotion == "blush" || response.emotion == "angry") {
-                ttsManager.speak(response.text, response.emotion, isCritical = false)
+                // Auto voice output for high-tier tsundere emotional states (blush, angry)
+                if (response.emotion == "blush" || response.emotion == "angry") {
+                    ttsManager.speak(response.text, response.emotion, isCritical = false)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isLoading.value = false
             }
         }
     }
@@ -149,14 +154,30 @@ class MainViewModel(
     }
 
     fun triggerTestMidnightAlert(context: Context) {
-        BedtimeWorker.showBedtimeNotification(context)
+        val currentPhrase = userBond.value?.customBedtimePhrase?.ifBlank { null }
+            ?: BedtimeWorker.DEFAULT_CURFEW_PHRASE
+        BedtimeWorker.showBedtimeNotification(context, currentPhrase)
         _currentEmotion.value = "angry"
-        // Critical Event: Midnight Bedtime Lock warning
+        // Critical Event: Midnight / Curfew Lock warning
         ttsManager.speak(
-            "It's past midnight! Put your phone down right now and sleep, you hopeless slacker!",
+            currentPhrase,
             "angry",
             isCritical = true
         )
+    }
+
+    fun updateBedtimeConfig(context: Context, phrase: String, hour: Int, minute: Int) {
+        viewModelScope.launch {
+            repository.updateBedtimeConfig(phrase, hour, minute)
+            BedtimeWorker.scheduleCurfew(context, hour, minute)
+        }
+    }
+
+    fun previewCustomPhrase(phrase: String) {
+        if (phrase.isNotBlank()) {
+            _currentEmotion.value = "angry"
+            ttsManager.speak(phrase, "angry", isCritical = true)
+        }
     }
 
     fun clearChat() {

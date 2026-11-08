@@ -37,6 +37,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import android.app.Activity
+import android.content.Intent
+import android.speech.RecognizerIntent
+import android.widget.Toast
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -44,6 +48,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudOff
@@ -51,11 +56,19 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -125,9 +138,32 @@ fun MainScreen(
     var attachedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var showApiKeyDialog by remember { mutableStateOf(false) }
     var tempApiKey by remember { mutableStateOf(apiKey) }
+    var showBedtimeDialog by remember { mutableStateOf(false) }
+    var tempBedtimePhrase by remember {
+        mutableStateOf(
+            userBond?.customBedtimePhrase
+                ?: "It's 11:00 AM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
+        )
+    }
+    var selectedHour by remember { mutableStateOf(userBond?.bedtimeHour ?: 11) }
+    var selectedMinute by remember { mutableStateOf(userBond?.bedtimeMinute ?: 0) }
 
     val live2DController = remember { Live2DController() }
     val listState = rememberLazyListState()
+
+    // Speech-to-text recording launcher for bedtime trigger phrase
+    val speechRecognizerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spokenTextList = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            val spokenText = spokenTextList?.firstOrNull()
+            if (!spokenText.isNullOrBlank()) {
+                tempBedtimePhrase = spokenText
+                Toast.makeText(context, "Captured voice trigger phrase!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     // Zero-permission Android Photo Picker for chat attachments
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -478,13 +514,20 @@ fun MainScreen(
                                 }
                             }
 
-                            // Midnight Alert Test
+                            // 11:00 AM Curfew & Bedtime Scold Settings Dialog Button
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
                                 color = GlassSurface.copy(alpha = 0.65f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
                                 modifier = Modifier
-                                    .clickable { viewModel.triggerTestMidnightAlert(context) }
-                                    .testTag("test_midnight_alert_button")
+                                    .clickable {
+                                        tempBedtimePhrase = userBond?.customBedtimePhrase
+                                            ?: "It's 11:00 AM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
+                                        selectedHour = userBond?.bedtimeHour ?: 11
+                                        selectedMinute = userBond?.bedtimeMinute ?: 0
+                                        showBedtimeDialog = true
+                                    }
+                                    .testTag("curfew_settings_button")
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
@@ -497,7 +540,45 @@ fun MainScreen(
                                         modifier = Modifier.size(13.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Bedtime Scold", fontSize = 11.sp, color = TextSilver)
+                                    val hour = userBond?.bedtimeHour ?: 11
+                                    val min = (userBond?.bedtimeMinute ?: 0).toString().padStart(2, '0')
+                                    val amPm = if (hour < 12) "AM" else "PM"
+                                    val displayHour = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
+                                    Text(
+                                        "Curfew ($displayHour:$min $amPm)",
+                                        fontSize = 11.sp,
+                                        color = TextSilver
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Settings,
+                                        contentDescription = "Edit Curfew Settings",
+                                        tint = LavenderPrimary,
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                }
+                            }
+
+                            // Quick Bedtime Alert Test
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = GlassSurface.copy(alpha = 0.65f),
+                                modifier = Modifier
+                                    .clickable { viewModel.triggerTestMidnightAlert(context) }
+                                    .testTag("test_midnight_alert_button")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = null,
+                                        tint = SoftGold,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("Test Alert", fontSize = 11.sp, color = TextSilver)
                                 }
                             }
                         }
@@ -795,6 +876,326 @@ fun MainScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showApiKeyDialog = false }) {
+                    Text("Cancel", color = TextMuted)
+                }
+            },
+            containerColor = SlateDark
+        )
+    }
+
+    // Bedtime & Curfew Settings Dialog (11:00 AM Curfew / Midnight / Custom Phrase)
+    if (showBedtimeDialog) {
+        val scrollState = rememberScrollState()
+        val presetPhrases = listOf(
+            "It's 11:00 AM curfew! Put your phone down right now and take a rest, you hopeless slacker!",
+            "Hey! Look at the clock, it's 11:00 AM! Stop staring at this screen and stretch, or I'm taking your phone!",
+            "Are you really still slacking off at 11:00 AM?! I didn't remind you because I care... I just hate seeing you ruin your health!",
+            "It's bedtime! Put your phone down and go to sleep right this second, you stubborn idiot! If you get sick, I'm NOT nursing you!"
+        )
+
+        val timeOptions = listOf(
+            Triple("11:00 AM (Curfew)", 11, 0),
+            Triple("12:00 AM (Midnight)", 0, 0),
+            Triple("11:00 PM (Night)", 23, 0),
+            Triple("10:30 PM", 22, 30)
+        )
+
+        AlertDialog(
+            onDismissRequest = { showBedtimeDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Bedtime,
+                        contentDescription = null,
+                        tint = SoftGold,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "Curfew & Bedtime Scold Settings",
+                        color = TextWhite,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(scrollState),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Ayaka will enforce your daily rest schedule with a push notification and strict audio scolding in her mommy-tsundere voice.",
+                        fontSize = 12.sp,
+                        color = TextSilver,
+                        lineHeight = 16.sp
+                    )
+
+                    // 1. Curfew Time Selector
+                    Text(
+                        text = "1. Curfew Alert Time:",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = LavenderPrimary
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        timeOptions.take(2).forEach { (label, hour, min) ->
+                            val isSelected = selectedHour == hour && selectedMinute == min
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) VioletAccent else SlateSurface,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (isSelected) LavenderPrimary else SlateBorder
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        selectedHour = hour
+                                        selectedMinute = min
+                                    }
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) TextWhite else TextSilver
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        timeOptions.drop(2).forEach { (label, hour, min) ->
+                            val isSelected = selectedHour == hour && selectedMinute == min
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) VioletAccent else SlateSurface,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (isSelected) LavenderPrimary else SlateBorder
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        selectedHour = hour
+                                        selectedMinute = min
+                                    }
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) TextWhite else TextSilver
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Select In-Character Trigger Phrase
+                    Text(
+                        text = "2. Select In-Character Scold Phrase:",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = LavenderPrimary
+                    )
+
+                    presetPhrases.forEachIndexed { _, phrase ->
+                        val isCurrent = tempBedtimePhrase.trim() == phrase.trim()
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isCurrent) VioletAccent.copy(alpha = 0.45f) else SlateSurface.copy(alpha = 0.6f),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isCurrent) LavenderPrimary else SlateBorder.copy(alpha = 0.5f)
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { tempBedtimePhrase = phrase }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Icon(
+                                    imageVector = if (isCurrent) Icons.Default.Check else Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    tint = if (isCurrent) LavenderPrimary else TextMuted,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .padding(top = 2.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = phrase,
+                                    fontSize = 11.sp,
+                                    color = if (isCurrent) TextWhite else TextSilver,
+                                    lineHeight = 15.sp
+                                )
+                            }
+                        }
+                    }
+
+                    // 3. Record or Custom Edit
+                    Text(
+                        text = "3. Or Record / Type Your Own:",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = LavenderPrimary
+                    )
+
+                    // Speech-to-Text Voice Recording Button
+                    Button(
+                        onClick = {
+                            try {
+                                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                    putExtra(
+                                        RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                        RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                                    )
+                                    putExtra(
+                                        RecognizerIntent.EXTRA_PROMPT,
+                                        "Speak Ayaka's curfew trigger phrase..."
+                                    )
+                                }
+                                speechRecognizerLauncher.launch(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(
+                                    context,
+                                    "Speech recognition not available on this device",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = GlassSurface,
+                            contentColor = TextWhite
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, LavenderPrimary.copy(alpha = 0.7f)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("record_voice_trigger_button")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = "Record Trigger Phrase",
+                                tint = BlushPink,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Record Custom Voice Phrase",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextWhite
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = tempBedtimePhrase,
+                        onValueChange = { tempBedtimePhrase = it },
+                        placeholder = { Text("Enter custom scold phrase...", color = TextMuted) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        maxLines = 4,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextWhite,
+                            unfocusedTextColor = TextWhite,
+                            focusedBorderColor = LavenderPrimary,
+                            unfocusedBorderColor = SlateBorder
+                        )
+                    )
+
+                    // 4. Voice Preview Action
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = SlateDark,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.previewCustomPhrase(tempBedtimePhrase)
+                            }
+                            .testTag("preview_curfew_voice_button")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VolumeUp,
+                                contentDescription = null,
+                                tint = SoftGold,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Preview Ayaka Voice Scold",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = SoftGold
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val phrase = tempBedtimePhrase.trim().ifBlank {
+                            "It's 11:00 AM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
+                        }
+                        viewModel.updateBedtimeConfig(
+                            context = context,
+                            phrase = phrase,
+                            hour = selectedHour,
+                            minute = selectedMinute
+                        )
+                        val displayHour = if (selectedHour == 0) 12 else if (selectedHour > 12) selectedHour - 12 else selectedHour
+                        val displayMin = selectedMinute.toString().padStart(2, '0')
+                        val amPm = if (selectedHour < 12) "AM" else "PM"
+                        Toast.makeText(
+                            context,
+                            "Curfew set for $displayHour:$displayMin $amPm!",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        showBedtimeDialog = false
+                    },
+                    modifier = Modifier.testTag("save_curfew_config_button")
+                ) {
+                    Text("Save Curfew", color = LavenderPrimary, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBedtimeDialog = false }) {
                     Text("Cancel", color = TextMuted)
                 }
             },

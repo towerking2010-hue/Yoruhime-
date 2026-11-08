@@ -54,6 +54,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -114,39 +115,57 @@ fun CameraPreviewDock(
         }
     }
 
+    var cameraProviderInstance by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+
     // Bind Camera lifecycle when isVisible, permission, or lens facing toggles
     LaunchedEffect(isVisible, hasCameraPermission, isFrontCamera, previewView) {
-        if (!isVisible || !hasCameraPermission || previewView == null) return@LaunchedEffect
+        if (!isVisible || !hasCameraPermission || previewView == null) {
+            cameraProviderInstance?.unbindAll()
+            return@LaunchedEffect
+        }
 
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-        val cameraProvider = cameraProviderFuture.get()
+        cameraProviderFuture.addListener({
+            try {
+                val cameraProvider = cameraProviderFuture.get()
+                cameraProviderInstance = cameraProvider
 
-        val lensFacing = if (isFrontCamera) {
-            CameraSelector.LENS_FACING_FRONT
-        } else {
-            CameraSelector.LENS_FACING_BACK
-        }
-        val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
+                val lensFacing = if (isFrontCamera) {
+                    CameraSelector.LENS_FACING_FRONT
+                } else {
+                    CameraSelector.LENS_FACING_BACK
+                }
+                val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
 
-        val preview = Preview.Builder().build().also {
-            it.surfaceProvider = previewView!!.surfaceProvider
-        }
+                val preview = Preview.Builder().build().also {
+                    it.surfaceProvider = previewView?.surfaceProvider
+                }
 
-        val capture = ImageCapture.Builder()
-            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-            .build()
-        imageCapture = capture
+                val capture = ImageCapture.Builder()
+                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                    .build()
+                imageCapture = capture
 
-        try {
-            cameraProvider.unbindAll()
-            cameraProvider.bindToLifecycle(
-                lifecycleOwner,
-                cameraSelector,
-                preview,
-                capture
-            )
-        } catch (e: Exception) {
-            e.printStackTrace()
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    cameraSelector,
+                    preview,
+                    capture
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }, ContextCompat.getMainExecutor(context))
+    }
+
+    DisposableEffect(isVisible) {
+        onDispose {
+            try {
+                cameraProviderInstance?.unbindAll()
+            } catch (e: Exception) {
+                // Ignore unbind on dispose
+            }
         }
     }
 

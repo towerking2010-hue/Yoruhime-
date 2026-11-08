@@ -178,6 +178,17 @@ class ChatRepository(
         return response
     }
 
+    suspend fun updateBedtimeConfig(phrase: String, hour: Int, minute: Int) {
+        val currentBond = getBond()
+        database.bondDao().insertOrUpdateBond(
+            currentBond.copy(
+                customBedtimePhrase = phrase,
+                bedtimeHour = hour,
+                bedtimeMinute = minute
+            )
+        )
+    }
+
     suspend fun clearHistory() {
         database.chatDao().clearAllMessages()
     }

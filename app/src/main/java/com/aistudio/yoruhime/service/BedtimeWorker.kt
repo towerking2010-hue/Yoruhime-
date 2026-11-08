@@ -16,6 +16,9 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.aistudio.yoruhime.MainActivity
 import com.aistudio.yoruhime.R
+import com.aistudio.yoruhime.data.local.AppDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
@@ -24,9 +27,14 @@ class BedtimeWorker(
     workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
 
-    override suspend fun doWork(): Result {
-        showBedtimeNotification(appContext)
-        return Result.success()
+    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        val customPhrase = try {
+            AppDatabase.getDatabase(appContext).bondDao().getBond()?.customBedtimePhrase
+        } catch (e: Exception) {
+            null
+        }
+        showBedtimeNotification(appContext, customPhrase)
+        Result.success()
     }
 
     companion object {
@@ -34,26 +42,28 @@ class BedtimeWorker(
         const val NOTIFICATION_ID = 1001
         const val WORK_NAME = "ayaka_bedtime_worker"
 
-        fun scheduleDailyMidnight(context: Context) {
+        const val DEFAULT_CURFEW_PHRASE =
+            "It's 11:00 AM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
+
+        fun scheduleCurfew(context: Context, hour: Int = 11, minute: Int = 0) {
             val now = Calendar.getInstance()
             val target = Calendar.getInstance().apply {
-                set(Calendar.HOUR_OF_DAY, 0)
-                set(Calendar.MINUTE, 0)
+                set(Calendar.HOUR_OF_DAY, hour)
+                set(Calendar.MINUTE, minute)
                 set(Calendar.SECOND, 0)
                 set(Calendar.MILLISECOND, 0)
-                if (before(now)) {
+                if (before(now) || equals(now)) {
                     add(Calendar.DAY_OF_MONTH, 1)
                 }
             }
 
             val initialDelayMillis = target.timeInMillis - now.timeInMillis
+            val safeDelay = maxOf(initialDelayMillis, 1000L)
 
             val workRequest = PeriodicWorkRequestBuilder<BedtimeWorker>(24, TimeUnit.HOURS)
-                .setInitialDelay(initialDelayMillis, TimeUnit.MILLISECONDS)
-                .setConstraints(
-                    Constraints.Builder()
-                        .build()
-                )
+                .setInitialDelay(safeDelay, TimeUnit.MILLISECONDS)
+                .setBackoffCriteria(androidx.work.BackoffPolicy.LINEAR, 15, TimeUnit.MINUTES)
+                .setConstraints(Constraints.NONE)
                 .build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
@@ -63,7 +73,11 @@ class BedtimeWorker(
             )
         }
 
-        fun showBedtimeNotification(context: Context) {
+        fun scheduleDailyMidnight(context: Context) {
+            scheduleCurfew(context, 11, 0)
+        }
+
+        fun showBedtimeNotification(context: Context, customPhrase: String? = null) {
             createNotificationChannel(context)
 
             val intent = Intent(context, MainActivity::class.java).apply {
@@ -76,19 +90,25 @@ class BedtimeWorker(
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
 
-            val scoldMessages = listOf(
-                "It's past midnight! Put your phone down right now and sleep, you hopeless slacker!",
-                "Do you have any idea what time it is?! Look at the clock! Go to bed or you'll collapse tomorrow!",
-                "Still up playing on your phone?! If you get sick from staying up, I'm NOT nursing you! ...S-so go to sleep already!"
-            )
-            val message = scoldMessages.random()
+            val message = if (!customPhrase.isNullOrBlank()) {
+                customPhrase
+            } else {
+                val scoldMessages = listOf(
+                    DEFAULT_CURFEW_PHRASE,
+                    "Do you have any idea what time it is?! Look at the clock! Stop staring at your screen or you'll collapse!",
+                    "Still glued to your phone?! If you push yourself too hard and get sick, I'm NOT nursing you! Take a break already!"
+                )
+                scoldMessages.random()
+            }
 
             val builder = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle("Bedtime Warning from Ayaka")
+                .setContentTitle("Curfew Warning from Ayaka")
                 .setContentText(message)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(message))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setContentIntent(pendingIntent)
                 .setAutoCancel(true)
 
@@ -101,8 +121,8 @@ class BedtimeWorker(
 
         private fun createNotificationChannel(context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val name = "Ayaka Bedtime Routine"
-                val descriptionText = "Midnight curfew alerts and health scoldings from Ayaka"
+                val name = "Ayaka Bedtime & Curfew"
+                val descriptionText = "Curfew alerts and health scoldings from Ayaka"
                 val importance = NotificationManager.IMPORTANCE_HIGH
                 val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
                     description = descriptionText

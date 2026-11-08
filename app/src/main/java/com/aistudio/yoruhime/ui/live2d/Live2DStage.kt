@@ -30,7 +30,7 @@ class Live2DController {
     fun setEmotion(emotion: String) {
         val wv = webView
         if (wv != null) {
-            val script = "javascript:window.setEmotion && window.setEmotion('$emotion');"
+            val script = "window.setEmotion && window.setEmotion('$emotion');"
             wv.post { wv.evaluateJavascript(script, null) }
         } else {
             pendingEmotion = emotion
@@ -39,13 +39,13 @@ class Live2DController {
 
     fun playMotion(motionName: String = "Idle") {
         val wv = webView ?: return
-        val script = "javascript:window.playMotion && window.playMotion('$motionName');"
+        val script = "window.playMotion && window.playMotion('$motionName');"
         wv.post { wv.evaluateJavascript(script, null) }
     }
 
     fun lookAt(normalizedX: Float, normalizedY: Float) {
         val wv = webView ?: return
-        val script = "javascript:window.lookAt && window.lookAt($normalizedX, $normalizedY);"
+        val script = "window.lookAt && window.lookAt($normalizedX, $normalizedY);"
         wv.post { wv.evaluateJavascript(script, null) }
     }
 
@@ -53,7 +53,7 @@ class Live2DController {
         val wv = webView ?: return
         val escapedText = text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ")
         val emoParam = if (emotion != null) "'$emotion'" else "null"
-        val script = "javascript:window.showSpeech && window.showSpeech('$escapedText', $emoParam);"
+        val script = "window.showSpeech && window.showSpeech('$escapedText', $emoParam);"
         wv.post { wv.evaluateJavascript(script, null) }
     }
 
@@ -69,14 +69,16 @@ class AndroidBridge(
     private val onTapped: (String) -> Unit,
     private val onReady: () -> Unit
 ) {
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
     @JavascriptInterface
     fun onModelTapped(zone: String) {
-        onTapped(zone)
+        mainHandler.post { onTapped(zone) }
     }
 
     @JavascriptInterface
     fun onModelReady() {
-        onReady()
+        mainHandler.post { onReady() }
     }
 }
 
