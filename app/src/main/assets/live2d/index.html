@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+  <title>YoruHime - Ayaka Live2D</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+    }
+    #stage-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    #particles-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+    #speech-bubble {
+      position: absolute;
+      top: 56px;
+      left: 14px;
+      right: 14px;
+      max-width: 320px;
+      margin: 0 auto;
+      padding: 10px 14px;
+      background: rgba(14, 20, 36, 0.88);
+      border: 1px solid rgba(184, 167, 234, 0.35);
+      border-radius: 16px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 12px rgba(138, 112, 214, 0.15);
+      color: #F8FAFC;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
+      line-height: 1.4;
+      opacity: 0;
+      transform: translateY(-8px) scale(0.96);
+      transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+      z-index: 10;
+    }
+    #speech-bubble.visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    #speech-bubble::after {
+      content: '';
+      position: absolute;
+      bottom: -7px;
+      left: 48px;
+      width: 12px;
+      height: 12px;
+      background: rgba(14, 20, 36, 0.88);
+      border-right: 1px solid rgba(184, 167, 234, 0.35);
+      border-bottom: 1px solid rgba(184, 167, 234, 0.35);
+      transform: rotate(45deg);
+    }
+    .speaker-tag {
+      font-size: 10px;
+      font-weight: 700;
+      color: #B8A7EA;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .speaker-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #8A70D6;
+      box-shadow: 0 0 6px #8A70D6;
+    }
+  </style>
+  <script src="live2dcubismcore.min.js"></script>
+  <script src="pixi.min.js"></script>
+  <script src="cubism4.min.js"></script>
+</head>
+<body>
+  <div id="stage-container">
+    <canvas id="live2d-canvas"></canvas>
+    <canvas id="particles-canvas"></canvas>
+    <div id="speech-bubble">
+      <div class="speaker-tag">
+        <div class="speaker-dot"></div>
+        <span>Ayaka Tōjou</span>
+      </div>
+      <div id="speech-text"></div>
+    </div>
+  </div>
+
+  <script>
+    let app = null;
+    let currentModel = null;
+    const TARGET_FPS = 30;
+    const FRAME_INTERVAL = 1000 / TARGET_FPS;
+    let lastRenderTime = performance.now();
+
+    // Natural Eye Blink State Machine
+    let blinkTimer = 0;
+    let nextBlinkInterval = 3000 + Math.random() * 2500;
+    let isBlinking = false;
+    let blinkProgress = 0;
+
+    // Gaze and Pointer Tracking with Smooth Damping
+    let currentFocusX = 0, currentFocusY = 0;
+    let targetFocusX = 0, targetFocusY = 0;
+    let lastInteractionTime = performance.now();
+
+    // Reactive Tap Bounce Physics
+    let reactiveAngleZ = 0;
+    let reactiveVelocityZ = 0;
+
+    // Active Emotion State
+    let activeEmotion = 'normal';
+    let emotionParams = {
+      browY: 0,
+      mouthForm: 0,
+      eyeOpen: 1,
+      targetBrowY: 0,
+      targetMouthForm: 0,
+      targetEyeOpen: 1
+    };
+
+    const EMOTION_MAP = {
+      'blush':  { button: 'Button2', browY: 0.2, mouth: 0.1, eyeOpen: 0.95 },
+      'smile':  { button: 'Button4', browY: 0.4, mouth: 0.8, eyeOpen: 0.85 },
+      'happy':  { button: 'Button3', browY: 0.6, mouth: 1.0, eyeOpen: 0.75 },
+      'sad':    { button: 'Button1', browY: -0.5, mouth: -0.6, eyeOpen: 0.8 },
+      'angry':  { button: 'Button7', browY: -0.8, mouth: -0.4, eyeOpen: 1.0 },
+      'normal': { button: null, browY: 0.0, mouth: 0.0, eyeOpen: 1.0 }
+    };
+
+    // Particle FX Canvas
+    const pCanvas = document.getElementById('particles-canvas');
+    const pCtx = pCanvas.getContext('2d');
+    let particles = [];
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const canvas = document.getElementById('live2d-canvas');
+        const container = document.getElementById('stage-container');
+        const width = container.clientWidth || window.innerWidth;
+        const height = container.clientHeight || window.innerHeight;
+
+        resizeParticleCanvas();
+        window.addEventListener('resize', resizeParticleCanvas);
+
+        app = new PIXI.Application({
+          view: canvas,
+          width: width,
+          height: height,
+          transparent: true,
+          backgroundAlpha: 0,
+          antialias: true,
+          resolution: Math.min(window.devicePixelRatio || 1, 2),
+          autoDensity: true,
+          autoStart: false // Managed 30 FPS Loop
+        });
+
+        PIXI.live2d.Live2DModel.registerTicker(PIXI.Ticker);
+
+        currentModel = await PIXI.live2d.Live2DModel.from('tsubaki.model3.json', {
+          autoInteract: false
+        });
+
+        app.stage.addChild(currentModel);
+        resizeModel();
+        window.addEventListener('resize', resizeModel);
+
+        // Pointer / Touch tracking
+        window.addEventListener('pointermove', (e) => {
+          targetFocusX = ((e.clientX / window.innerWidth) - 0.5) * 2;
+          targetFocusY = -((e.clientY / window.innerHeight) - 0.5) * 2;
+          lastInteractionTime = performance.now();
+        });
+
+        window.addEventListener('pointerdown', (e) => {
+          const relativeY = e.clientY / window.innerHeight;
+          let zone = 'body';
+          if (relativeY < 0.22) zone = 'head';
+          else if (relativeY < 0.38) zone = 'chest';
+
+          // Spawn particle ripple
+          spawnTapParticles(e.clientX, e.clientY, zone);
+
+          // Add spring bounce to head
+          reactiveVelocityZ = (Math.random() - 0.5) * 12;
+
+          if (window.AndroidBridge && window.AndroidBridge.onModelTapped) {
+            window.AndroidBridge.onModelTapped(zone);
+          }
+          lastInteractionTime = performance.now();
+        });
+
+        // Strict 30 FPS Render Loop
+        function loop(timestamp) {
+          requestAnimationFrame(loop);
+          const elapsed = timestamp - lastRenderTime;
+          if (elapsed >= FRAME_INTERVAL) {
+            lastRenderTime = timestamp - (elapsed % FRAME_INTERVAL);
+
+            updateProceduralAnimations(timestamp, elapsed);
+            renderParticles();
+
+            app.ticker.update(timestamp);
+            app.renderer.render(app.stage);
+          }
+        }
+        requestAnimationFrame(loop);
+
+        if (window.AndroidBridge && window.AndroidBridge.onModelReady) {
+          window.AndroidBridge.onModelReady();
+        }
+      } catch (err) {
+        console.error("Live2D error:", err);
+      }
+    });
+
+    function resizeParticleCanvas() {
+      pCanvas.width = window.innerWidth * (window.devicePixelRatio || 1);
+      pCanvas.height = window.innerHeight * (window.devicePixelRatio || 1);
+      pCtx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+    }
+
+    function resizeModel() {
+      if (!currentModel || !app) return;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      app.renderer.resize(w, h);
+
+      const scaleX = (w * 0.96) / currentModel.width;
+      const scaleY = (h * 0.96) / currentModel.height;
+      const baseScale = Math.min(scaleX, scaleY) * 1.38;
+
+      currentModel.scale.set(baseScale);
+      currentModel.anchor.set(0.5, 0.34);
+      currentModel.x = w * 0.5;
+      currentModel.y = h * 0.44;
+    }
+
+    function updateProceduralAnimations(timestamp, elapsed) {
+      if (!currentModel || !currentModel.internalModel || !currentModel.internalModel.coreModel) return;
+      const core = currentModel.internalModel.coreModel;
+
+      // 1. Smooth Gaze Damping towards target
+      if (timestamp - lastInteractionTime > 3000) {
+        targetFocusX = Math.sin(timestamp * 0.0007) * 0.25;
+        targetFocusY = Math.cos(timestamp * 0.0005) * 0.15;
+      }
+      currentFocusX += (targetFocusX - currentFocusX) * 0.08;
+      currentFocusY += (targetFocusY - currentFocusY) * 0.08;
+      currentModel.focus(currentFocusX * (window.innerWidth * 0.4), currentFocusY * (window.innerHeight * 0.3));
+
+      // 2. Procedural Breathing (ParamBreath)
+      const breathVal = (Math.sin(timestamp * 0.0022) + 1) * 0.5;
+      core.setParameterValueById('ParamBreath', breathVal);
+
+      // 3. Subtle Organic Head & Body Sway
+      reactiveVelocityZ += (0 - reactiveAngleZ) * 0.15;
+      reactiveVelocityZ *= 0.85;
+      reactiveAngleZ += reactiveVelocityZ;
+
+      const swayZ = Math.sin(timestamp * 0.001) * 2.2 + reactiveAngleZ;
+      const swayBody = Math.cos(timestamp * 0.0007) * 1.4;
+      core.setParameterValueById('ParamAngleZ', swayZ);
+      core.setParameterValueById('ParamBodyAngleZ', swayBody);
+
+      // 4. Natural Eye Blinking State Machine
+      blinkTimer += elapsed;
+      if (!isBlinking && blinkTimer >= nextBlinkInterval) {
+        isBlinking = true;
+        blinkTimer = 0;
+        blinkProgress = 0;
+        nextBlinkInterval = 3000 + Math.random() * 3000;
+      }
+      let eyeBlinkMultiplier = 1.0;
+      if (isBlinking) {
+        blinkProgress += elapsed / 180; // 180ms total blink duration
+        if (blinkProgress <= 0.5) {
+          eyeBlinkMultiplier = 1.0 - (blinkProgress * 2.0); // 1 -> 0
+        } else if (blinkProgress <= 1.0) {
+          eyeBlinkMultiplier = (blinkProgress - 0.5) * 2.0; // 0 -> 1
+        } else {
+          isBlinking = false;
+          eyeBlinkMultiplier = 1.0;
+        }
+      }
+
+      // 5. Emotion Parameter Tweens
+      emotionParams.browY += (emotionParams.targetBrowY - emotionParams.browY) * 0.12;
+      emotionParams.mouthForm += (emotionParams.targetMouthForm - emotionParams.mouthForm) * 0.12;
+      emotionParams.eyeOpen += (emotionParams.targetEyeOpen - emotionParams.eyeOpen) * 0.12;
+
+      const finalEyeOpen = emotionParams.eyeOpen * eyeBlinkMultiplier;
+      core.setParameterValueById('ParamEyeROpen', Math.max(0, Math.min(1, finalEyeOpen)));
+      core.setParameterValueById('ParamEyeLOpen', Math.max(0, Math.min(1, finalEyeOpen)));
+      core.setParameterValueById('ParamBrowRY', emotionParams.browY);
+      core.setParameterValueById('ParamBrowLY', emotionParams.browY);
+      core.setParameterValueById('ParamMouthForm', emotionParams.mouthForm);
+    }
+
+    // Particle FX
+    function spawnTapParticles(x, y, zone) {
+      const colors = zone === 'head' ? ['#F472B6', '#B8A7EA', '#FFFFFF'] :
+                     zone === 'chest' ? ['#EF4444', '#F472B6', '#FBBF24'] :
+                     ['#8A70D6', '#B8A7EA', '#E2E8F0'];
+      for (let i = 0; i < 9; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 2 + Math.random() * 4;
+        particles.push({
+          x: x,
+          y: y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 1.5,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          size: 3 + Math.random() * 4,
+          alpha: 1.0,
+          decay: 0.03 + Math.random() * 0.03
+        });
+      }
+    }
+
+    function renderParticles() {
+      pCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.12; // gravity
+        p.alpha -= p.decay;
+
+        if (p.alpha <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+
+        pCtx.save();
+        pCtx.globalAlpha = p.alpha;
+        pCtx.fillStyle = p.color;
+        pCtx.beginPath();
+        pCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        pCtx.fill();
+        pCtx.restore();
+      }
+    }
+
+    // Exposed JS bridge methods
+    window.setEmotion = function(emotion) {
+      activeEmotion = emotion || 'normal';
+      const config = EMOTION_MAP[activeEmotion] || EMOTION_MAP['normal'];
+
+      // Reset button parameters
+      if (currentModel && currentModel.internalModel && currentModel.internalModel.coreModel) {
+        const core = currentModel.internalModel.coreModel;
+        ['Button1', 'Button2', 'Button3', 'Button4', 'Button7'].forEach(b => {
+          core.setParameterValueById(b, 0.0);
+        });
+        if (config.button) {
+          core.setParameterValueById(config.button, 1.0);
+        }
+      }
+
+      emotionParams.targetBrowY = config.browY;
+      emotionParams.targetMouthForm = config.mouth;
+      emotionParams.targetEyeOpen = config.eyeOpen;
+
+      try {
+        if (activeEmotion === 'normal') {
+          currentModel.expression();
+        } else {
+          currentModel.expression(activeEmotion);
+        }
+      } catch (e) { /* fallback gracefully */ }
+    };
+
+    window.playMotion = function(motionName) {
+      if (!currentModel) return;
+      try {
+        currentModel.motion(motionName || 'Idle');
+      } catch (e) {
+        console.warn("Motion error:", e);
+      }
+    };
+
+    let speechTimeout = null;
+    window.showSpeech = function(text, emotion) {
+      if (emotion) window.setEmotion(emotion);
+      const bubble = document.getElementById('speech-bubble');
+      const textElem = document.getElementById('speech-text');
+      if (!bubble || !textElem) return;
+
+      textElem.innerText = text;
+      bubble.classList.add('visible');
+
+      clearTimeout(speechTimeout);
+      speechTimeout = setTimeout(() => {
+        bubble.classList.remove('visible');
+      }, 5000);
+    };
+  </script>
+</body>
+</html>

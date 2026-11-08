@@ -1,0 +1,59 @@
+{
+  "Version": 3,
+  "FileReferences": {
+    "Moc": "tsubaki.moc3",
+    "Textures": [
+      "textures/texture_00.png",
+      "textures/texture_01.png",
+      "textures/texture_02.png"
+    ],
+    "Physics": "tsubaki.physics3.json",
+    "DisplayInfo": "tsubaki.cdi3.json",
+    "Expressions": [
+      {
+        "Name": "angry",
+        "File": "EXP3/angry.exp3.json"
+      },
+      {
+        "Name": "blush",
+        "File": "EXP3/blush.exp3.json"
+      },
+      {
+        "Name": "happy",
+        "File": "EXP3/happy.exp3.json"
+      },
+      {
+        "Name": "sad",
+        "File": "EXP3/sad.exp3.json"
+      },
+      {
+        "Name": "smile",
+        "File": "EXP3/smile.exp3.json"
+      }
+    ],
+    "Motions": {
+      "Idle": [
+        {
+          "File": "motions/idle.motion3.json"
+        }
+      ]
+    }
+  },
+  "Groups": [
+    {
+      "Target": "Parameter",
+      "Name": "EyeBlink",
+      "Ids": [
+        "ParamEyeROpen",
+        "ParamEyeLOpen"
+      ]
+    },
+    {
+      "Target": "Parameter",
+      "Name": "LipSync",
+      "Ids": [
+        "ParamMouthOpenY"
+      ]
+    }
+  ]
+}

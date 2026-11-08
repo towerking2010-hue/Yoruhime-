@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">YoruHime</string>
+    <string name="character_name">Ayaka Tōjou</string>
+    <string name="character_title">Your Strict Student Council VP</string>
+    <string name="chat_placeholder">Talk to Ayaka… or face her scolding</string>
+    <string name="send_message">Send</string>
+    <string name="online_mode">Online (Gemini Cloud)</string>
+    <string name="offline_mode">Offline (Local Guard)</string>
+    <string name="bond_level">Affection &amp; Bond</string>
+    <string name="study_session_title">Ayaka\'s Strict Study Session</string>
+    <string name="start_focus">Start Focus</string>
+    <string name="pause_focus">Pause</string>
+    <string name="reset_focus">Reset</string>
+    <string name="break_time">Take a Breath</string>
+    <string name="camera_mode_front">Front Camera (Stress Track)</string>
+    <string name="camera_mode_back">Back Camera (Inspect Space)</string>
+    <string name="camera_close">Close Camera</string>
+    <string name="camera_analyze">Ayaka Inspect</string>
+    <string name="bedtime_reminder_title">Bedtime Warning from Ayaka</string>
+    <string name="bedtime_reminder_body">"It\'s past midnight! Put your phone down right now and sleep, you hopeless slacker!"</string>
+    <string name="permission_camera_rationale">Ayaka needs camera access to inspect your workspace or analyze your fatigue.</string>
+    <string name="permission_grant">Grant Permission</string>
+</resources>

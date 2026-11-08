@@ -1,0 +1,31 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Subtle Lavender Glow Accent -->
+    <path
+        android:fillColor="#1F2438"
+        android:pathData="M54,20 A34,34 0 1,0 88,54 A34,34 0 0,0 54,20 Z" />
+    
+    <!-- Minimalist Silver Crescent Moon -->
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M52,28 C65.25,28 76,38.75 76,52 C76,65.25 65.25,76 52,76 C44.5,76 37.8,72.5 33.5,67 C42,67.5 50,61 50,52 C50,43 42,36.5 33.5,37 C37.8,31.5 44.5,28 52,28 Z" />
+
+    <!-- Crown Peaks / Stellar Motif -->
+    <path
+        android:fillColor="#B8A7EA"
+        android:pathData="M54,23 L57,32 L51,32 Z" />
+    <path
+        android:fillColor="#CBD5E1"
+        android:pathData="M43,26 L47,34 L41,34 Z" />
+    <path
+        android:fillColor="#CBD5E1"
+        android:pathData="M65,26 L67,34 L61,34 Z" />
+        
+    <!-- Micro Silver Crown Gem -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,34 L56,36 L54,38 L52,36 Z" />
+</vector>
