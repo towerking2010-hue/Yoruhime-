@@ -9,6 +9,7 @@ import com.aistudio.yoruhime.data.local.ChatMessageEntity
 import com.aistudio.yoruhime.data.local.UserBondEntity
 import com.aistudio.yoruhime.data.repository.ChatRepository
 import com.aistudio.yoruhime.service.BedtimeWorker
+import com.aistudio.yoruhime.ui.audio.AyakaTtsManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +18,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class MainViewModel(
-    private val repository: ChatRepository
+    private val repository: ChatRepository,
+    private val ttsManager: AyakaTtsManager
 ) : ViewModel() {
 
     val messages: StateFlow<List<ChatMessageEntity>> = repository.messagesFlow
@@ -47,26 +49,29 @@ class MainViewModel(
     private val _isFrontCamera = MutableStateFlow(false) // Default to back camera for world-feed
     val isFrontCamera: StateFlow<Boolean> = _isFrontCamera.asStateFlow()
 
+    val isAudioMuted: StateFlow<Boolean> = ttsManager.isMuted
+    val isSpeaking: StateFlow<Boolean> = ttsManager.isSpeaking
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     init {
-        // Post friendly in-character greeting on first launch if chat is empty
+        // Initial in-character check
         viewModelScope.launch {
-            val bond = repository.getBond()
-            if (messages.value.isEmpty()) {
-                val greeting = if (bond.bondLevel > 1) {
-                    "You're back? Don't just stand there staring, sit down. Did you eat proper food today?"
-                } else {
-                    "Hmph, you're finally here. I prepared your schedule for today. Make sure you don't slack off on my watch!"
-                }
-                _currentEmotion.value = "smile"
-            }
+            repository.getBond()
         }
     }
 
     fun setEmotion(emotion: String) {
         _currentEmotion.value = emotion
+    }
+
+    fun toggleAudioMute() {
+        ttsManager.toggleMute()
+    }
+
+    fun speakMessage(text: String, emotion: String, isCritical: Boolean = false) {
+        ttsManager.speak(text, emotion, isCritical)
     }
 
     fun toggleOnlineMode(enabled: Boolean) {
@@ -106,6 +111,11 @@ class MainViewModel(
             )
             _currentEmotion.value = response.emotion
             _isLoading.value = false
+
+            // Auto voice output for high-tier tsundere emotional states (blush, angry)
+            if (response.emotion == "blush" || response.emotion == "angry") {
+                ttsManager.speak(response.text, response.emotion, isCritical = false)
+            }
         }
     }
 
@@ -113,6 +123,10 @@ class MainViewModel(
         viewModelScope.launch {
             val response = repository.recordTouchInteraction(zone)
             _currentEmotion.value = response.emotion
+            // Voice response on touch if high-tier tsundere reaction
+            if (response.emotion == "blush" || response.emotion == "angry") {
+                ttsManager.speak(response.text, response.emotion, isCritical = false)
+            }
         }
     }
 
@@ -120,6 +134,8 @@ class MainViewModel(
         viewModelScope.launch {
             val response = repository.recordStudySessionComplete(minutes)
             _currentEmotion.value = response.emotion
+            // Critical Event: Pomodoro Timer Completed alert
+            ttsManager.speak(response.text, response.emotion, isCritical = true)
         }
     }
 
@@ -127,12 +143,20 @@ class MainViewModel(
         viewModelScope.launch {
             val response = repository.recordStudyInterrupted()
             _currentEmotion.value = response.emotion
+            // Critical Event: Pomodoro focus interruption warning
+            ttsManager.speak(response.text, response.emotion, isCritical = true)
         }
     }
 
     fun triggerTestMidnightAlert(context: Context) {
         BedtimeWorker.showBedtimeNotification(context)
         _currentEmotion.value = "angry"
+        // Critical Event: Midnight Bedtime Lock warning
+        ttsManager.speak(
+            "It's past midnight! Put your phone down right now and sleep, you hopeless slacker!",
+            "angry",
+            isCritical = true
+        )
     }
 
     fun clearChat() {
@@ -141,10 +165,18 @@ class MainViewModel(
         }
     }
 
-    class Factory(private val repository: ChatRepository) : ViewModelProvider.Factory {
+    override fun onCleared() {
+        super.onCleared()
+        ttsManager.stop()
+    }
+
+    class Factory(
+        private val repository: ChatRepository,
+        private val ttsManager: AyakaTtsManager
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return MainViewModel(repository) as T
+            return MainViewModel(repository, ttsManager) as T
         }
     }
 }

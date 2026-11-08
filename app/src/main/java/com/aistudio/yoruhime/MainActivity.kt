@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels {
         val app = application as YoruHimeApplication
-        MainViewModel.Factory(app.repository)
+        MainViewModel.Factory(app.repository, app.ttsManager)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

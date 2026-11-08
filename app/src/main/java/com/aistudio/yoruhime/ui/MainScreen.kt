@@ -53,6 +53,8 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -115,6 +117,8 @@ fun MainScreen(
     val isPomodoroVisible by viewModel.isPomodoroVisible.collectAsState()
     val isArCameraActive by viewModel.isArCameraActive.collectAsState()
     val isFrontCamera by viewModel.isFrontCamera.collectAsState()
+    val isAudioMuted by viewModel.isAudioMuted.collectAsState()
+    val isSpeaking by viewModel.isSpeaking.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
     var inputText by remember { mutableStateOf("") }
@@ -349,6 +353,28 @@ fun MainScreen(
                                 modifier = Modifier.size(14.dp)
                             )
                         }
+
+                        // Minimalist Master Speaker Voice Toggle
+                        IconButton(
+                            onClick = { viewModel.toggleAudioMute() },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(if (isSpeaking) VioletAccent.copy(alpha = 0.85f) else GlassDark.copy(alpha = 0.75f))
+                                .border(
+                                    1.dp,
+                                    if (isSpeaking) LavenderPrimary else if (!isAudioMuted) GlassBorder else SlateBorder,
+                                    CircleShape
+                                )
+                                .testTag("master_audio_toggle_button")
+                        ) {
+                            Icon(
+                                imageVector = if (isAudioMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                                contentDescription = if (isAudioMuted) "Unmute Ayaka Voice" else "Mute Ayaka Voice",
+                                tint = if (!isAudioMuted) LavenderPrimary else TextMuted,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
                     }
                 }
 
@@ -550,7 +576,12 @@ fun MainScreen(
 
                         items(messages, key = { it.id }) { msg ->
                             Box(modifier = Modifier.animateItem()) {
-                                ChatMessageBubble(msg)
+                                ChatMessageBubble(
+                                    message = msg,
+                                    onReplayAudio = { text, emotion ->
+                                        viewModel.speakMessage(text, emotion, isCritical = true)
+                                    }
+                                )
                             }
                         }
 
@@ -773,7 +804,10 @@ fun MainScreen(
 }
 
 @Composable
-fun ChatMessageBubble(message: ChatMessageEntity) {
+fun ChatMessageBubble(
+    message: ChatMessageEntity,
+    onReplayAudio: (String, String) -> Unit = { _, _ -> }
+) {
     val isUser = message.isFromUser
 
     Row(
@@ -797,24 +831,47 @@ fun ChatMessageBubble(message: ChatMessageEntity) {
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                 if (!isUser) {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = "Ayaka Tōjou",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = LavenderPrimary
-                        )
-                        if (message.isOffline) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
                             Text(
-                                text = "• Offline",
-                                fontSize = 9.sp,
-                                color = TextMuted
+                                text = "Ayaka Tōjou",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = LavenderPrimary
+                            )
+                            if (message.isOffline) {
+                                Text(
+                                    text = "• Offline",
+                                    fontSize = 9.sp,
+                                    color = TextMuted
+                                )
+                            }
+                        }
+
+                        // On-Demand Voice Line Replay Button
+                        IconButton(
+                            onClick = { onReplayAudio(message.text, message.emotionTag) },
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(SlateSurface.copy(alpha = 0.5f))
+                                .testTag("replay_voice_button_${message.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VolumeUp,
+                                contentDescription = "Replay Ayaka voice line",
+                                tint = LavenderPrimary.copy(alpha = 0.85f),
+                                modifier = Modifier.size(13.dp)
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(3.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                 }
 
                 Text(
