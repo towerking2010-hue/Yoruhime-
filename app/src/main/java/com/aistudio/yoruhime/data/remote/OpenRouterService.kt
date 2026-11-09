@@ -93,8 +93,22 @@ class OpenRouterService {
             val currentContent: Any = if (imageBitmap == null) {
                 prompt
             } else {
+                // Bound upload dimensions to keep image requests practical on mid-range phones.
+                val maxDimension = maxOf(imageBitmap.width, imageBitmap.height).coerceAtLeast(1)
+                val scale = 1280f / maxDimension
+                val imageForUpload = if (scale < 1f) {
+                    Bitmap.createScaledBitmap(
+                        imageBitmap,
+                        (imageBitmap.width * scale).toInt().coerceAtLeast(1),
+                        (imageBitmap.height * scale).toInt().coerceAtLeast(1),
+                        true
+                    )
+                } else {
+                    imageBitmap
+                }
                 val outputStream = ByteArrayOutputStream()
-                imageBitmap.compress(Bitmap.CompressFormat.JPEG, 75, outputStream)
+                imageForUpload.compress(Bitmap.CompressFormat.JPEG, 75, outputStream)
+                if (imageForUpload !== imageBitmap) imageForUpload.recycle()
                 val encodedImage = Base64.encodeToString(
                     outputStream.toByteArray(),
                     Base64.NO_WRAP
