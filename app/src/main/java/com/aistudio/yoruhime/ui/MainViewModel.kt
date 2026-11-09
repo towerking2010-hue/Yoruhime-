@@ -91,7 +91,8 @@ class MainViewModel(
     fun updateApiKey(key: String) {
         _apiKey.value = key
         viewModelScope.launch(Dispatchers.IO) {
-            apiKeyStore.saveApiKey(key)
+            runCatching { apiKeyStore.saveApiKey(key) }
+                .onFailure { it.printStackTrace() }
         }
     }
 
