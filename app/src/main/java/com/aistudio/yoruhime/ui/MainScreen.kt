@@ -805,7 +805,7 @@ fun MainScreen(
                         IconButton(
                             onClick = {
                                 photoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                 )
                             },
                             modifier = Modifier
@@ -817,7 +817,7 @@ fun MainScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.AttachFile,
-                                contentDescription = "Upload Photo or Video",
+                                contentDescription = "Upload Photo",
                                 tint = if (attachedBitmap != null) LavenderPrimary else TextSilver,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -845,7 +845,7 @@ fun MainScreen(
                             keyboardActions = androidx.compose.foundation.text.KeyboardActions(
                                 onSend = {
                                     if (inputText.isNotBlank() || attachedBitmap != null) {
-                                        val text = if (inputText.isNotBlank()) inputText else "Ayaka, inspect this photo/video!"
+                                        val text = if (inputText.isNotBlank()) inputText else "Ayaka, inspect this photo!"
                                         val bmp = attachedBitmap
                                         inputText = ""
                                         attachedBitmap = null
