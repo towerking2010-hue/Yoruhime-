@@ -14,6 +14,9 @@ interface MemoryDao {
     @Query("SELECT * FROM memory_notes ORDER BY importance DESC, updatedAt DESC LIMIT :limit")
     suspend fun getRelevantMemories(limit: Int): List<MemoryNoteEntity>
 
+    @Query("SELECT * FROM memory_notes WHERE content = :content COLLATE NOCASE LIMIT 1")
+    suspend fun findMemory(content: String): MemoryNoteEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveMemory(memory: MemoryNoteEntity): Long
 
