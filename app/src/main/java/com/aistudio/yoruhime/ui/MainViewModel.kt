@@ -156,7 +156,7 @@ class MainViewModel(
     fun onModelTapped(zone: String) {
         viewModelScope.launch {
             val response = repository.recordTouchInteraction(zone)
-            _currentEmotion.value = response.emotion
+            updateMood(response.emotion)
             // Voice response on touch if high-tier tsundere reaction
             if (response.emotion == "blush" || response.emotion == "angry") {
                 ttsManager.speak(response.text, response.emotion, isCritical = false)
@@ -167,7 +167,7 @@ class MainViewModel(
     fun onStudyCompleted(minutes: Int) {
         viewModelScope.launch {
             val response = repository.recordStudySessionComplete(minutes)
-            _currentEmotion.value = response.emotion
+            updateMood(response.emotion)
             // Critical Event: Pomodoro Timer Completed alert
             ttsManager.speak(response.text, response.emotion, isCritical = true)
         }
@@ -176,7 +176,7 @@ class MainViewModel(
     fun onAppSwitchedAwayDuringStudy() {
         viewModelScope.launch {
             val response = repository.recordStudyInterrupted()
-            _currentEmotion.value = response.emotion
+            updateMood(response.emotion)
             // Critical Event: Pomodoro focus interruption warning
             ttsManager.speak(response.text, response.emotion, isCritical = true)
         }
@@ -204,7 +204,7 @@ class MainViewModel(
 
     fun previewCustomPhrase(phrase: String) {
         if (phrase.isNotBlank()) {
-            _currentEmotion.value = "angry"
+            updateMood("angry")
             ttsManager.speak(phrase, "angry", isCritical = true)
         }
     }
