@@ -68,7 +68,7 @@ class OpenRouterService {
                     put("content", buildString {
                         append(systemInstruction)
                         if (memoryNotes.isNotEmpty()) {
-                            append("\\n\\nUSER MEMORY NOTES (saved at the user's request):\\n")
+                            append("\n\nUSER MEMORY NOTES (saved at the user's request):\n")
                             memoryNotes.take(12).forEach { note ->
                                 append("- ")
                                 append(note.take(300))
