@@ -53,16 +53,6 @@ object OfflineDialogueBank {
         InCharacterResponse("happy", "When you actually apply yourself, you can do anything. Now stop making me repeat myself and get to it!")
     )
 
-    private val CAMERA_FRONT_TIRED = listOf(
-        InCharacterResponse("sad", "[Camera Analysis] Look at those eyes. Your facial tension indicates severe fatigue. Close your eyes for at least 5 minutes!"),
-        InCharacterResponse("blush", "[Camera Analysis] Staring straight into the lens at me? Your posture isn't bad today, but don't lean so close... it's distracting!")
-    )
-
-    private val CAMERA_BACK_INSPECT = listOf(
-        InCharacterResponse("angry", "[Camera Inspection] What is that mess on your desk?! Tidy up those papers and cables immediately before starting!"),
-        InCharacterResponse("normal", "[Camera Inspection] Hmm... desk looks workable. Keep your water bottle nearby and don't let clutter pile up.")
-    )
-
     fun generateReply(userPrompt: String, bondLevel: Int): InCharacterResponse {
         val lower = userPrompt.trim().lowercase()
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
@@ -116,11 +106,4 @@ object OfflineDialogueBank {
         }
     }
 
-    fun getCameraVisionReaction(isFrontCamera: Boolean): InCharacterResponse {
-        return if (isFrontCamera) {
-            CAMERA_FRONT_TIRED.random()
-        } else {
-            CAMERA_BACK_INSPECT.random()
-        }
-    }
 }
