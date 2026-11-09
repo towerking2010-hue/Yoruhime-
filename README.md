@@ -13,12 +13,11 @@ An interactive native Android companion application built with Kotlin and Jetpac
 2. **Chat & Personality Interface (Bottom 40% of Screen)**
    - Dark translucent glassmorphism interface styled in deep midnight indigos (`#0B0F19`), slate grays, and soft lavender accents.
    - **Ayaka Tōjou's Mommy-Tsundere AI**: Demanding and high-standard, complaining that taking care of you is an exhausting chore, but fiercely protective, maternal, and prone to flustered blushing panics when caught showing affection.
-   - **Infinite Chat Guarantee**: Connected to the Gemini API for online cloud inference with an automatic seamless offline fallback to a rich local in-character response engine and Room database. You will never be cut off or blocked by quota limits.
+   - **Cloud Chat + Offline Fallback**: Uses OpenRouter with a user-supplied API key, recent conversation context, and an offline in-character dialogue bank when cloud chat is unavailable. Cloud usage and model availability depend on the selected OpenRouter route.
 
 3. **Multimodal Vision & Camera Integration (CameraX)**
    - Floating Picture-in-Picture camera dock with front/back camera toggling.
-   - **Front Camera**: Real-time facial expression and stress/fatigue analysis that triggers Ayaka's maternal care or scolding.
-   - **Back Camera**: Visual workspace and late-night meal inspection allowing Ayaka to inspect your desk or snacks and roast/advise you in character.
+   - **Camera Preview**: CameraX provides the live front/back camera background. Users can attach a photo to a chat for cloud vision analysis when the selected model supports images. Automatic facial fatigue/stress detection is not implemented yet.
 
 4. **"Ayaka's Strict Study Session" (Pomodoro Timer)**
    - Focus intervals (15, 25, 45, 60 mins) and break intervals.
@@ -33,3 +32,16 @@ An interactive native Android companion application built with Kotlin and Jetpac
 6. **Affection & Bond System (Room Database)**
    - Persistent progression stored locally in SQLite via Room.
    - Tiers from *Hopeless Slacker* to *Irreplaceable Soulmate* that unlock warmer dialogues and special reactions.
+
+
+## Mobile companion upgrades
+
+The Android app keeps its existing Live2D character and Compose interface while adding phone-friendly companion features:
+
+- **Conversation continuity**: the latest 12 chat messages are sent to OpenRouter in chronological order.
+- **Local personal memory**: type `Remember that ...` to save a note in Room. Type `Forget that ...` to remove an exact note. Use **Manage saved memories** in the cloud setup dialog to review or clear notes.
+- **Memory privacy**: notes stay in the app's local database; when cloud chat is enabled, up to 12 notes are included in the OpenRouter request as context.
+- **Protected API key**: the OpenRouter key is encrypted with AES-GCM using a key stored by Android Keystore.
+- **Voice input and output**: use the microphone button for Android speech recognition. Assistant replies use the existing emotion-aware Android TTS and respect the mute control.
+
+These are incremental mobile adaptations, not a port of MekaHime's Windows-only runtime. The existing YoruHime Live2D model and assets are retained.

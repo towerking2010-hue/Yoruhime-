@@ -6,10 +6,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.aistudio.yoruhime.data.local.ChatMessageEntity
+import com.aistudio.yoruhime.data.local.MemoryNoteEntity
 import com.aistudio.yoruhime.data.local.UserBondEntity
 import com.aistudio.yoruhime.data.repository.ChatRepository
+import com.aistudio.yoruhime.data.local.SecureApiKeyStore
 import com.aistudio.yoruhime.service.BedtimeWorker
 import com.aistudio.yoruhime.ui.audio.AyakaTtsManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +23,8 @@ import kotlinx.coroutines.launch
 
 class MainViewModel(
     private val repository: ChatRepository,
-    private val ttsManager: AyakaTtsManager
+    private val ttsManager: AyakaTtsManager,
+    private val apiKeyStore: SecureApiKeyStore
 ) : ViewModel() {
 
     val messages: StateFlow<List<ChatMessageEntity>> = repository.messagesFlow
@@ -27,6 +32,9 @@ class MainViewModel(
 
     val userBond: StateFlow<UserBondEntity?> = repository.bondFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val memories: StateFlow<List<MemoryNoteEntity>> = repository.memoriesFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _currentEmotion = MutableStateFlow("normal")
     val currentEmotion: StateFlow<String> = _currentEmotion.asStateFlow()
@@ -59,6 +67,8 @@ class MainViewModel(
         // Initial in-character check
         viewModelScope.launch {
             repository.getBond()
+            val savedKey = withContext(Dispatchers.IO) { apiKeyStore.readApiKey() }
+            _apiKey.value = savedKey
         }
     }
 
@@ -80,6 +90,10 @@ class MainViewModel(
 
     fun updateApiKey(key: String) {
         _apiKey.value = key
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { apiKeyStore.saveApiKey(key) }
+                .onFailure { it.printStackTrace() }
+        }
     }
 
     fun toggleCameraDock(visible: Boolean) {
@@ -112,10 +126,8 @@ class MainViewModel(
                 )
                 _currentEmotion.value = response.emotion
 
-                // Auto voice output for high-tier tsundere emotional states (blush, angry)
-                if (response.emotion == "blush" || response.emotion == "angry") {
-                    ttsManager.speak(response.text, response.emotion, isCritical = false)
-                }
+                // Speak every assistant reply; the existing mute control remains the user's override.
+                ttsManager.speak(response.text, response.emotion, isCritical = false)
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
@@ -186,6 +198,18 @@ class MainViewModel(
         }
     }
 
+    fun forgetMemory(content: String) {
+        viewModelScope.launch {
+            repository.forgetMemory(content)
+        }
+    }
+
+    fun clearMemories() {
+        viewModelScope.launch {
+            repository.clearMemories()
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         ttsManager.stop()
@@ -193,11 +217,12 @@ class MainViewModel(
 
     class Factory(
         private val repository: ChatRepository,
-        private val ttsManager: AyakaTtsManager
+        private val ttsManager: AyakaTtsManager,
+        private val apiKeyStore: SecureApiKeyStore
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return MainViewModel(repository, ttsManager) as T
+            return MainViewModel(repository, ttsManager, apiKeyStore) as T
         }
     }
 }

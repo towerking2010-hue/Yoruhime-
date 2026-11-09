@@ -5,8 +5,10 @@ import com.aistudio.yoruhime.data.local.AppDatabase
 import com.aistudio.yoruhime.data.local.ChatMessageEntity
 import com.aistudio.yoruhime.data.local.OfflineDialogueBank
 import com.aistudio.yoruhime.data.local.UserBondEntity
+import com.aistudio.yoruhime.data.local.MemoryNoteEntity
 import com.aistudio.yoruhime.data.remote.AyakaResponse
 import com.aistudio.yoruhime.data.remote.OpenRouterService
+import com.aistudio.yoruhime.data.remote.ConversationTurn
 import kotlinx.coroutines.flow.Flow
 
 class ChatRepository(
@@ -15,6 +17,7 @@ class ChatRepository(
 ) {
     val messagesFlow: Flow<List<ChatMessageEntity>> = database.chatDao().getAllMessagesFlow()
     val bondFlow: Flow<UserBondEntity?> = database.bondDao().getBondFlow()
+    val memoriesFlow: Flow<List<MemoryNoteEntity>> = database.memoryDao().getAllMemoriesFlow()
 
     suspend fun getBond(): UserBondEntity {
         return database.bondDao().getBond() ?: UserBondEntity().also {
@@ -28,6 +31,25 @@ class ChatRepository(
         apiKey: String,
         imageBitmap: Bitmap? = null
     ): AyakaResponse {
+        // Persist only facts the user explicitly asks YoruHime to remember.
+        updateExplicitMemory(userText)
+
+        val memoryNotes = database.memoryDao()
+            .getRelevantMemories(limit = 12)
+            .map { it.content }
+
+        // Load the latest exchange history before saving this turn.
+        // ChatDao returns newest-first; the model needs chronological order.
+        val conversationHistory = database.chatDao()
+            .getRecentMessages(limit = 12)
+            .asReversed()
+            .map { message ->
+                ConversationTurn(
+                    role = if (message.isFromUser) "user" else "assistant",
+                    content = message.text
+                )
+            }
+
         // 1. Save user message to Room
         database.chatDao().insertMessage(
             ChatMessageEntity(
@@ -46,7 +68,9 @@ class ChatRepository(
                 response = openRouterService.generateReply(
                     apiKey = apiKey,
                     prompt = userText,
-                    imageBitmap = imageBitmap
+                    imageBitmap = imageBitmap,
+                    history = conversationHistory,
+                    memoryNotes = memoryNotes
                 )
             } catch (e: Exception) {
                 // OpenRouter failed (network, auth, rate limit, or provider error) -> seamless offline fallback
@@ -191,5 +215,47 @@ class ChatRepository(
 
     suspend fun clearHistory() {
         database.chatDao().clearAllMessages()
+    }
+
+    suspend fun clearMemories() {
+        database.memoryDao().clearMemories()
+    }
+
+    suspend fun forgetMemory(content: String) {
+        database.memoryDao().forgetMemory(content)
+    }
+
+    private suspend fun updateExplicitMemory(userText: String) {
+        val rememberMatch = Regex(
+            "^\\s*(?:remember that|remember:)\\s*(.+)$",
+            RegexOption.IGNORE_CASE
+        ).find(userText)
+
+        if (rememberMatch != null) {
+            val note = rememberMatch.groupValues[1].trim().take(240)
+            if (note.isNotBlank()) {
+                val existing = database.memoryDao().findMemory(note)
+                database.memoryDao().saveMemory(
+                    MemoryNoteEntity(
+                        id = existing?.id ?: 0,
+                        content = note,
+                        category = "user_note",
+                        createdAt = existing?.createdAt ?: System.currentTimeMillis(),
+                        updatedAt = System.currentTimeMillis(),
+                        importance = 3
+                    )
+                )
+            }
+            return
+        }
+
+        val forgetMatch = Regex(
+            "^\\s*(?:forget that|forget:)\\s*(.+)$",
+            RegexOption.IGNORE_CASE
+        ).find(userText)
+        if (forgetMatch != null) {
+            val note = forgetMatch.groupValues[1].trim()
+            if (note.isNotBlank()) database.memoryDao().forgetMemory(note)
+        }
     }
 }

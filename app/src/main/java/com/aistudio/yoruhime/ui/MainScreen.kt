@@ -94,6 +94,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aistudio.yoruhime.data.local.ChatMessageEntity
@@ -125,6 +126,7 @@ fun MainScreen(
     val currentEmotion by viewModel.currentEmotion.collectAsState()
     val messages by viewModel.messages.collectAsState()
     val userBond by viewModel.userBond.collectAsState()
+    val memories by viewModel.memories.collectAsState()
     val isOnlineMode by viewModel.isOnlineMode.collectAsState()
     val apiKey by viewModel.apiKey.collectAsState()
     val isPomodoroVisible by viewModel.isPomodoroVisible.collectAsState()
@@ -137,6 +139,7 @@ fun MainScreen(
     var inputText by remember { mutableStateOf("") }
     var attachedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var showApiKeyDialog by remember { mutableStateOf(false) }
+    var showMemoryDialog by remember { mutableStateOf(false) }
     var tempApiKey by remember { mutableStateOf(apiKey) }
     var showBedtimeDialog by remember { mutableStateOf(false) }
     var tempBedtimePhrase by remember {
@@ -151,6 +154,10 @@ fun MainScreen(
     val live2DController = remember { Live2DController() }
     val listState = rememberLazyListState()
 
+    LaunchedEffect(apiKey) {
+        if (!showApiKeyDialog) tempApiKey = apiKey
+    }
+
     // Speech-to-text recording launcher for bedtime trigger phrase
     val speechRecognizerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -162,6 +169,18 @@ fun MainScreen(
                 tempBedtimePhrase = spokenText
                 Toast.makeText(context, "Captured voice trigger phrase!", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    // Voice input for chat using the device's installed speech-recognition service.
+    val chatSpeechRecognizerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spokenText = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+            if (!spokenText.isNullOrBlank()) inputText = spokenText
         }
     }
 
@@ -808,7 +827,43 @@ fun MainScreen(
                             maxLines = 1
                         )
 
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        IconButton(
+                            onClick = {
+                                try {
+                                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                        putExtra(
+                                            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                                        )
+                                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Talk to YoruHime")
+                                    }
+                                    chatSpeechRecognizerLauncher.launch(intent)
+                                } catch (_: Exception) {
+                                    Toast.makeText(
+                                        context,
+                                        "Speech recognition is not available on this device",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(GlassSurface.copy(alpha = 0.75f))
+                                .border(1.dp, GlassBorder, CircleShape)
+                                .testTag("chat_voice_input_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = "Speak a chat message",
+                                tint = LavenderPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(4.dp))
 
                         IconButton(
                             onClick = {
@@ -856,12 +911,25 @@ fun MainScreen(
                         value = tempApiKey,
                         onValueChange = { tempApiKey = it },
                         placeholder = { Text("sk-or-v1-...", color = TextMuted) },
+                        visualTransformation = PasswordVisualTransformation(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = TextWhite,
                             unfocusedTextColor = TextWhite
                         )
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Memory tip: say “Remember that I prefer…” to save a note on this phone. Say “Forget that…” to remove that exact note.",
+                        fontSize = 11.sp,
+                        color = TextMuted
+                    )
+                    TextButton(onClick = {
+                        showApiKeyDialog = false
+                        showMemoryDialog = true
+                    }) {
+                        Text("Manage saved memories (" + memories.size + ")", color = LavenderPrimary)
+                    }
                 }
             },
             confirmButton = {
@@ -877,6 +945,68 @@ fun MainScreen(
             dismissButton = {
                 TextButton(onClick = { showApiKeyDialog = false }) {
                     Text("Cancel", color = TextMuted)
+                }
+            },
+            containerColor = SlateDark
+        )
+    }
+
+    // Local memory manager: review and remove notes saved at the user's request.
+    if (showMemoryDialog) {
+        AlertDialog(
+            onDismissRequest = { showMemoryDialog = false },
+            title = { Text("YoruHime's Memories", color = TextWhite) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "These notes are stored in this app's local database. When cloud chat is enabled, relevant notes are included in requests to OpenRouter.",
+                        fontSize = 11.sp,
+                        color = TextSilver
+                    )
+                    if (memories.isEmpty()) {
+                        Text("No saved memories yet. Tell YoruHime: Remember that ...", color = TextMuted)
+                    } else {
+                        memories.forEach { memory ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = memory.content,
+                                    color = TextWhite,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(
+                                    onClick = { viewModel.forgetMemory(memory.content) }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete saved memory",
+                                        tint = BlushPink
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.clearMemories()
+                    showMemoryDialog = false
+                }) {
+                    Text("Clear all", color = BlushPink)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMemoryDialog = false }) {
+                    Text("Done", color = LavenderPrimary)
                 }
             },
             containerColor = SlateDark
