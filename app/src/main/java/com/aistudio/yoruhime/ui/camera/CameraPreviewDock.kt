@@ -326,7 +326,7 @@ fun CameraPreviewDock(
 
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "One still image is sent to your cloud AI provider for inspection. Offline mode cannot analyze images.",
+                        text = "With Cloud mode and an API key enabled, one still image is sent to your selected AI provider. Offline mode cannot analyze images.",
                         color = TextMuted,
                         fontSize = 10.sp
                     )
