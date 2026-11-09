@@ -203,7 +203,7 @@ fun CameraPreviewDock(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (isFrontCamera) "Ayaka Stress & Fatigue Tracker" else "Ayaka Workspace Inspector",
+                            text = if (isFrontCamera) "Front Camera Snapshot" else "Rear Camera Snapshot",
                             style = MaterialTheme.typography.titleMedium,
                             color = TextWhite,
                             fontSize = 13.sp
@@ -301,7 +301,7 @@ fun CameraPreviewDock(
                             color = GlassDark.copy(alpha = 0.85f)
                         ) {
                             Text(
-                                text = if (isFrontCamera) "FRONT: Face & Fatigue Active" else "BACK: Meal & Workspace Active",
+                                text = if (isFrontCamera) "FRONT CAMERA • SNAPSHOT" else "REAR CAMERA • SNAPSHOT",
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 color = LavenderPrimary,
                                 fontSize = 10.sp
@@ -318,6 +318,12 @@ fun CameraPreviewDock(
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "One still image is sent to your cloud AI provider for inspection. Offline mode cannot analyze images.",
+                        color = TextMuted,
+                        fontSize = 10.sp
+                    )
                     Spacer(modifier = Modifier.height(10.dp))
 
                     // Inspection Action Buttons
@@ -348,7 +354,7 @@ fun CameraPreviewDock(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (isFrontCamera) "Track Stress Level" else "Inspect My Space",
+                                text = "Ask Ayaka to Inspect",
                                 color = TextWhite,
                                 fontSize = 12.sp
                             )
