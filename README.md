@@ -15,9 +15,11 @@ An interactive native Android companion application built with Kotlin and Jetpac
    - **Ayaka Tōjou's Mommy-Tsundere AI**: Demanding and high-standard, complaining that taking care of you is an exhausting chore, but fiercely protective, maternal, and prone to flustered blushing panics when caught showing affection.
    - **Cloud Chat + Offline Fallback**: Uses OpenRouter with a user-supplied API key, recent conversation context, and an offline in-character dialogue bank when cloud chat is unavailable. Cloud usage and model availability depend on the selected OpenRouter route.
 
-3. **Multimodal Vision & Camera Integration (CameraX)**
-   - Floating Picture-in-Picture camera dock with front/back camera toggling.
-   - **Camera Preview**: CameraX provides the live front/back camera background. Users can attach a photo to a chat for cloud vision analysis when the selected model supports images. Automatic facial fatigue/stress detection is not implemented yet.
+3. **Camera & Snapshot Vision (CameraX)**
+   - User-triggered camera dock with front/back lens switching and a still-image capture action.
+   - Captured front- or rear-camera snapshots are sent with the user's prompt to OpenRouter in Cloud mode; successful inspection depends on the selected provider/model supporting image input.
+   - The full-screen camera background can sit behind the Live2D stage as a lightweight visual overlay. This is not spatial AR: there is no world tracking, plane detection, or world-anchored object placement.
+   - Offline mode explicitly tells the user that the image was not analyzed. Continuous live-video understanding, automatic fatigue/stress detection, and always-on camera monitoring are not implemented.
 
 4. **"Ayaka's Strict Study Session" (Pomodoro Timer)**
    - Focus intervals (15, 25, 45, 60 mins) and break intervals.
