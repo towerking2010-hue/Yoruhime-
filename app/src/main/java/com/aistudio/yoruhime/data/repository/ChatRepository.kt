@@ -223,7 +223,7 @@ class ChatRepository(
 
     private suspend fun updateExplicitMemory(userText: String) {
         val rememberMatch = Regex(
-            "^\\\\s*(?:remember that|remember:)\\\\s*(.+)$",
+            "^\\s*(?:remember that|remember:)\\s*(.+)$",
             RegexOption.IGNORE_CASE
         ).find(userText)
 
@@ -246,11 +246,11 @@ class ChatRepository(
         }
 
         val forgetMatch = Regex(
-            "^\\\\s*forget that|forget:\\s*(.+)$",
+            "^\\s*(?:forget that|forget:)\\s*(.+)$",
             RegexOption.IGNORE_CASE
         ).find(userText)
         if (forgetMatch != null) {
-            val note = forgetMatch.groupValues.last().trim()
+            val note = forgetMatch.groupValues[1].trim()
             if (note.isNotBlank()) database.memoryDao().forgetMemory(note)
         }
     }
