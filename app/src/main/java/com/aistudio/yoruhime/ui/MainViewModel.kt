@@ -8,8 +8,11 @@ import androidx.lifecycle.viewModelScope
 import com.aistudio.yoruhime.data.local.ChatMessageEntity
 import com.aistudio.yoruhime.data.local.UserBondEntity
 import com.aistudio.yoruhime.data.repository.ChatRepository
+import com.aistudio.yoruhime.data.local.SecureApiKeyStore
 import com.aistudio.yoruhime.service.BedtimeWorker
 import com.aistudio.yoruhime.ui.audio.AyakaTtsManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +22,8 @@ import kotlinx.coroutines.launch
 
 class MainViewModel(
     private val repository: ChatRepository,
-    private val ttsManager: AyakaTtsManager
+    private val ttsManager: AyakaTtsManager,
+    private val apiKeyStore: SecureApiKeyStore
 ) : ViewModel() {
 
     val messages: StateFlow<List<ChatMessageEntity>> = repository.messagesFlow
@@ -59,6 +63,8 @@ class MainViewModel(
         // Initial in-character check
         viewModelScope.launch {
             repository.getBond()
+            val savedKey = withContext(Dispatchers.IO) { apiKeyStore.readApiKey() }
+            _apiKey.value = savedKey
         }
     }
 
@@ -80,6 +86,9 @@ class MainViewModel(
 
     fun updateApiKey(key: String) {
         _apiKey.value = key
+        viewModelScope.launch(Dispatchers.IO) {
+            apiKeyStore.saveApiKey(key)
+        }
     }
 
     fun toggleCameraDock(visible: Boolean) {
@@ -193,11 +202,12 @@ class MainViewModel(
 
     class Factory(
         private val repository: ChatRepository,
-        private val ttsManager: AyakaTtsManager
+        private val ttsManager: AyakaTtsManager,
+        private val apiKeyStore: SecureApiKeyStore
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return MainViewModel(repository, ttsManager) as T
+            return MainViewModel(repository, ttsManager, apiKeyStore) as T
         }
     }
 }
