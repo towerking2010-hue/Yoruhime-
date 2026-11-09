@@ -282,11 +282,13 @@ fun MainScreen(
                     onCaptureForInspection = { bitmap, fromFrontCamera ->
                         viewModel.toggleCameraDock(false)
                         val cameraLabel = if (fromFrontCamera) "front selfie camera" else "rear world camera"
+                        val question = inputText.trim().ifBlank { "Describe what is visible." }
                         viewModel.sendMessage(
-                            "Ayaka, please inspect this snapshot from the $cameraLabel. Describe visible details and answer my question based only on the image.",
+                            "Ayaka, please inspect this snapshot from the $cameraLabel. User question: $question",
                             bitmap,
                             isFrontCamera = fromFrontCamera
                         )
+                        inputText = ""
                     },
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
