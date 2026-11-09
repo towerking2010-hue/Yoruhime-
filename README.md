@@ -44,4 +44,6 @@ The Android app keeps its existing Live2D character and Compose interface while 
 - **Protected API key**: the OpenRouter key is encrypted with AES-GCM using a key stored by Android Keystore.
 - **Voice input and output**: use the microphone button for Android speech recognition. Assistant replies use the existing emotion-aware Android TTS and respect the mute control.
 
+- **Evolving emotional state**: a lightweight local mood model tracks warmth, energy, stress, affection, and confidence. Chat replies, touch reactions, study events, and bedtime events influence it; the values gently decay toward a calm baseline. Its richer internal state maps only to the six expressions already supported by the existing Live2D model. No replacement model assets are used.
+
 These are incremental mobile adaptations, not a port of MekaHime's Windows-only runtime. The existing YoruHime Live2D model and assets are retained.
