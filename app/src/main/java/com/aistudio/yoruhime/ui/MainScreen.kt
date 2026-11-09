@@ -126,6 +126,7 @@ fun MainScreen(
     val currentEmotion by viewModel.currentEmotion.collectAsState()
     val messages by viewModel.messages.collectAsState()
     val userBond by viewModel.userBond.collectAsState()
+    val memories by viewModel.memories.collectAsState()
     val isOnlineMode by viewModel.isOnlineMode.collectAsState()
     val apiKey by viewModel.apiKey.collectAsState()
     val isPomodoroVisible by viewModel.isPomodoroVisible.collectAsState()
@@ -138,6 +139,7 @@ fun MainScreen(
     var inputText by remember { mutableStateOf("") }
     var attachedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var showApiKeyDialog by remember { mutableStateOf(false) }
+    var showMemoryDialog by remember { mutableStateOf(false) }
     var tempApiKey by remember { mutableStateOf(apiKey) }
     var showBedtimeDialog by remember { mutableStateOf(false) }
     var tempBedtimePhrase by remember {
@@ -874,6 +876,12 @@ fun MainScreen(
                         fontSize = 11.sp,
                         color = TextMuted
                     )
+                    TextButton(onClick = {
+                        showApiKeyDialog = false
+                        showMemoryDialog = true
+                    }) {
+                        Text("Manage saved memories (" + memories.size + ")", color = LavenderPrimary)
+                    }
                 }
             },
             confirmButton = {
@@ -889,6 +897,68 @@ fun MainScreen(
             dismissButton = {
                 TextButton(onClick = { showApiKeyDialog = false }) {
                     Text("Cancel", color = TextMuted)
+                }
+            },
+            containerColor = SlateDark
+        )
+    }
+
+    // Local memory manager: review and remove notes saved at the user's request.
+    if (showMemoryDialog) {
+        AlertDialog(
+            onDismissRequest = { showMemoryDialog = false },
+            title = { Text("YoruHime's Memories", color = TextWhite) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "These notes are stored in this app's local database. When cloud chat is enabled, relevant notes are included in requests to OpenRouter.",
+                        fontSize = 11.sp,
+                        color = TextSilver
+                    )
+                    if (memories.isEmpty()) {
+                        Text("No saved memories yet. Tell YoruHime: Remember that ...", color = TextMuted)
+                    } else {
+                        memories.forEach { memory ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = memory.content,
+                                    color = TextWhite,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(
+                                    onClick = { viewModel.forgetMemory(memory.content) }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete saved memory",
+                                        tint = BlushPink
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.clearMemories()
+                    showMemoryDialog = false
+                }) {
+                    Text("Clear all", color = BlushPink)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMemoryDialog = false }) {
+                    Text("Done", color = LavenderPrimary)
                 }
             },
             containerColor = SlateDark
