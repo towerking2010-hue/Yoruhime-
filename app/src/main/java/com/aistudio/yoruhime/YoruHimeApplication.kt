@@ -27,7 +27,7 @@ class YoruHimeApplication : Application() {
         apiKeyStore = SecureApiKeyStore(this)
         ttsManager = com.aistudio.yoruhime.ui.audio.AyakaTtsManager(this)
 
-        // Schedule Daily Midnight Bedtime Worker
-        BedtimeWorker.scheduleDailyMidnight(this)
+        // Schedule the daily curfew reminder using the saved/default time
+        BedtimeWorker.scheduleDailyCurfew(this)
     }
 }
