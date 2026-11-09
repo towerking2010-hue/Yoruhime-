@@ -353,7 +353,7 @@ fun MainScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (isArCameraActive) "Camera On" else "Camera View",
+                                    text = if (isArCameraActive) "Live" else "Camera",
                                     color = if (isArCameraActive) TextWhite else TextSilver,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Medium
@@ -379,24 +379,6 @@ fun MainScreen(
                                     modifier = Modifier.size(15.dp)
                                 )
                             }
-                        }
-
-                        // Open the camera inspection dock for a one-shot visual question.
-                        IconButton(
-                            onClick = { viewModel.toggleCameraDock(true) },
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(GlassDark.copy(alpha = 0.85f))
-                                .border(1.dp, GlassBorder, CircleShape)
-                                .testTag("open_camera_inspection_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.PhotoCamera,
-                                contentDescription = "Open Ayaka camera inspection",
-                                tint = LavenderPrimary,
-                                modifier = Modifier.size(16.dp)
-                            )
                         }
 
                         // Online/Offline Pill
@@ -819,6 +801,23 @@ fun MainScreen(
                                 imageVector = Icons.Default.AttachFile,
                                 contentDescription = "Upload Photo",
                                 tint = if (attachedBitmap != null) LavenderPrimary else TextSilver,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.toggleCameraDock(true) },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(GlassSurface.copy(alpha = 0.75f))
+                                .border(1.dp, GlassBorder, CircleShape)
+                                .testTag("open_camera_inspection_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PhotoCamera,
+                                contentDescription = "Open Ayaka camera inspection",
+                                tint = LavenderPrimary,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
