@@ -7,7 +7,6 @@ import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.graphics.BitmapFactory
 import android.view.ViewGroup
-import android.view.Surface
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -147,7 +146,7 @@ fun CameraPreviewDock(
 
                 val capture = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                    .setTargetRotation(previewView?.display?.rotation ?: Surface.ROTATION_0)
+                    .setTargetRotation(previewView?.display?.rotation ?: android.view.Surface.ROTATION_0)
                     .setJpegQuality(80)
                     .build()
                 imageCapture = capture
