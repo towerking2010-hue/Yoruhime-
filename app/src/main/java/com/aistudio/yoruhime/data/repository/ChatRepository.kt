@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import com.aistudio.yoruhime.data.local.AppDatabase
 import com.aistudio.yoruhime.data.local.ChatMessageEntity
 import com.aistudio.yoruhime.data.local.OfflineDialogueBank
+import com.aistudio.yoruhime.data.local.InCharacterResponse
 import com.aistudio.yoruhime.data.local.UserBondEntity
 import com.aistudio.yoruhime.data.local.MemoryNoteEntity
 import com.aistudio.yoruhime.data.remote.AyakaResponse
