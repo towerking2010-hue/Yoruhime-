@@ -172,6 +172,18 @@ fun MainScreen(
         }
     }
 
+    // Voice input for chat using the device's installed speech-recognition service.
+    val chatSpeechRecognizerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spokenText = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+            if (!spokenText.isNullOrBlank()) inputText = spokenText
+        }
+    }
+
     // Zero-permission Android Photo Picker for chat attachments
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -815,7 +827,43 @@ fun MainScreen(
                             maxLines = 1
                         )
 
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        IconButton(
+                            onClick = {
+                                try {
+                                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                        putExtra(
+                                            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                                        )
+                                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Talk to YoruHime")
+                                    }
+                                    chatSpeechRecognizerLauncher.launch(intent)
+                                } catch (_: Exception) {
+                                    Toast.makeText(
+                                        context,
+                                        "Speech recognition is not available on this device",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(GlassSurface.copy(alpha = 0.75f))
+                                .border(1.dp, GlassBorder, CircleShape)
+                                .testTag("chat_voice_input_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = "Speak a chat message",
+                                tint = LavenderPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(4.dp))
 
                         IconButton(
                             onClick = {
