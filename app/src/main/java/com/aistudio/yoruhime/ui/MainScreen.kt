@@ -363,26 +363,6 @@ fun MainScreen(
                             }
                         }
 
-                        // Flip Camera Front/Back button (when AR is active)
-                        if (isArCameraActive) {
-                            IconButton(
-                                onClick = { viewModel.toggleCameraFacing() },
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(GlassDark.copy(alpha = 0.85f))
-                                    .border(1.dp, GlassBorder, CircleShape)
-                                    .testTag("flip_camera_facing_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Cameraswitch,
-                                    contentDescription = "Switch Camera Facing",
-                                    tint = LavenderPrimary,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                            }
-                        }
-
                         // Online/Offline Pill
                         Surface(
                             shape = RoundedCornerShape(20.dp),
