@@ -277,6 +277,8 @@ fun MainScreen(
                 // front/back switch, and still-image capture; closing it releases CameraX.
                 CameraPreviewDock(
                     isVisible = isCameraDockVisible,
+                    isFrontCamera = isFrontCamera,
+                    onToggleCameraFacing = { viewModel.toggleCameraFacing() },
                     onClose = { viewModel.toggleCameraDock(false) },
                     onCaptureForInspection = { bitmap, fromFrontCamera ->
                         viewModel.toggleCameraDock(false)
@@ -783,7 +785,7 @@ fun MainScreen(
                             .padding(horizontal = 8.dp, vertical = 3.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Distinct Attachment Icon for uploading Photos & Videos
+                        // Photo attachment button
                         IconButton(
                             onClick = {
                                 photoPickerLauncher.launch(
