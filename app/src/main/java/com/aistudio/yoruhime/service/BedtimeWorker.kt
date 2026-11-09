@@ -73,7 +73,7 @@ class BedtimeWorker(
             )
         }
 
-        fun scheduleDailyMidnight(context: Context) {
+        fun scheduleDailyCurfew(context: Context) {
             scheduleCurfew(context, 11, 0)
         }
 
