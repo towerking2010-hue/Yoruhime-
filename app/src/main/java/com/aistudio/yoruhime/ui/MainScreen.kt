@@ -745,7 +745,7 @@ fun MainScreen(
                         }
                     }
 
-                    // Selected Attachment Preview Card (Photos/Videos)
+                    // Selected Attachment Preview Card (Photos)
                     AnimatedVisibility(
                         visible = attachedBitmap != null,
                         enter = fadeIn(),
@@ -906,7 +906,7 @@ fun MainScreen(
                         IconButton(
                             onClick = {
                                 if (inputText.isNotBlank() || attachedBitmap != null) {
-                                    val text = if (inputText.isNotBlank()) inputText else "Ayaka, inspect this photo/video!"
+                                    val text = if (inputText.isNotBlank()) inputText else "Ayaka, inspect this photo!"
                                     val bmp = attachedBitmap
                                     inputText = ""
                                     attachedBitmap = null
