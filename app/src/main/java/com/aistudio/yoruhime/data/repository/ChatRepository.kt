@@ -6,12 +6,12 @@ import com.aistudio.yoruhime.data.local.ChatMessageEntity
 import com.aistudio.yoruhime.data.local.OfflineDialogueBank
 import com.aistudio.yoruhime.data.local.UserBondEntity
 import com.aistudio.yoruhime.data.remote.AyakaResponse
-import com.aistudio.yoruhime.data.remote.GeminiService
+import com.aistudio.yoruhime.data.remote.OpenRouterService
 import kotlinx.coroutines.flow.Flow
 
 class ChatRepository(
     private val database: AppDatabase,
-    private val geminiService: GeminiService = GeminiService()
+    private val openRouterService: OpenRouterService = OpenRouterService()
 ) {
     val messagesFlow: Flow<List<ChatMessageEntity>> = database.chatDao().getAllMessagesFlow()
     val bondFlow: Flow<UserBondEntity?> = database.bondDao().getBondFlow()
@@ -40,16 +40,16 @@ class ChatRepository(
         val currentBond = getBond()
         var response: AyakaResponse? = null
 
-        // 2. Try online generation if enabled and key provided
+        // 2. Try OpenRouter generation if cloud mode is enabled and a key is provided
         if (isOnlineMode && apiKey.isNotBlank()) {
             try {
-                response = geminiService.generateReply(
+                response = openRouterService.generateReply(
                     apiKey = apiKey,
                     prompt = userText,
                     imageBitmap = imageBitmap
                 )
             } catch (e: Exception) {
-                // Online failed (e.g. no connection, 429 quota exhaustion) -> seamless fallback
+                // OpenRouter failed (network, auth, rate limit, or provider error) -> seamless offline fallback
                 response = null
             }
         }
