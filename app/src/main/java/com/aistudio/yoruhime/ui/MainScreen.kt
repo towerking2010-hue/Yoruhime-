@@ -347,13 +347,13 @@ fun MainScreen(
                             ) {
                                 Icon(
                                     imageVector = if (isArCameraActive) Icons.Default.Videocam else Icons.Default.VideocamOff,
-                                    contentDescription = "Toggle AR Camera World-Feed",
+                                    contentDescription = "Toggle live camera background",
                                     tint = if (isArCameraActive) TextWhite else LavenderPrimary,
                                     modifier = Modifier.size(15.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (isArCameraActive) "AR Live" else "AR Camera",
+                                    text = if (isArCameraActive) "Camera On" else "Camera View",
                                     color = if (isArCameraActive) TextWhite else TextSilver,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Medium
