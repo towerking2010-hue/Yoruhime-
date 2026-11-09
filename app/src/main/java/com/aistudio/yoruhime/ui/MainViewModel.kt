@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 class MainViewModel(
     private val repository: ChatRepository,
@@ -36,8 +37,16 @@ class MainViewModel(
     val memories: StateFlow<List<MemoryNoteEntity>> = repository.memoriesFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _currentEmotion = MutableStateFlow("normal")
+    private val _mood = MutableStateFlow(YoruMoodState())
+    val mood: StateFlow<YoruMoodState> = _mood.asStateFlow()
+
+    private val _currentEmotion = MutableStateFlow(_mood.value.toLive2DExpression())
     val currentEmotion: StateFlow<String> = _currentEmotion.asStateFlow()
+
+    private fun updateMood(emotion: String) {
+        _mood.value = _mood.value.reactTo(emotion)
+        _currentEmotion.value = _mood.value.toLive2DExpression()
+    }
 
     private val _isOnlineMode = MutableStateFlow(true)
     val isOnlineMode: StateFlow<Boolean> = _isOnlineMode.asStateFlow()
@@ -70,10 +79,18 @@ class MainViewModel(
             val savedKey = withContext(Dispatchers.IO) { apiKeyStore.readApiKey() }
             _apiKey.value = savedKey
         }
+        // Gentle mood decay keeps expressions from remaining stuck indefinitely.
+        viewModelScope.launch {
+            while (true) {
+                delay(30_000)
+                _mood.value = _mood.value.decay()
+                _currentEmotion.value = _mood.value.toLive2DExpression()
+            }
+        }
     }
 
     fun setEmotion(emotion: String) {
-        _currentEmotion.value = emotion
+        updateMood(emotion)
     }
 
     fun toggleAudioMute() {
@@ -124,7 +141,7 @@ class MainViewModel(
                     apiKey = _apiKey.value,
                     imageBitmap = imageBitmap
                 )
-                _currentEmotion.value = response.emotion
+                updateMood(response.emotion)
 
                 // Speak every assistant reply; the existing mute control remains the user's override.
                 ttsManager.speak(response.text, response.emotion, isCritical = false)
@@ -169,7 +186,7 @@ class MainViewModel(
         val currentPhrase = userBond.value?.customBedtimePhrase?.ifBlank { null }
             ?: BedtimeWorker.DEFAULT_CURFEW_PHRASE
         BedtimeWorker.showBedtimeNotification(context, currentPhrase)
-        _currentEmotion.value = "angry"
+        updateMood("angry")
         // Critical Event: Midnight / Curfew Lock warning
         ttsManager.speak(
             currentPhrase,
