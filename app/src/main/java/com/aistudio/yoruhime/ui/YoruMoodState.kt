@@ -51,8 +51,8 @@ data class YoruMoodState(
         stress > 0.72f && energy > 0.58f -> "angry"
         warmth > 0.68f && affection > 0.58f -> "blush"
         warmth > 0.66f && energy > 0.58f -> "happy"
-        warmth > 0.52f -> "smile"
         energy < 0.28f || stress > 0.62f -> "sad"
+        warmth > 0.52f -> "smile"
         else -> "normal"
     }
 
