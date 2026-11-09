@@ -221,6 +221,10 @@ class ChatRepository(
         database.memoryDao().clearMemories()
     }
 
+    suspend fun forgetMemory(content: String) {
+        database.memoryDao().forgetMemory(content)
+    }
+
     private suspend fun updateExplicitMemory(userText: String) {
         val rememberMatch = Regex(
             "^\\s*(?:remember that|remember:)\\s*(.+)$",
