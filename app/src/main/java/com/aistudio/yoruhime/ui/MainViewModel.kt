@@ -125,10 +125,8 @@ class MainViewModel(
                 )
                 _currentEmotion.value = response.emotion
 
-                // Auto voice output for high-tier tsundere emotional states (blush, angry)
-                if (response.emotion == "blush" || response.emotion == "angry") {
-                    ttsManager.speak(response.text, response.emotion, isCritical = false)
-                }
+                // Speak every assistant reply; the existing mute control remains the user's override.
+                ttsManager.speak(response.text, response.emotion, isCritical = false)
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
