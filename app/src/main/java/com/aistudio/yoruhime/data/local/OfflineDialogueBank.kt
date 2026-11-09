@@ -82,7 +82,10 @@ object OfflineDialogueBank {
                 TEASING_TOUCH.random()
             }
             lower.contains("camera") || lower.contains("look") || lower.contains("inspect") -> {
-                CAMERA_BACK_INSPECT.random()
+                InCharacterResponse(
+                    "normal",
+                    "I can respond to what you describe, but I cannot see a camera feed or inspect images while we're offline. Switch to Cloud mode for visual analysis."
+                )
             }
             else -> {
                 // Adjust warmth based on bondLevel
