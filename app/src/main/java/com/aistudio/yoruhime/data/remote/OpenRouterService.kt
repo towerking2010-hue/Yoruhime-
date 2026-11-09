@@ -44,7 +44,8 @@ class OpenRouterService {
         apiKey: String,
         prompt: String,
         imageBitmap: Bitmap? = null,
-        history: List<ConversationTurn> = emptyList()
+        history: List<ConversationTurn> = emptyList(),
+        memoryNotes: List<String> = emptyList()
     ): AyakaResponse = withContext(Dispatchers.IO) {
         require(apiKey.isNotBlank()) { "No OpenRouter API key configured" }
 
@@ -64,7 +65,18 @@ class OpenRouterService {
             val messages = JSONArray().put(
                 JSONObject().apply {
                     put("role", "system")
-                    put("content", systemInstruction)
+                    put("content", buildString {
+                        append(systemInstruction)
+                        if (memoryNotes.isNotEmpty()) {
+                            append("\\n\\nUSER MEMORY NOTES (saved at the user's request):\\n")
+                            memoryNotes.take(12).forEach { note ->
+                                append("- ")
+                                append(note.take(300))
+                                append('\\n')
+                            }
+                            append("Use these notes only when relevant. Do not claim to remember details not listed here.")
+                        }
+                    })
                 }
             )
 
