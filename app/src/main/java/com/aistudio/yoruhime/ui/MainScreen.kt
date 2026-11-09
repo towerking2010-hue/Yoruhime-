@@ -843,11 +843,11 @@ fun MainScreen(
     if (showApiKeyDialog) {
         AlertDialog(
             onDismissRequest = { showApiKeyDialog = false },
-            title = { Text("Gemini Cloud Setup", color = TextWhite) },
+            title = { Text("OpenRouter Cloud Setup", color = TextWhite) },
             text = {
                 Column {
                     Text(
-                        "Enter your Gemini API Key for online cloud chat. If left blank or quota runs out, YoruHime automatically falls back to Ayaka's local in-character response engine for infinite chatting without interruption!",
+                        "Enter your OpenRouter API key for cloud chat. YoruHime uses OpenRouter's automatic model routing. If the key is blank or the request fails, it falls back to the offline dialogue engine.",
                         fontSize = 12.sp,
                         color = TextSilver
                     )
@@ -855,7 +855,7 @@ fun MainScreen(
                     OutlinedTextField(
                         value = tempApiKey,
                         onValueChange = { tempApiKey = it },
-                        placeholder = { Text("AIzaSy...", color = TextMuted) },
+                        placeholder = { Text("sk-or-v1-...", color = TextMuted) },
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = TextWhite,
