@@ -283,7 +283,8 @@ fun MainScreen(
                         val cameraLabel = if (fromFrontCamera) "front selfie camera" else "rear world camera"
                         viewModel.sendMessage(
                             "Ayaka, please inspect this snapshot from the $cameraLabel. Describe visible details and answer my question based only on the image.",
-                            bitmap
+                            bitmap,
+                            isFrontCamera = fromFrontCamera
                         )
                     },
                     modifier = Modifier.align(Alignment.BottomCenter)
