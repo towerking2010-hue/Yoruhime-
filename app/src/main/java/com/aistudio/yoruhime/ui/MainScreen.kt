@@ -58,6 +58,7 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Videocam
@@ -99,6 +100,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aistudio.yoruhime.data.local.ChatMessageEntity
 import com.aistudio.yoruhime.ui.camera.ARCameraBackground
+import com.aistudio.yoruhime.ui.camera.CameraPreviewDock
 import com.aistudio.yoruhime.ui.live2d.Live2DController
 import com.aistudio.yoruhime.ui.live2d.Live2DStage
 import com.aistudio.yoruhime.ui.pomodoro.PomodoroSession
@@ -131,6 +133,7 @@ fun MainScreen(
     val apiKey by viewModel.apiKey.collectAsState()
     val isPomodoroVisible by viewModel.isPomodoroVisible.collectAsState()
     val isArCameraActive by viewModel.isArCameraActive.collectAsState()
+    val isCameraDockVisible by viewModel.isCameraDockVisible.collectAsState()
     val isFrontCamera by viewModel.isFrontCamera.collectAsState()
     val isAudioMuted by viewModel.isAudioMuted.collectAsState()
     val isSpeaking by viewModel.isSpeaking.collectAsState()
@@ -240,7 +243,7 @@ fun MainScreen(
     ) {
         // 1. BOTTOM-MOST LAYER: CameraX live preview (AR mode) or Midnight wallpaper
         ARCameraBackground(
-            isCameraActive = isArCameraActive,
+            isCameraActive = isArCameraActive && !isCameraDockVisible,
             isFrontCamera = isFrontCamera,
             modifier = Modifier.fillMaxSize()
         )
@@ -268,6 +271,22 @@ fun MainScreen(
                         viewModel.onModelTapped(zone)
                     },
                     modifier = Modifier.fillMaxSize()
+                )
+
+                // Explicit, user-triggered camera inspection. The dock owns its preview,
+                // front/back switch, and still-image capture; closing it releases CameraX.
+                CameraPreviewDock(
+                    isVisible = isCameraDockVisible,
+                    onClose = { viewModel.toggleCameraDock(false) },
+                    onCaptureForInspection = { bitmap, fromFrontCamera ->
+                        viewModel.toggleCameraDock(false)
+                        val cameraLabel = if (fromFrontCamera) "front selfie camera" else "rear world camera"
+                        viewModel.sendMessage(
+                            "Ayaka, please inspect this snapshot from the $cameraLabel. Describe visible details and answer my question based only on the image.",
+                            bitmap
+                        )
+                    },
+                    modifier = Modifier.align(Alignment.BottomCenter)
                 )
 
                 // Top Header Overlay: Bond Status & Mode Switcher
@@ -359,6 +378,24 @@ fun MainScreen(
                                     modifier = Modifier.size(15.dp)
                                 )
                             }
+                        }
+
+                        // Open the camera inspection dock for a one-shot visual question.
+                        IconButton(
+                            onClick = { viewModel.toggleCameraDock(true) },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(GlassDark.copy(alpha = 0.85f))
+                                .border(1.dp, GlassBorder, CircleShape)
+                                .testTag("open_camera_inspection_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PhotoCamera,
+                                contentDescription = "Open Ayaka camera inspection",
+                                tint = LavenderPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
 
                         // Online/Offline Pill
