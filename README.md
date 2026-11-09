@@ -26,9 +26,9 @@ An interactive native Android companion application built with Kotlin and Jetpac
    - Lifecycle state detection: if you switch apps away while the timer is running, Ayaka immediately fires an in-character scolding when you return!
    - Awards Bond EXP upon completion.
 
-5. **Midnight Bedtime Lock & Notifications (WorkManager)**
-   - Background worker scheduled for midnight (12:00 AM local time).
-   - Fires a high-priority heads-up notification with Ayaka demanding you stop looking at your screen and go to bed.
+5. **Daily Curfew Reminder (WorkManager)**
+   - Schedules a daily notification at the saved local time; new installs currently default to 11:00 AM, and the settings dialog includes midnight and evening presets.
+   - WorkManager delivery is best-effort and may be delayed by Android battery restrictions; this is a reminder, not a device lock.
    - Includes an instant "Bedtime Alert" test button in the chat toolbar.
 
 6. **Affection & Bond System (Room Database)**
