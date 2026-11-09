@@ -129,7 +129,11 @@ class MainViewModel(
         _isFrontCamera.value = !_isFrontCamera.value
     }
 
-    fun sendMessage(userText: String, imageBitmap: Bitmap? = null) {
+    fun sendMessage(
+        userText: String,
+        imageBitmap: Bitmap? = null,
+        isFrontCamera: Boolean = false
+    ) {
         if (userText.isBlank() && imageBitmap == null) return
 
         viewModelScope.launch {
@@ -139,7 +143,8 @@ class MainViewModel(
                     userText = userText,
                     isOnlineMode = _isOnlineMode.value,
                     apiKey = _apiKey.value,
-                    imageBitmap = imageBitmap
+                    imageBitmap = imageBitmap,
+                    isFrontCamera = isFrontCamera
                 )
                 updateMood(response.emotion)
 
