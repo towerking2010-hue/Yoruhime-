@@ -234,7 +234,7 @@ class MainViewModel(
 
     override fun onCleared() {
         super.onCleared()
-        ttsManager.release()
+        ttsManager.stop()
     }
 
     class Factory(
