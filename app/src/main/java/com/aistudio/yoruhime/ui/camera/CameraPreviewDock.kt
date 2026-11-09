@@ -87,6 +87,8 @@ import com.aistudio.yoruhime.ui.theme.VioletAccent
 @Composable
 fun CameraPreviewDock(
     isVisible: Boolean,
+    isFrontCamera: Boolean,
+    onToggleCameraFacing: () -> Unit,
     onClose: () -> Unit,
     onCaptureForInspection: (Bitmap, Boolean) -> Unit, // bitmap, isFrontCamera
     modifier: Modifier = Modifier
@@ -108,7 +110,6 @@ fun CameraPreviewDock(
         hasCameraPermission = granted
     }
 
-    var isFrontCamera by remember { mutableStateOf(true) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var previewView by remember { mutableStateOf<PreviewView?>(null) }
 
@@ -217,7 +218,7 @@ fun CameraPreviewDock(
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(
-                            onClick = { isFrontCamera = !isFrontCamera },
+                            onClick = onToggleCameraFacing,
                             modifier = Modifier.size(36.dp).testTag("camera_switch_button")
                         ) {
                             Icon(
