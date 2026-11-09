@@ -16,7 +16,7 @@ An interactive native Android companion application built with Kotlin and Jetpac
    - **Cloud Chat + Offline Fallback**: Uses OpenRouter with a user-supplied API key, recent conversation context, and an offline in-character dialogue bank when cloud chat is unavailable. Cloud usage and model availability depend on the selected OpenRouter route.
 
 3. **Camera & Snapshot Vision (CameraX)**
-   - User-triggered camera dock with front/back lens switching and a still-image capture action.
+   - User-triggered camera dock with front/back lens switching shared with the live camera background, plus a still-image capture action.
    - Captured front- or rear-camera snapshots are sent with the user's prompt to OpenRouter in Cloud mode; successful inspection depends on the selected provider/model supporting image input.
    - The full-screen camera background can sit behind the Live2D stage as a lightweight visual overlay. This is not spatial AR: there is no world tracking, plane detection, or world-anchored object placement.
    - Offline mode explicitly tells the user that the image was not analyzed. Continuous live-video understanding, automatic fatigue/stress detection, and always-on camera monitoring are not implemented.
