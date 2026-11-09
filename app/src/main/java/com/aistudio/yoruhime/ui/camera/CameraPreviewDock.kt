@@ -43,7 +43,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -202,7 +201,7 @@ fun CameraPreviewDock(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = if (isFrontCamera) Icons.Default.Psychology else Icons.Default.Visibility,
+                            imageVector = if (isFrontCamera) Icons.Default.PhotoCamera else Icons.Default.Visibility,
                             contentDescription = null,
                             tint = LavenderPrimary,
                             modifier = Modifier.size(18.dp)
