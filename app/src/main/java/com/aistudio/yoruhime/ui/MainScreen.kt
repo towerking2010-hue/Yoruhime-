@@ -94,6 +94,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aistudio.yoruhime.data.local.ChatMessageEntity
@@ -150,6 +151,10 @@ fun MainScreen(
 
     val live2DController = remember { Live2DController() }
     val listState = rememberLazyListState()
+
+    LaunchedEffect(apiKey) {
+        if (!showApiKeyDialog) tempApiKey = apiKey
+    }
 
     // Speech-to-text recording launcher for bedtime trigger phrase
     val speechRecognizerLauncher = rememberLauncherForActivityResult(
@@ -856,11 +861,18 @@ fun MainScreen(
                         value = tempApiKey,
                         onValueChange = { tempApiKey = it },
                         placeholder = { Text("sk-or-v1-...", color = TextMuted) },
+                        visualTransformation = PasswordVisualTransformation(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = TextWhite,
                             unfocusedTextColor = TextWhite
                         )
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Memory tip: say “Remember that I prefer…” to save a note on this phone. Say “Forget that…” to remove that exact note.",
+                        fontSize = 11.sp,
+                        color = TextMuted
                     )
                 }
             },
