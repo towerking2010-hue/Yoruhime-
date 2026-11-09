@@ -4,8 +4,10 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.graphics.BitmapFactory
 import android.view.ViewGroup
+import android.view.Surface
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -48,6 +50,9 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -79,7 +84,6 @@ import com.aistudio.yoruhime.ui.theme.TextMuted
 import com.aistudio.yoruhime.ui.theme.TextSilver
 import com.aistudio.yoruhime.ui.theme.TextWhite
 import com.aistudio.yoruhime.ui.theme.VioletAccent
-import java.util.concurrent.Executors
 
 @Composable
 fun CameraPreviewDock(
@@ -143,6 +147,8 @@ fun CameraPreviewDock(
 
                 val capture = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                    .setTargetRotation(previewView?.display?.rotation ?: Surface.ROTATION_0)
+                    .setJpegQuality(80)
                     .build()
                 imageCapture = capture
 
@@ -339,7 +345,7 @@ fun CameraPreviewDock(
                                     delay(120)
                                     isFlashing = false
                                 }
-                                captureSnapshot(context, imageCapture) { bitmap ->
+                                captureSnapshot(context, imageCapture, coroutineScope) { bitmap ->
                                     onCaptureForInspection(bitmap, isFrontCamera)
                                 }
                             },
@@ -390,22 +396,52 @@ fun CameraPreviewDock(
 private fun captureSnapshot(
     context: Context,
     imageCapture: ImageCapture?,
+    coroutineScope: CoroutineScope,
     onCaptured: (Bitmap) -> Unit
 ) {
     val capture = imageCapture ?: return
-    val executor = ContextCompat.getMainExecutor(context)
+    val callbackExecutor = ContextCompat.getMainExecutor(context)
 
     capture.takePicture(
-        executor,
+        callbackExecutor,
         object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(image: ImageProxy) {
+                val rotationDegrees = image.imageInfo.rotationDegrees
                 val buffer = image.planes[0].buffer
                 val bytes = ByteArray(buffer.remaining())
                 buffer.get(bytes)
-                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 image.close()
-                if (bitmap != null) {
-                    onCaptured(bitmap)
+
+                // Decode and rotate off the UI thread, sampling large camera frames down
+                // before allocating a full-resolution bitmap on mid-range phones.
+                coroutineScope.launch(Dispatchers.Default) {
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                    val maxDimension = maxOf(bounds.outWidth, bounds.outHeight).coerceAtLeast(1)
+                    var sampleSize = 1
+                    while (maxDimension / sampleSize > 1280) sampleSize *= 2
+
+                    val decoded = BitmapFactory.decodeByteArray(
+                        bytes,
+                        0,
+                        bytes.size,
+                        BitmapFactory.Options().apply { inSampleSize = sampleSize }
+                    ) ?: return@launch
+
+                    val upright = if (rotationDegrees != 0) {
+                        val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+                        Bitmap.createBitmap(
+                            decoded, 0, 0, decoded.width, decoded.height, matrix, true
+                        ).also { rotated ->
+                            if (rotated !== decoded) decoded.recycle()
+                        }
+                    } else {
+                        decoded
+                    }
+
+                    withContext(Dispatchers.Main) {
+                        onCaptured(upright)
+                    }
                 }
             }
 
