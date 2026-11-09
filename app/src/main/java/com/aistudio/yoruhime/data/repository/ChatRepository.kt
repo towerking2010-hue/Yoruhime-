@@ -7,6 +7,7 @@ import com.aistudio.yoruhime.data.local.OfflineDialogueBank
 import com.aistudio.yoruhime.data.local.UserBondEntity
 import com.aistudio.yoruhime.data.remote.AyakaResponse
 import com.aistudio.yoruhime.data.remote.OpenRouterService
+import com.aistudio.yoruhime.data.remote.ConversationTurn
 import kotlinx.coroutines.flow.Flow
 
 class ChatRepository(
@@ -28,6 +29,18 @@ class ChatRepository(
         apiKey: String,
         imageBitmap: Bitmap? = null
     ): AyakaResponse {
+        // Load the latest exchange history before saving this turn.
+        // ChatDao returns newest-first; the model needs chronological order.
+        val conversationHistory = database.chatDao()
+            .getRecentMessages(limit = 12)
+            .asReversed()
+            .map { message ->
+                ConversationTurn(
+                    role = if (message.isFromUser) "user" else "assistant",
+                    content = message.text
+                )
+            }
+
         // 1. Save user message to Room
         database.chatDao().insertMessage(
             ChatMessageEntity(
@@ -46,7 +59,8 @@ class ChatRepository(
                 response = openRouterService.generateReply(
                     apiKey = apiKey,
                     prompt = userText,
-                    imageBitmap = imageBitmap
+                    imageBitmap = imageBitmap,
+                    history = conversationHistory
                 )
             } catch (e: Exception) {
                 // OpenRouter failed (network, auth, rate limit, or provider error) -> seamless offline fallback
