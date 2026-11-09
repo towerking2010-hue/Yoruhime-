@@ -72,7 +72,7 @@ class OpenRouterService {
                             memoryNotes.take(12).forEach { note ->
                                 append("- ")
                                 append(note.take(300))
-                                append('\\n')
+                                append(10.toChar())
                             }
                             append("Use these notes only when relevant. Do not claim to remember details not listed here.")
                         }
