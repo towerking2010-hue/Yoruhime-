@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.aistudio.yoruhime.data.local.ChatMessageEntity
+import com.aistudio.yoruhime.data.local.MemoryNoteEntity
 import com.aistudio.yoruhime.data.local.UserBondEntity
 import com.aistudio.yoruhime.data.repository.ChatRepository
 import com.aistudio.yoruhime.data.local.SecureApiKeyStore
@@ -31,6 +32,9 @@ class MainViewModel(
 
     val userBond: StateFlow<UserBondEntity?> = repository.bondFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val memories: StateFlow<List<MemoryNoteEntity>> = repository.memoriesFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _currentEmotion = MutableStateFlow("normal")
     val currentEmotion: StateFlow<String> = _currentEmotion.asStateFlow()
@@ -192,6 +196,18 @@ class MainViewModel(
     fun clearChat() {
         viewModelScope.launch {
             repository.clearHistory()
+        }
+    }
+
+    fun forgetMemory(content: String) {
+        viewModelScope.launch {
+            repository.forgetMemory(content)
+        }
+    }
+
+    fun clearMemories() {
+        viewModelScope.launch {
+            repository.clearMemories()
         }
     }
 
