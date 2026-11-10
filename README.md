@@ -17,7 +17,7 @@ An interactive native Android companion application built with Kotlin and Jetpac
 
 3. **Camera & Snapshot Vision (CameraX)**
    - User-triggered camera dock with front/back lens switching shared with the live camera background, plus a still-image capture action.
-   - Captured front- or rear-camera snapshots are sent with the user's prompt to OpenRouter in Cloud mode; successful inspection depends on the selected provider/model supporting image input.
+   - Captured front- or rear-camera snapshots are sent with the user's prompt to a configured vision-capable OpenRouter model in Cloud mode. Cloud failures are surfaced in the chat instead of being silently presented as normal offline replies.
    - The full-screen camera background can sit behind the Live2D stage as a lightweight visual overlay. This is not spatial AR: there is no world tracking, plane detection, or world-anchored object placement.
    - Offline mode explicitly tells the user that the image was not analyzed. Continuous live-video understanding, automatic fatigue/stress detection, and always-on camera monitoring are not implemented.
 
@@ -27,7 +27,7 @@ An interactive native Android companion application built with Kotlin and Jetpac
    - Awards Bond EXP upon completion.
 
 5. **Daily Curfew Reminder (WorkManager)**
-   - Schedules a daily notification at the saved local time; new installs currently default to 11:00 AM, and the settings dialog includes midnight and evening presets.
+   - Schedules a daily notification at the saved local time; new installs default to 11:00 PM; the database migration changes only the untouched old 11:00 AM default and preserves custom schedules, and the settings dialog includes midnight and evening presets.
    - WorkManager delivery is best-effort and may be delayed by Android battery restrictions; this is a reminder, not a device lock.
    - Includes an instant "Bedtime Alert" test button in the chat toolbar.
 
@@ -46,6 +46,6 @@ The Android app keeps its existing Live2D character and Compose interface while 
 - **Protected API key**: the OpenRouter key is encrypted with AES-GCM using a key stored by Android Keystore.
 - **Voice input and output**: use the microphone button for Android speech recognition. Assistant replies use the existing emotion-aware Android TTS and respect the mute control.
 
-- **Evolving emotional state**: a lightweight local mood model tracks warmth, energy, stress, affection, and confidence. Chat replies, touch reactions, study events, and bedtime events influence it; the values gently decay toward a calm baseline. Its richer internal state maps only to the six expressions already supported by the existing Live2D model. No replacement model assets are used.
+- **Evolving emotional state**: a lightweight local mood model tracks warmth, energy, stress, affection, and confidence. Chat replies, touch reactions, study events, and bedtime events influence it; the values gently decay toward a calm baseline. Its richer internal state maps only to the six expressions already supported by the existing Live2D model. No replacement model assets are used. Manual expression selection is kept in sync with the displayed Live2D expression; the stage uses a contain-style fit so the full model remains inside the available viewport.
 
 These are incremental mobile adaptations, not a port of MekaHime's Windows-only runtime. The existing YoruHime Live2D model and assets are retained.
