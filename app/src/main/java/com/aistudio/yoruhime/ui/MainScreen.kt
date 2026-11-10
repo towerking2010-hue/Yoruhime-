@@ -147,10 +147,10 @@ fun MainScreen(
     var tempBedtimePhrase by remember {
         mutableStateOf(
             userBond?.customBedtimePhrase
-                ?: "It's 11:00 AM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
+                ?: "It's 11:00 PM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
         )
     }
-    var selectedHour by remember { mutableStateOf(userBond?.bedtimeHour ?: 11) }
+    var selectedHour by remember { mutableStateOf(userBond?.bedtimeHour ?: 23) }
     var selectedMinute by remember { mutableStateOf(userBond?.bedtimeMinute ?: 0) }
 
     val live2DController = remember { Live2DController() }
@@ -536,7 +536,7 @@ fun MainScreen(
                                 }
                             }
 
-                            // 11:00 AM Curfew & Bedtime Scold Settings Dialog Button
+                            // 11:00 PM Curfew & Bedtime Scold Settings Dialog Button
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
                                 color = GlassSurface.copy(alpha = 0.65f),
