@@ -21,7 +21,7 @@ class OpenRouterService {
         private const val ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
         private const val DEFAULT_MODEL = "openrouter/auto"
         // Automatic routing may select a text-only provider for an image request.
-        private const val VISION_MODEL = "google/gemini-2.5-flash"
+        private const val VISION_MODEL = "google/gemini-2.5-flash-lite"
         private const val MAX_HISTORY_TURNS = 12
     }
 
