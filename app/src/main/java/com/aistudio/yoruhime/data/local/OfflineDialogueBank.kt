@@ -59,15 +59,27 @@ object OfflineDialogueBank {
         InCharacterResponse("sad", "That sounds like a genuinely rough day. You don't have to prove anything to me tonight. Get comfortable, breathe, and sleep if you can.")
     )
 
-    private val CASUAL_REPLIES = listOf(
-        InCharacterResponse("smile", "Yo? That's your grand opening? Hmph. Fine, I'm listening. What do you need?"),
-        InCharacterResponse("blush", "Oh, you're here. I was just checking the schedule, not waiting for you. Now tell me what's going on."),
-        InCharacterResponse("normal", "I'm here. Give me the short version—what's happening?")
+    private val GREETING_REPLIES = listOf(
+        InCharacterResponse("smile", "Hey. I'm here, and I'm listening. What have you been up to?"),
+        InCharacterResponse("blush", "Oh, you came back. Hmph... it's nice to see you. How's your day going?"),
+        InCharacterResponse("normal", "Hi! What's on your mind?")
+    )
+
+    private val THANK_YOU_REPLIES = listOf(
+        InCharacterResponse("blush", "You're welcome. I was happy to help... not that you need to make a big deal out of it."),
+        InCharacterResponse("smile", "Anytime. Just make sure you give yourself some credit too.")
+    )
+
+    private val CHECK_IN_REPLIES = listOf(
+        InCharacterResponse("smile", "Not much chaos on my end. I'm right here with you. What's happening in your world?"),
+        InCharacterResponse("normal", "I'm here and ready to listen. Tell me what's going on."),
+        InCharacterResponse("blush", "I was keeping myself busy, obviously. But you have my attention now. How are you?")
     )
 
     fun generateReply(userPrompt: String, bondLevel: Int): InCharacterResponse {
         val lower = userPrompt.trim().lowercase()
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        val exactGreeting = lower.matches(Regex("^(yo|sup|hey|hiya|hello|hi|good morning|good afternoon|good evening)[!. ]*$"))
 
         // Emotional needs take priority over teasing or generic keyword replies.
         if (listOf("exhausted", "sleepy", "worn out", "overwhelmed", "burnt out", "burned out").any { keyword -> lower.contains(keyword) } ||
@@ -81,20 +93,24 @@ object OfflineDialogueBank {
         }
 
         return when {
-            lower.matches(Regex("^(yo|sup|hey|hiya|hello|hi|good morning|good evening)[!. ]*$")) -> CASUAL_REPLIES.random()
-            listOf("hello", "hi ", "morning", "hey", "good evening", "good morning").any { keyword -> lower.contains(keyword) } -> GREETINGS.random()
+            exactGreeting -> GREETING_REPLIES.random()
+            listOf("what's happening", "what is happening", "what's up", "whats up", "how are you", "how's it going", "hows it going").any { lower.contains(it) } ->
+                CHECK_IN_REPLIES.random()
+            listOf("thank you", "thanks", "thx", "appreciate it").any { lower.contains(it) } -> THANK_YOU_REPLIES.random()
             listOf("love", "cute", "pretty", "beautiful", "marry", "like you", "miss you").any { keyword -> lower.contains(keyword) } -> COMPLIMENTS.random()
             listOf("study", "work", "focus", "homework", "exam", "assignment").any { keyword -> lower.contains(keyword) } -> STUDY_WORK.random()
             listOf("eat", "food", "hungry", "water", "snack", "coffee", "lunch", "dinner").any { keyword -> lower.contains(keyword) } -> FOOD_HEALTH.random()
             listOf("poke", "touch", "pat", "hug").any { keyword -> lower.contains(keyword) } -> TEASING_TOUCH.random()
             listOf("camera", "look at", "show you", "see this", "inspect").any { keyword -> lower.contains(keyword) } ->
-                InCharacterResponse("normal", "I can't see your room or surroundings from text alone. Send me a photo with the camera or attachment button, and switch to Cloud mode if you want me to examine it. I won't pretend I've seen something I haven't.")
-            lower.length <= 18 -> CASUAL_REPLIES.random()
+                InCharacterResponse("normal", "I can't see your surroundings from text alone. Attach a photo or use the camera snapshot, then connect Cloud mode with your OpenRouter key so I can analyse the actual image. I won't pretend I've seen something I haven't.")
+            lower.contains("?") || listOf("what ", "why ", "how ", "when ", "where ", "who ", "can you", "could you", "should i", "should I").any { lower.startsWith(it) } ->
+                InCharacterResponse("normal", "I want to give you a proper answer, but I'm in offline mode right now. I can handle a few basic topics, but I can't reason through every question without a connected AI model. Tell me a little more, or connect a free Cloud model when you're ready.")
+            lower.length < 4 -> InCharacterResponse("smile", "I'm listening. Go on—what did you want to tell me?")
             else -> {
-                if (bondLevel >= 4 && (0..2).random() == 0) {
-                    InCharacterResponse("blush", "...Even when you ramble about strange things, I find myself listening. Don't let it go to your head, though! Keep going.")
+                if (bondLevel >= 4) {
+                    InCharacterResponse("smile", "I read that. I don't want to give you a random canned answer—tell me what part matters most, and I'll do my best with the offline tools I have.")
                 } else {
-                    GENERAL_DEVOTION.random()
+                    InCharacterResponse("normal", "I hear you. I'm currently using limited offline replies, so I may not understand the full meaning yet. Could you explain a little more?")
                 }
             }
         }
