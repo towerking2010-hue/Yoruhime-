@@ -386,7 +386,6 @@ fun CameraPreviewDock(
                                     onCaptured = { bitmap -> onCaptureForInspection(bitmap, isFrontCamera) },
                                     onError = { error ->
                                         cameraError = error
-                                        cameraReady = false
                                     }
                                 )
                             },
