@@ -249,7 +249,7 @@
     function resizeParticleCanvas() {
       pCanvas.width = window.innerWidth * (window.devicePixelRatio || 1);
       pCanvas.height = window.innerHeight * (window.devicePixelRatio || 1);
-      pCtx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+      pCtx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
     }
 
     function resizeModel() {
@@ -258,14 +258,16 @@
       const h = window.innerHeight;
       app.renderer.resize(w, h);
 
-      const scaleX = (w * 0.96) / currentModel.width;
-      const scaleY = (h * 0.96) / currentModel.height;
-      const baseScale = Math.min(scaleX, scaleY) * 1.38;
+      // Fit the full model inside the actual Compose stage; the old 1.38
+      // multiplier enlarged it beyond the viewport and clipped the head/legs.
+      const scaleX = (w * 0.94) / Math.max(currentModel.width, 1);
+      const scaleY = (h * 0.94) / Math.max(currentModel.height, 1);
+      const fitScale = Math.min(scaleX, scaleY);
 
-      currentModel.scale.set(baseScale);
-      currentModel.anchor.set(0.5, 0.34);
+      currentModel.scale.set(fitScale);
+      currentModel.anchor.set(0.5, 0.5);
       currentModel.x = w * 0.5;
-      currentModel.y = h * 0.44;
+      currentModel.y = h * 0.5;
     }
 
     function updateProceduralAnimations(timestamp, elapsed) {
@@ -379,28 +381,17 @@
       activeEmotion = emotion || 'normal';
       const config = EMOTION_MAP[activeEmotion] || EMOTION_MAP['normal'];
 
-      // Reset button parameters
-      if (currentModel && currentModel.internalModel && currentModel.internalModel.coreModel) {
-        const core = currentModel.internalModel.coreModel;
-        ['Button1', 'Button2', 'Button3', 'Button4', 'Button7'].forEach(b => {
-          core.setParameterValueById(b, 0.0);
-        });
-        if (config.button) {
-          core.setParameterValueById(config.button, 1.0);
-        }
-      }
-
-      emotionParams.targetBrowY = config.browY;
-      emotionParams.targetMouthForm = config.mouth;
-      emotionParams.targetEyeOpen = config.eyeOpen;
-
+      // The model registers real expression files in tsubaki.model3.json.
+      // Avoid also writing guessed facial parameter IDs that fight expression blending.
       try {
         if (activeEmotion === 'normal') {
           currentModel.expression();
         } else {
           currentModel.expression(activeEmotion);
         }
-      } catch (e) { /* fallback gracefully */ }
+      } catch (e) {
+        console.warn("Live2D expression unavailable:", activeEmotion, e);
+      }
     };
 
     window.playMotion = function(motionName) {
