@@ -111,6 +111,8 @@ fun CameraPreviewDock(
 
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var previewView by remember { mutableStateOf<PreviewView?>(null) }
+    var cameraReady by remember { mutableStateOf(false) }
+    var cameraError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(isVisible) {
         if (isVisible && !hasCameraPermission) {
@@ -123,13 +125,20 @@ fun CameraPreviewDock(
     // Bind Camera lifecycle when isVisible, permission, or lens facing toggles
     LaunchedEffect(isVisible, hasCameraPermission, isFrontCamera, previewView) {
         if (!isVisible || !hasCameraPermission || previewView == null) {
+            cameraReady = false
+            imageCapture = null
             cameraProviderInstance?.unbindAll()
             return@LaunchedEffect
         }
 
+        cameraReady = false
+        cameraError = null
+        imageCapture = null
+
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener({
             try {
+                val activePreviewView = previewView ?: return@addListener
                 val cameraProvider = cameraProviderFuture.get()
                 cameraProviderInstance = cameraProvider
 
@@ -141,15 +150,14 @@ fun CameraPreviewDock(
                 val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
 
                 val preview = Preview.Builder().build().also {
-                    it.surfaceProvider = previewView?.surfaceProvider
+                    it.setSurfaceProvider(activePreviewView.surfaceProvider)
                 }
 
                 val capture = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                    .setTargetRotation(previewView?.display?.rotation ?: android.view.Surface.ROTATION_0)
+                    .setTargetRotation(activePreviewView.display?.rotation ?: android.view.Surface.ROTATION_0)
                     .setJpegQuality(80)
                     .build()
-                imageCapture = capture
 
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(
@@ -158,8 +166,13 @@ fun CameraPreviewDock(
                     preview,
                     capture
                 )
+                imageCapture = capture
+                cameraReady = true
+                cameraError = null
             } catch (e: Exception) {
-                e.printStackTrace()
+                imageCapture = null
+                cameraReady = false
+                cameraError = e.localizedMessage ?: "Unable to start this camera. Check camera permission and close other apps using it."
             }
         }, ContextCompat.getMainExecutor(context))
     }
@@ -331,6 +344,27 @@ fun CameraPreviewDock(
                     )
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    cameraError?.let { error ->
+                        Text(
+                            text = "Camera error: $error",
+                            color = TextSilver,
+                            fontSize = 11.sp
+                        )
+                    } ?: if (!cameraReady) {
+                        Text(
+                            text = "Starting camera…",
+                            color = TextMuted,
+                            fontSize = 11.sp
+                        )
+                    } else {
+                        Text(
+                            text = "Camera ready. Cloud vision requires your OpenRouter key; preview and snapshot do not.",
+                            color = TextMuted,
+                            fontSize = 10.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     // Inspection Action Buttons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -338,15 +372,23 @@ fun CameraPreviewDock(
                     ) {
                         val coroutineScope = rememberCoroutineScope()
                         Button(
+                            enabled = cameraReady && imageCapture != null,
                             onClick = {
                                 coroutineScope.launch {
                                     isFlashing = true
                                     delay(120)
                                     isFlashing = false
                                 }
-                                captureSnapshot(context, imageCapture, coroutineScope) { bitmap ->
-                                    onCaptureForInspection(bitmap, isFrontCamera)
-                                }
+                                captureSnapshot(
+                                    context = context,
+                                    imageCapture = imageCapture,
+                                    coroutineScope = coroutineScope,
+                                    onCaptured = { bitmap -> onCaptureForInspection(bitmap, isFrontCamera) },
+                                    onError = { error ->
+                                        cameraError = error
+                                        cameraReady = false
+                                    }
+                                )
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = VioletAccent),
                             shape = RoundedCornerShape(12.dp),
@@ -396,9 +438,13 @@ private fun captureSnapshot(
     context: Context,
     imageCapture: ImageCapture?,
     coroutineScope: CoroutineScope,
-    onCaptured: (Bitmap) -> Unit
+    onCaptured: (Bitmap) -> Unit,
+    onError: (String) -> Unit
 ) {
-    val capture = imageCapture ?: return
+    val capture = imageCapture ?: run {
+        onError("Camera is still starting. Wait a moment and try again.")
+        return
+    }
     val callbackExecutor = ContextCompat.getMainExecutor(context)
 
     capture.takePicture(
@@ -425,7 +471,12 @@ private fun captureSnapshot(
                         0,
                         bytes.size,
                         BitmapFactory.Options().apply { inSampleSize = sampleSize }
-                    ) ?: return@launch
+                    ) ?: run {
+                        withContext(Dispatchers.Main) {
+                            onError("The camera took a photo, but the image could not be decoded.")
+                        }
+                        return@launch
+                    }
 
                     val upright = if (rotationDegrees != 0) {
                         val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
@@ -445,7 +496,7 @@ private fun captureSnapshot(
             }
 
             override fun onError(exception: ImageCaptureException) {
-                exception.printStackTrace()
+                onError(exception.localizedMessage ?: "The camera could not capture an image.")
             }
         }
     )
