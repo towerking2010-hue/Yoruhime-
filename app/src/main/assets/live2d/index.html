@@ -121,6 +121,8 @@
   <script>
     let app = null;
     let currentModel = null;
+    let modelBaseWidth = 0;
+    let modelBaseHeight = 0;
     const TARGET_FPS = 30;
     const FRAME_INTERVAL = 1000 / TARGET_FPS;
     let lastRenderTime = performance.now();
@@ -194,6 +196,10 @@
         });
 
         app.stage.addChild(currentModel);
+        // Cache the unscaled dimensions once. Reading model.width after a resize
+        // returns the already-scaled size and causes drift on repeated resizes.
+        modelBaseWidth = currentModel.width;
+        modelBaseHeight = currentModel.height;
         resizeModel();
         window.addEventListener('resize', resizeModel);
 
@@ -260,8 +266,8 @@
 
       // Fit the full model inside the actual Compose stage; the old 1.38
       // multiplier enlarged it beyond the viewport and clipped the head/legs.
-      const scaleX = (w * 0.94) / Math.max(currentModel.width, 1);
-      const scaleY = (h * 0.94) / Math.max(currentModel.height, 1);
+      const scaleX = (w * 0.94) / Math.max(modelBaseWidth, 1);
+      const scaleY = (h * 0.94) / Math.max(modelBaseHeight, 1);
       const fitScale = Math.min(scaleX, scaleY);
 
       currentModel.scale.set(fitScale);
