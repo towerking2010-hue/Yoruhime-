@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -59,6 +60,7 @@ fun ARCameraBackground(
     }
 
     var previewView by remember { mutableStateOf<PreviewView?>(null) }
+    var cameraError by remember { mutableStateOf<String?>(null) }
 
     var cameraProviderInstance by remember { mutableStateOf<ProcessCameraProvider?>(null) }
 
@@ -71,9 +73,11 @@ fun ARCameraBackground(
     LaunchedEffect(isCameraActive, hasPermission, isFrontCamera, previewView) {
         if (!isCameraActive || !hasPermission || previewView == null) {
             cameraProviderInstance?.unbindAll()
+            cameraError = null
             return@LaunchedEffect
         }
 
+        cameraError = null
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener({
             try {
@@ -98,7 +102,7 @@ fun ARCameraBackground(
                     preview
                 )
             } catch (e: Exception) {
-                e.printStackTrace()
+                cameraError = e.localizedMessage ?: "Unable to start the camera. Check permission and close other apps using it."
             }
         }, ContextCompat.getMainExecutor(context))
     }
@@ -140,20 +144,30 @@ fun ARCameraBackground(
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize()
         ) {
-            AndroidView(
-                factory = { ctx ->
-                    PreviewView(ctx).apply {
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
-                        scaleType = PreviewView.ScaleType.FILL_CENTER
-                        implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                        previewView = this
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
+            Box(modifier = Modifier.fillMaxSize()) {
+                AndroidView(
+                    factory = { ctx ->
+                        PreviewView(ctx).apply {
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            scaleType = PreviewView.ScaleType.FILL_CENTER
+                            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                            previewView = this
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+                cameraError?.let { error ->
+                    androidx.compose.material3.Text(
+                        text = "Camera unavailable: $error",
+                        color = Color.White,
+                        modifier = Modifier.align(Alignment.Center)
+                            .background(MidnightBlack.copy(alpha = 0.85f))
+                    )
+                }
+            }
         }
     }
 }
