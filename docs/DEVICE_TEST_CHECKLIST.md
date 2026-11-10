@@ -51,3 +51,11 @@ Use this after installing the debug APK on the Samsung Galaxy A31 (Android 12). 
 - The live camera background is a camera feed behind the existing Live2D stage, not world-tracked spatial AR.
 - WorkManager bedtime reminders are best-effort and can be delayed by Android battery management.
 - Android TTS and speech recognition use the device's installed services; a specific custom voice is not bundled.
+
+
+## Repair milestone checks
+- [ ] Verify the full Live2D model fits without head/leg clipping after rotation and window resizing.
+- [ ] Tap each expression control and confirm the matching expression is highlighted and visible; normal clears the expression.
+- [ ] Send an exhaustion message in Guard mode and confirm Ayaka responds supportively rather than with a generic scolding.
+- [ ] In Cloud mode, verify a text reply and a rear-camera snapshot; confirm provider/API failures are shown clearly.
+- [ ] Confirm the new default is 11:00 PM and an existing custom curfew survives the database migration.
