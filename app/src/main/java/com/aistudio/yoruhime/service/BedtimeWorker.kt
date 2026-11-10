@@ -43,9 +43,9 @@ class BedtimeWorker(
         const val WORK_NAME = "ayaka_bedtime_worker"
 
         const val DEFAULT_CURFEW_PHRASE =
-            "It's 11:00 AM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
+            "It's 11:00 PM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
 
-        fun scheduleCurfew(context: Context, hour: Int = 11, minute: Int = 0) {
+        fun scheduleCurfew(context: Context, hour: Int = 23, minute: Int = 0) {
             val now = Calendar.getInstance()
             val target = Calendar.getInstance().apply {
                 set(Calendar.HOUR_OF_DAY, hour)
@@ -74,7 +74,7 @@ class BedtimeWorker(
         }
 
         fun scheduleDailyCurfew(context: Context) {
-            scheduleCurfew(context, 11, 0)
+            scheduleCurfew(context, 23, 0)
         }
 
         fun showBedtimeNotification(context: Context, customPhrase: String? = null) {
