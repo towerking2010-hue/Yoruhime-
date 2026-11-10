@@ -384,11 +384,7 @@
       // The model registers real expression files in tsubaki.model3.json.
       // Avoid also writing guessed facial parameter IDs that fight expression blending.
       try {
-        if (activeEmotion === 'normal') {
-          currentModel.expression();
-        } else {
-          currentModel.expression(activeEmotion);
-        }
+        currentModel.expression(activeEmotion);
       } catch (e) {
         console.warn("Live2D expression unavailable:", activeEmotion, e);
       }
