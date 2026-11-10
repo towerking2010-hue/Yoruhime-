@@ -20,6 +20,8 @@ class OpenRouterService {
     companion object {
         private const val ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
         private const val DEFAULT_MODEL = "openrouter/auto"
+        // Automatic routing may select a text-only provider for an image request.
+        private const val VISION_MODEL = "google/gemini-2.5-flash"
         private const val MAX_HISTORY_TURNS = 12
     }
 
@@ -164,7 +166,7 @@ class OpenRouterService {
             })
 
             val requestJson = JSONObject().apply {
-                put("model", DEFAULT_MODEL)
+                put("model", if (imageBitmap != null) VISION_MODEL else DEFAULT_MODEL)
                 put("messages", messages)
                 put("temperature", 0.85)
                 put("max_tokens", 450)
