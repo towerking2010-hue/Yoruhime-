@@ -70,24 +70,24 @@ object OfflineDialogueBank {
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
 
         // Emotional needs take priority over teasing or generic keyword replies.
-        if (listOf("exhausted", "sleepy", "worn out", "overwhelmed", "burnt out", "burned out").any(lower::contains) ||
-            (lower.contains("tired") && listOf("so ", "really", "very").any(lower::contains))) {
+        if (listOf("exhausted", "sleepy", "worn out", "overwhelmed", "burnt out", "burned out").any { keyword -> lower.contains(keyword) } ||
+            (lower.contains("tired") && listOf("so ", "really", "very").any { keyword -> lower.contains(keyword) })) {
             return TIRED_CARE.random()
         }
 
         if ((hour >= 22 || hour < 6) &&
-            listOf("sleep", "tired", "night", "awake", "bed").any(lower::contains)) {
+            listOf("sleep", "tired", "night", "awake", "bed").any { keyword -> lower.contains(keyword) }) {
             return LATE_NIGHT.random()
         }
 
         return when {
             lower.matches(Regex("^(yo|sup|hey|hiya|hello|hi|good morning|good evening)[!. ]*$")) -> CASUAL_REPLIES.random()
-            listOf("hello", "hi ", "morning", "hey", "good evening", "good morning").any(lower::contains) -> GREETINGS.random()
-            listOf("love", "cute", "pretty", "beautiful", "marry", "like you", "miss you").any(lower::contains) -> COMPLIMENTS.random()
-            listOf("study", "work", "focus", "homework", "exam", "assignment").any(lower::contains) -> STUDY_WORK.random()
-            listOf("eat", "food", "hungry", "water", "snack", "coffee", "lunch", "dinner").any(lower::contains) -> FOOD_HEALTH.random()
-            listOf("poke", "touch", "pat", "hug").any(lower::contains) -> TEASING_TOUCH.random()
-            listOf("camera", "look at", "show you", "see this", "inspect").any(lower::contains) ->
+            listOf("hello", "hi ", "morning", "hey", "good evening", "good morning").any { keyword -> lower.contains(keyword) } -> GREETINGS.random()
+            listOf("love", "cute", "pretty", "beautiful", "marry", "like you", "miss you").any { keyword -> lower.contains(keyword) } -> COMPLIMENTS.random()
+            listOf("study", "work", "focus", "homework", "exam", "assignment").any { keyword -> lower.contains(keyword) } -> STUDY_WORK.random()
+            listOf("eat", "food", "hungry", "water", "snack", "coffee", "lunch", "dinner").any { keyword -> lower.contains(keyword) } -> FOOD_HEALTH.random()
+            listOf("poke", "touch", "pat", "hug").any { keyword -> lower.contains(keyword) } -> TEASING_TOUCH.random()
+            listOf("camera", "look at", "show you", "see this", "inspect").any { keyword -> lower.contains(keyword) } ->
                 InCharacterResponse("normal", "I can't see your room or surroundings from text alone. Send me a photo with the camera or attachment button, and switch to Cloud mode if you want me to examine it. I won't pretend I've seen something I haven't.")
             lower.length <= 18 -> CASUAL_REPLIES.random()
             else -> {
