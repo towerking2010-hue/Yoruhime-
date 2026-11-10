@@ -144,24 +144,6 @@
 
     // Active Emotion State
     let activeEmotion = 'normal';
-    let emotionParams = {
-      browY: 0,
-      mouthForm: 0,
-      eyeOpen: 1,
-      targetBrowY: 0,
-      targetMouthForm: 0,
-      targetEyeOpen: 1
-    };
-
-    const EMOTION_MAP = {
-      'blush':  { button: 'Button2', browY: 0.2, mouth: 0.1, eyeOpen: 0.95 },
-      'smile':  { button: 'Button4', browY: 0.4, mouth: 0.8, eyeOpen: 0.85 },
-      'happy':  { button: 'Button3', browY: 0.6, mouth: 1.0, eyeOpen: 0.75 },
-      'sad':    { button: 'Button1', browY: -0.5, mouth: -0.6, eyeOpen: 0.8 },
-      'angry':  { button: 'Button7', browY: -0.8, mouth: -0.4, eyeOpen: 1.0 },
-      'normal': { button: null, browY: 0.0, mouth: 0.0, eyeOpen: 1.0 }
-    };
-
     // Particle FX Canvas
     const pCanvas = document.getElementById('particles-canvas');
     const pCtx = pCanvas.getContext('2d');
@@ -324,17 +306,10 @@
         }
       }
 
-      // 5. Emotion Parameter Tweens
-      emotionParams.browY += (emotionParams.targetBrowY - emotionParams.browY) * 0.12;
-      emotionParams.mouthForm += (emotionParams.targetMouthForm - emotionParams.mouthForm) * 0.12;
-      emotionParams.eyeOpen += (emotionParams.targetEyeOpen - emotionParams.eyeOpen) * 0.12;
-
-      const finalEyeOpen = emotionParams.eyeOpen * eyeBlinkMultiplier;
+      // 5. Natural blink only. Expressions own their facial parameters.
+      const finalEyeOpen = eyeBlinkMultiplier;
       core.setParameterValueById('ParamEyeROpen', Math.max(0, Math.min(1, finalEyeOpen)));
       core.setParameterValueById('ParamEyeLOpen', Math.max(0, Math.min(1, finalEyeOpen)));
-      core.setParameterValueById('ParamBrowRY', emotionParams.browY);
-      core.setParameterValueById('ParamBrowLY', emotionParams.browY);
-      core.setParameterValueById('ParamMouthForm', emotionParams.mouthForm);
     }
 
     // Particle FX
@@ -385,8 +360,6 @@
     // Exposed JS bridge methods
     window.setEmotion = function(emotion) {
       activeEmotion = emotion || 'normal';
-      const config = EMOTION_MAP[activeEmotion] || EMOTION_MAP['normal'];
-
       // The model registers real expression files in tsubaki.model3.json.
       // Avoid also writing guessed facial parameter IDs that fight expression blending.
       try {
