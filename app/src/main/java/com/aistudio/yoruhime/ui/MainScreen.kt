@@ -385,7 +385,7 @@ fun MainScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (isOnlineMode) "Cloud" else "Guard",
+                                    text = if (isOnlineMode) "Cloud" else "Offline",
                                     color = TextSilver,
                                     fontSize = 11.sp
                                 )
