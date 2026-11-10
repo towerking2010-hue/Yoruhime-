@@ -32,6 +32,10 @@ android {
             )
         }
         debug {
+            // Keep the test build installed alongside the user's existing app.
+            // A distinct package name prevents replacement or data overwrite.
+            applicationIdSuffix = ".test"
+            versionNameSuffix = "-test"
         }
     }
 
