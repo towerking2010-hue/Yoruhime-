@@ -53,47 +53,46 @@ object OfflineDialogueBank {
         InCharacterResponse("happy", "When you actually apply yourself, you can do anything. Now stop making me repeat myself and get to it!")
     )
 
+    private val TIRED_CARE = listOf(
+        InCharacterResponse("sad", "Oh, sweetheart... if you're that exhausted, stop pushing yourself for a moment. Drink some water, put the phone down, and let yourself rest. I'll help you plan tomorrow."),
+        InCharacterResponse("blush", "You're running on empty again? Honestly... take a proper break, Junior. I can be strict about deadlines, but I'm not asking you to run yourself into the ground."),
+        InCharacterResponse("sad", "That sounds like a genuinely rough day. You don't have to prove anything to me tonight. Get comfortable, breathe, and sleep if you can.")
+    )
+
+    private val CASUAL_REPLIES = listOf(
+        InCharacterResponse("smile", "Yo? That's your grand opening? Hmph. Fine, I'm listening. What do you need?"),
+        InCharacterResponse("blush", "Oh, you're here. I was just checking the schedule, not waiting for you. Now tell me what's going on."),
+        InCharacterResponse("normal", "I'm here. Give me the short version—what's happening?")
+    )
+
     fun generateReply(userPrompt: String, bondLevel: Int): InCharacterResponse {
         val lower = userPrompt.trim().lowercase()
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
 
-        // Late night check
-        if (hour >= 23 || hour < 5) {
-            if (lower.contains("sleep") || lower.contains("tired") || lower.contains("night")) {
-                return LATE_NIGHT.random()
-            }
+        // Emotional needs take priority over teasing or generic keyword replies.
+        if (listOf("exhausted", "sleepy", "worn out", "overwhelmed", "burnt out", "burned out").any(lower::contains) ||
+            (lower.contains("tired") && listOf("so ", "really", "very").any(lower::contains))) {
+            return TIRED_CARE.random()
         }
 
-        // Keywords detection
+        if ((hour >= 22 || hour < 6) &&
+            listOf("sleep", "tired", "night", "awake", "bed").any(lower::contains)) {
+            return LATE_NIGHT.random()
+        }
+
         return when {
-            lower.contains("hello") || lower.contains("hi") || lower.contains("morning") || lower.contains("hey") -> {
-                GREETINGS.random()
-            }
-            lower.contains("love") || lower.contains("cute") || lower.contains("pretty") || lower.contains("beautiful") || lower.contains("marry") || lower.contains("like you") -> {
-                COMPLIMENTS.random()
-            }
-            lower.contains("study") || lower.contains("work") || lower.contains("focus") || lower.contains("homework") || lower.contains("exam") -> {
-                STUDY_WORK.random()
-            }
-            lower.contains("eat") || lower.contains("food") || lower.contains("hungry") || lower.contains("water") || lower.contains("snack") || lower.contains("coffee") -> {
-                FOOD_HEALTH.random()
-            }
-            lower.contains("poke") || lower.contains("touch") || lower.contains("pat") || lower.contains("hug") -> {
-                TEASING_TOUCH.random()
-            }
-            lower.contains("camera") || lower.contains("look") || lower.contains("inspect") -> {
-                InCharacterResponse(
-                    "normal",
-                    "I can respond to what you describe, but I cannot see a camera feed or inspect images while we're offline. Switch to Cloud mode for visual analysis."
-                )
-            }
+            lower.matches(Regex("^(yo|sup|hey|hiya|hello|hi|good morning|good evening)[!. ]*$")) -> CASUAL_REPLIES.random()
+            listOf("hello", "hi ", "morning", "hey", "good evening", "good morning").any(lower::contains) -> GREETINGS.random()
+            listOf("love", "cute", "pretty", "beautiful", "marry", "like you", "miss you").any(lower::contains) -> COMPLIMENTS.random()
+            listOf("study", "work", "focus", "homework", "exam", "assignment").any(lower::contains) -> STUDY_WORK.random()
+            listOf("eat", "food", "hungry", "water", "snack", "coffee", "lunch", "dinner").any(lower::contains) -> FOOD_HEALTH.random()
+            listOf("poke", "touch", "pat", "hug").any(lower::contains) -> TEASING_TOUCH.random()
+            listOf("camera", "look at", "show you", "see this", "inspect").any(lower::contains) ->
+                InCharacterResponse("normal", "I can't see your room or surroundings from text alone. Send me a photo with the camera or attachment button, and switch to Cloud mode if you want me to examine it. I won't pretend I've seen something I haven't.")
+            lower.length <= 18 -> CASUAL_REPLIES.random()
             else -> {
-                // Adjust warmth based on bondLevel
                 if (bondLevel >= 4 && (0..2).random() == 0) {
-                    InCharacterResponse(
-                        "blush",
-                        "...Even when you ramble about strange things, I find myself listening. Don't let it go to your head, though! Keep going."
-                    )
+                    InCharacterResponse("blush", "...Even when you ramble about strange things, I find myself listening. Don't let it go to your head, though! Keep going.")
                 } else {
                     GENERAL_DEVOTION.random()
                 }
