@@ -152,6 +152,12 @@ class MainViewModel(
                     imageBitmap = imageBitmap,
                     isFrontCamera = isFrontCamera
                 )
+                // A failed Cloud request is returned as a local response. Switch the mode
+                // control back to Offline so subsequent messages do not keep retrying a
+                // slow/unavailable free endpoint until the user explicitly re-enables Cloud.
+                if (_isOnlineMode.value && !response.isOnline) {
+                    _isOnlineMode.value = false
+                }
                 updateMood(response.emotion)
 
                 // Speak every assistant reply; the existing mute control remains the user's override.
