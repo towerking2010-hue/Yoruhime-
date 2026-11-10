@@ -147,10 +147,10 @@ fun MainScreen(
     var tempBedtimePhrase by remember {
         mutableStateOf(
             userBond?.customBedtimePhrase
-                ?: "It's 11:00 AM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
+                ?: "It's 11:00 PM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
         )
     }
-    var selectedHour by remember { mutableStateOf(userBond?.bedtimeHour ?: 11) }
+    var selectedHour by remember { mutableStateOf(userBond?.bedtimeHour ?: 23) }
     var selectedMinute by remember { mutableStateOf(userBond?.bedtimeMinute ?: 0) }
 
     val live2DController = remember { Live2DController() }
@@ -385,7 +385,7 @@ fun MainScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (isOnlineMode) "Cloud" else "Guard",
+                                    text = if (isOnlineMode) "Cloud" else "Offline",
                                     color = TextSilver,
                                     fontSize = 11.sp
                                 )
@@ -536,7 +536,7 @@ fun MainScreen(
                                 }
                             }
 
-                            // 11:00 AM Curfew & Bedtime Scold Settings Dialog Button
+                            // 11:00 PM Curfew & Bedtime Scold Settings Dialog Button
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
                                 color = GlassSurface.copy(alpha = 0.65f),
@@ -544,7 +544,7 @@ fun MainScreen(
                                 modifier = Modifier
                                     .clickable {
                                         tempBedtimePhrase = userBond?.customBedtimePhrase
-                                            ?: "It's 11:00 AM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
+                                            ?: "It's 11:00 PM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
                                         selectedHour = userBond?.bedtimeHour ?: 11
                                         selectedMinute = userBond?.bedtimeMinute ?: 0
                                         showBedtimeDialog = true
@@ -1033,20 +1033,19 @@ fun MainScreen(
         )
     }
 
-    // Bedtime & Curfew Settings Dialog (11:00 AM Curfew / Midnight / Custom Phrase)
+    // Bedtime & Curfew Settings Dialog (11:00 PM Curfew / Midnight / Custom Phrase)
     if (showBedtimeDialog) {
         val scrollState = rememberScrollState()
         val presetPhrases = listOf(
-            "It's 11:00 AM curfew! Put your phone down right now and take a rest, you hopeless slacker!",
-            "Hey! Look at the clock, it's 11:00 AM! Stop staring at this screen and stretch, or I'm taking your phone!",
-            "Are you really still slacking off at 11:00 AM?! I didn't remind you because I care... I just hate seeing you ruin your health!",
+            "It's 11:00 PM curfew! Put your phone down right now and take a rest, you hopeless slacker!",
+            "Hey! Look at the clock, it's 11:00 PM! Stop staring at this screen and stretch, or I'm taking your phone!",
+            "Are you really still slacking off at 11:00 PM?! I didn't remind you because I care... I just hate seeing you ruin your health!",
             "It's bedtime! Put your phone down and go to sleep right this second, you stubborn idiot! If you get sick, I'm NOT nursing you!"
         )
 
         val timeOptions = listOf(
-            Triple("11:00 AM (Curfew)", 11, 0),
+            Triple("11:00 PM (Default curfew)", 23, 0),
             Triple("12:00 AM (Midnight)", 0, 0),
-            Triple("11:00 PM (Night)", 23, 0),
             Triple("10:30 PM", 22, 30)
         )
 
@@ -1321,7 +1320,7 @@ fun MainScreen(
                 TextButton(
                     onClick = {
                         val phrase = tempBedtimePhrase.trim().ifBlank {
-                            "It's 11:00 AM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
+                            "It's 11:00 PM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
                         }
                         viewModel.updateBedtimeConfig(
                             context = context,

@@ -63,31 +63,43 @@ class ChatRepository(
 
         val currentBond = getBond()
         var response: AyakaResponse? = null
+        var cloudFailure: String? = null
 
-        // 2. Try OpenRouter generation if cloud mode is enabled and a key is provided
-        if (isOnlineMode && apiKey.isNotBlank()) {
-            try {
-                response = openRouterService.generateReply(
-                    apiKey = apiKey,
-                    prompt = userText,
-                    imageBitmap = imageBitmap,
-                    history = conversationHistory,
-                    memoryNotes = memoryNotes
-                )
-            } catch (e: Exception) {
-                // OpenRouter failed (network, auth, rate limit, or provider error) -> seamless offline fallback
-                response = null
+        // 2. Try OpenRouter only when Cloud mode is selected.
+        if (isOnlineMode) {
+            if (apiKey.isBlank()) {
+                cloudFailure = "No OpenRouter API key is saved. Tap the key icon, add your key, save it, then retry."
+            } else {
+                try {
+                    response = openRouterService.generateReply(
+                        apiKey = apiKey,
+                        prompt = userText,
+                        imageBitmap = imageBitmap,
+                        history = conversationHistory,
+                        memoryNotes = memoryNotes
+                    )
+                } catch (e: Exception) {
+                    cloudFailure = (e.message ?: "Unknown network/provider error")
+                        .replace(Regex("\\s+"), " ")
+                        .take(220)
+                }
             }
         }
 
-        // 3. Honest offline fallback: never pretend to have analyzed an image locally.
+        // 3. Explain Cloud failures; never silently disguise them as successful replies.
         if (response == null) {
             val cameraLabel = if (isFrontCamera) "front-camera" else "rear-camera"
-            val fallback = if (imageBitmap != null) {
-                InCharacterResponse(
-                    emotion = "normal",
-                    text = "I can see that you sent an image, but I cannot actually inspect it while cloud vision is unavailable. Turn on Cloud mode and configure your API key if you want me to examine this $cameraLabel snapshot."
-                )
+            val fallbackText = when {
+                imageBitmap != null && !isOnlineMode ->
+                    "I received your $cameraLabel snapshot, but Guard (offline) mode cannot inspect images. Switch the top mode control to Cloud and retry."
+                imageBitmap != null ->
+                    "I couldn't inspect that snapshot because Cloud vision failed. $cloudFailure"
+                isOnlineMode ->
+                    "I couldn't reach Cloud, so I haven't passed this off as a successful reply. $cloudFailure"
+                else -> null
+            }
+            val fallback = if (fallbackText != null) {
+                InCharacterResponse("sad", fallbackText)
             } else {
                 OfflineDialogueBank.generateReply(userText, currentBond.bondLevel)
             }

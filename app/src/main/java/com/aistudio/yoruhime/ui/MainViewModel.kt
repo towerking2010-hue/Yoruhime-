@@ -45,7 +45,9 @@ class MainViewModel(
 
     private fun updateMood(emotion: String) {
         _mood.value = _mood.value.reactTo(emotion)
-        _currentEmotion.value = _mood.value.toLive2DExpression()
+        _currentEmotion.value = emotion.lowercase().takeIf {
+            it in setOf("normal", "smile", "blush", "happy", "sad", "angry")
+        } ?: "normal"
     }
 
     private val _isOnlineMode = MutableStateFlow(true)
@@ -84,13 +86,17 @@ class MainViewModel(
             while (true) {
                 delay(30_000)
                 _mood.value = _mood.value.decay()
-                _currentEmotion.value = _mood.value.toLive2DExpression()
+                // Decay internal mood quietly; don't overwrite a selected/reply expression.
             }
         }
     }
 
     fun setEmotion(emotion: String) {
-        updateMood(emotion)
+        val selected = emotion.lowercase().takeIf {
+            it in setOf("normal", "smile", "blush", "happy", "sad", "angry")
+        } ?: "normal"
+        _mood.value = _mood.value.reactTo(selected)
+        _currentEmotion.value = selected
     }
 
     fun toggleAudioMute() {
