@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.graphics.BitmapFactory
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -344,9 +345,17 @@ fun CameraPreviewDock(
                                     delay(120)
                                     isFlashing = false
                                 }
-                                captureSnapshot(context, imageCapture, coroutineScope) { bitmap ->
-                                    onCaptureForInspection(bitmap, isFrontCamera)
-                                }
+                                captureSnapshot(
+                                    context = context,
+                                    imageCapture = imageCapture,
+                                    coroutineScope = coroutineScope,
+                                    onCaptured = { bitmap ->
+                                        onCaptureForInspection(bitmap, isFrontCamera)
+                                    },
+                                    onError = { message ->
+                                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                    }
+                                )
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = VioletAccent),
                             shape = RoundedCornerShape(12.dp),
@@ -396,9 +405,13 @@ private fun captureSnapshot(
     context: Context,
     imageCapture: ImageCapture?,
     coroutineScope: CoroutineScope,
-    onCaptured: (Bitmap) -> Unit
+    onCaptured: (Bitmap) -> Unit,
+    onError: (String) -> Unit
 ) {
-    val capture = imageCapture ?: return
+    val capture = imageCapture ?: run {
+        onError("Camera is still starting. Please try again in a moment.")
+        return
+    }
     val callbackExecutor = ContextCompat.getMainExecutor(context)
 
     capture.takePicture(
@@ -425,7 +438,12 @@ private fun captureSnapshot(
                         0,
                         bytes.size,
                         BitmapFactory.Options().apply { inSampleSize = sampleSize }
-                    ) ?: return@launch
+                    ) ?: run {
+                        withContext(Dispatchers.Main) {
+                            onError("The camera image could not be decoded. Please try again.")
+                        }
+                        return@launch
+                    }
 
                     val upright = if (rotationDegrees != 0) {
                         val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
@@ -446,6 +464,7 @@ private fun captureSnapshot(
 
             override fun onError(exception: ImageCaptureException) {
                 exception.printStackTrace()
+                onError("Camera capture failed. Check camera permission and try again.")
             }
         }
     )
