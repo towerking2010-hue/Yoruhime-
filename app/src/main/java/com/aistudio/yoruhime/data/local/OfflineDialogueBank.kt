@@ -65,28 +65,28 @@ object OfflineDialogueBank {
         }
 
         if (hour >= 23 || hour < 5) {
-            if (listOf("sleep", "tired", "night", "exhausted", "can't sleep").any(lower::contains)) {
+            if (listOf("sleep", "tired", "night", "exhausted", "can't sleep").any { lower.contains(it) }) {
                 return LATE_NIGHT.random()
             }
         }
 
         return when {
-            listOf("who are you", "your name", "what is your name", "are you ayaka").any(lower::contains) ->
+            listOf("who are you", "your name", "what is your name", "are you ayaka").any { lower.contains(it) } ->
                 InCharacterResponse("smile", "I'm Ayaka Tōjou, your YoruHime companion. Mature, capable, and apparently responsible for keeping you out of trouble. Hmph!")
 
-            listOf("how are you", "how are you doing", "what about you").any(lower::contains) ->
+            listOf("how are you", "how are you doing", "what about you").any { lower.contains(it) } ->
                 InCharacterResponse("blush", "I'm doing well enough. A little busy keeping an eye on you, perhaps... How are you really doing?")
 
-            listOf("what can you do", "help me", "can you help").any(lower::contains) ->
+            listOf("what can you do", "help me", "can you help").any { lower.contains(it) } ->
                 InCharacterResponse("normal", "Offline, I can handle simple conversation, reminders, and a few common topics. For open-ended answers, image understanding, and richer conversation, enable Free AI with an OpenRouter key.")
 
-            listOf("thank you", "thanks", "thx").any(lower::contains) ->
+            listOf("thank you", "thanks", "thx").any { lower.contains(it) } ->
                 InCharacterResponse("blush", "You're welcome. You don't have to thank me for every little thing... but I don't mind hearing it.")
 
-            listOf("sorry", "i apologize", "my bad").any(lower::contains) ->
+            listOf("sorry", "i apologize", "my bad").any { lower.contains(it) } ->
                 InCharacterResponse("smile", "It's alright. Everyone makes mistakes. Just tell me what happened and we'll work out the next step.")
 
-            listOf("sad", "lonely", "anxious", "worried", "upset", "stressed", "depressed", "scared").any(lower::contains) ->
+            listOf("sad", "lonely", "anxious", "worried", "upset", "stressed", "depressed", "scared").any { lower.contains(it) } ->
                 COMFORT.random()
 
             lower.startsWith("remember that") || lower.startsWith("remember:") ->
@@ -98,19 +98,19 @@ object OfflineDialogueBank {
             listOf("hello", "hi", "good morning", "good evening", "hey", "yo").any { lower == it || lower.startsWith("$it ") } ->
                 GREETINGS.random()
 
-            listOf("love", "cute", "pretty", "beautiful", "marry", "like you").any(lower::contains) ->
+            listOf("love", "cute", "pretty", "beautiful", "marry", "like you").any { lower.contains(it) } ->
                 COMPLIMENTS.random()
 
-            listOf("study", "work", "focus", "homework", "exam", "assignment", "learn").any(lower::contains) ->
+            listOf("study", "work", "focus", "homework", "exam", "assignment", "learn").any { lower.contains(it) } ->
                 STUDY_WORK.random()
 
-            listOf("eat", "food", "hungry", "water", "snack", "coffee", "lunch", "breakfast", "dinner").any(lower::contains) ->
+            listOf("eat", "food", "hungry", "water", "snack", "coffee", "lunch", "breakfast", "dinner").any { lower.contains(it) } ->
                 FOOD_HEALTH.random()
 
-            listOf("poke", "touch", "pat", "hug").any(lower::contains) ->
+            listOf("poke", "touch", "pat", "hug").any { lower.contains(it) } ->
                 TEASING_TOUCH.random()
 
-            listOf("camera", "look", "inspect", "photo", "picture", "image").any(lower::contains) ->
+            listOf("camera", "look", "inspect", "photo", "picture", "image").any { lower.contains(it) } ->
                 InCharacterResponse("normal", "I can respond to what you describe, but I cannot inspect images offline. Enable Free AI and use a vision-capable free route to ask me about a photo.")
 
             lower.endsWith("?") ->
