@@ -25,7 +25,8 @@ import kotlinx.coroutines.delay
 class MainViewModel(
     private val repository: ChatRepository,
     private val ttsManager: AyakaTtsManager,
-    private val apiKeyStore: SecureApiKeyStore
+    private val apiKeyStore: SecureApiKeyStore,
+    private val moodStore: YoruMoodStore
 ) : ViewModel() {
 
     val messages: StateFlow<List<ChatMessageEntity>> = repository.messagesFlow
@@ -37,7 +38,7 @@ class MainViewModel(
     val memories: StateFlow<List<MemoryNoteEntity>> = repository.memoriesFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _mood = MutableStateFlow(YoruMoodState())
+    private val _mood = MutableStateFlow(moodStore.load())
     val mood: StateFlow<YoruMoodState> = _mood.asStateFlow()
 
     private val _currentEmotion = MutableStateFlow(_mood.value.toLive2DExpression())
@@ -46,6 +47,7 @@ class MainViewModel(
     private fun updateMood(emotion: String) {
         _mood.value = _mood.value.reactTo(emotion)
         _currentEmotion.value = _mood.value.toLive2DExpression()
+        moodStore.save(_mood.value)
     }
 
     private val _isOnlineMode = MutableStateFlow(true)
@@ -85,6 +87,7 @@ class MainViewModel(
                 delay(30_000)
                 _mood.value = _mood.value.decay()
                 _currentEmotion.value = _mood.value.toLive2DExpression()
+                moodStore.save(_mood.value)
             }
         }
     }
@@ -144,7 +147,8 @@ class MainViewModel(
                     isOnlineMode = _isOnlineMode.value,
                     apiKey = _apiKey.value,
                     imageBitmap = imageBitmap,
-                    isFrontCamera = isFrontCamera
+                    isFrontCamera = isFrontCamera,
+                    moodContext = _mood.value.toPromptContext()
                 )
                 updateMood(response.emotion)
 
@@ -240,11 +244,12 @@ class MainViewModel(
     class Factory(
         private val repository: ChatRepository,
         private val ttsManager: AyakaTtsManager,
-        private val apiKeyStore: SecureApiKeyStore
+        private val apiKeyStore: SecureApiKeyStore,
+        private val moodStore: YoruMoodStore
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return MainViewModel(repository, ttsManager, apiKeyStore) as T
+            return MainViewModel(repository, ttsManager, apiKeyStore, moodStore) as T
         }
     }
 }
