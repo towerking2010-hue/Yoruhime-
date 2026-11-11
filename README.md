@@ -14,6 +14,7 @@ An interactive native Android companion application built with Kotlin and Jetpac
    - Dark translucent glassmorphism interface styled in deep midnight indigos (`#0B0F19`), slate grays, and soft lavender accents.
    - **Ayaka Tōjou's Mommy-Tsundere AI**: Demanding and high-standard, complaining that taking care of you is an exhausting chore, but fiercely protective, maternal, and prone to flustered blushing panics when caught showing affection.
    - **Cloud Chat + Offline Fallback**: Uses OpenRouter with a user-supplied API key, recent conversation context, and an offline in-character dialogue bank when cloud chat is unavailable. Cloud usage and model availability depend on the selected OpenRouter route.
+   - **Zero-cost routing policy**: YoruHime uses OpenRouter's `openrouter/free` router only. It does not automatically fall back to paid models; if free inference is unavailable or rate-limited, the app falls back to its local dialogue bank.
 
 3. **Camera & Snapshot Vision (CameraX)**
    - User-triggered camera dock with front/back lens switching shared with the live camera background, plus a still-image capture action.
@@ -46,6 +47,6 @@ The Android app keeps its existing Live2D character and Compose interface while 
 - **Protected API key**: the OpenRouter key is encrypted with AES-GCM using a key stored by Android Keystore.
 - **Voice input and output**: use the microphone button for Android speech recognition. Assistant replies use the existing emotion-aware Android TTS and respect the mute control.
 
-- **Evolving emotional state**: a lightweight local mood model tracks warmth, energy, stress, affection, and confidence. Chat replies, touch reactions, study events, and bedtime events influence it; the values gently decay toward a calm baseline. Its richer internal state maps only to the six expressions already supported by the existing Live2D model. No replacement model assets are used.
+- **Evolving emotional state**: a lightweight local mood model tracks warmth, energy, stress, affection, and confidence. The state persists between launches, influences the tone of cloud replies, and gently decays toward a calm baseline. Its richer internal state maps only to the six expressions already supported by the existing Live2D model. No replacement model assets are used.
 
 These are incremental mobile adaptations, not a port of MekaHime's Windows-only runtime. The existing YoruHime Live2D model and assets are retained.
