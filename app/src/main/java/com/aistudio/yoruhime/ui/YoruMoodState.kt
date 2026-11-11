@@ -56,6 +56,13 @@ data class YoruMoodState(
         else -> "normal"
     }
 
+    /** A compact, non-sensitive state summary used to keep cloud replies emotionally consistent. */
+    fun toPromptContext(): String =
+        "Warmth ${(warmth * 100).toInt()}%, energy ${(energy * 100).toInt()}%, " +
+            "stress ${(stress * 100).toInt()}%, affection ${(affection * 100).toInt()}%, " +
+            "confidence ${(confidence * 100).toInt()}%. Treat this as fictional character-state guidance, " +
+            "not evidence of consciousness; let it gently shape tone without overriding the user's request."
+
     private fun clamped() = copy(
         warmth = warmth.coerceIn(0f, 1f),
         energy = energy.coerceIn(0f, 1f),
