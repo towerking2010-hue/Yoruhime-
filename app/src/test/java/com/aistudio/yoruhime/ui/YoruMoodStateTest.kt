@@ -36,6 +36,23 @@ class YoruMoodStateTest {
     }
 
     @Test
+    fun promptContextIncludesAllMoodDimensionsWithoutExposingRawStateObject() {
+        val context = YoruMoodState(
+            warmth = 0.75f,
+            energy = 0.50f,
+            stress = 0.25f,
+            affection = 0.60f,
+            confidence = 0.90f
+        ).toPromptContext()
+
+        assertTrue(context.contains("Warmth 75%"))
+        assertTrue(context.contains("energy 50%"))
+        assertTrue(context.contains("stress 25%"))
+        assertTrue(context.contains("affection 60%"))
+        assertTrue(context.contains("confidence 89%") || context.contains("confidence 90%"))
+    }
+
+    @Test
     fun expressionMapperOnlyEmitsExpressionsPresentInTheModel() {
         val supported = setOf("angry", "blush", "happy", "smile", "sad", "normal")
         var mood = YoruMoodState()
