@@ -31,7 +31,8 @@ class ChatRepository(
         isOnlineMode: Boolean,
         apiKey: String,
         imageBitmap: Bitmap? = null,
-        isFrontCamera: Boolean = false
+        isFrontCamera: Boolean = false,
+        moodContext: String = ""
     ): AyakaResponse {
         // Persist only facts the user explicitly asks YoruHime to remember.
         updateExplicitMemory(userText)
@@ -72,7 +73,8 @@ class ChatRepository(
                     prompt = userText,
                     imageBitmap = imageBitmap,
                     history = conversationHistory,
-                    memoryNotes = memoryNotes
+                    memoryNotes = memoryNotes,
+                    moodContext = moodContext
                 )
             } catch (e: Exception) {
                 // OpenRouter failed (network, auth, rate limit, or provider error) -> seamless offline fallback
