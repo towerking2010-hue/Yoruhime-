@@ -13,6 +13,7 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
 
     private var tts: TextToSpeech? = null
     private var isInitialized = false
+    private var pendingSpeech: Triple<String, String, Boolean>? = null
 
     private val _isMuted = MutableStateFlow(false)
     val isMuted: StateFlow<Boolean> = _isMuted.asStateFlow()
@@ -62,6 +63,10 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
             })
 
             isInitialized = true
+            pendingSpeech?.let { (text, emotion, isCritical) ->
+                pendingSpeech = null
+                speak(text, emotion, isCritical)
+            }
         }
     }
 
@@ -86,13 +91,18 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
         emotion: String,
         isCritical: Boolean = false
     ) {
-        if (!isInitialized || tts == null) return
-
-        // Respect master mute unless critical event specifically requested override, or if user explicitly clicked replay
+        // Respect mute before queueing so muted replies are never spoken later.
         if (_isMuted.value && !isCritical) return
 
         val cleanText = sanitizeForSpeech(text)
         if (cleanText.isBlank()) return
+
+        // TextToSpeech initializes asynchronously. Keep the newest reply so the first
+        // assistant response is not silently lost on a cold app launch.
+        if (!isInitialized || tts == null) {
+            pendingSpeech = Triple(cleanText, emotion, isCritical)
+            return
+        }
 
         val (pitch, rate) = when (emotion.lowercase()) {
             "angry" -> Pair(1.26f, 1.16f)   // Sharp scolding
@@ -118,11 +128,14 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
     }
 
     fun stop() {
+        pendingSpeech = null
         tts?.stop()
         _isSpeaking.value = false
     }
 
     fun release() {
+        pendingSpeech = null
+        isInitialized = false
         tts?.stop()
         tts?.shutdown()
         tts = null

@@ -20,11 +20,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 class MainViewModel(
     private val repository: ChatRepository,
     private val ttsManager: AyakaTtsManager,
-    private val apiKeyStore: SecureApiKeyStore
+    private val apiKeyStore: SecureApiKeyStore,
+    private val moodStore: YoruMoodStore
 ) : ViewModel() {
 
     val messages: StateFlow<List<ChatMessageEntity>> = repository.messagesFlow
@@ -36,8 +38,17 @@ class MainViewModel(
     val memories: StateFlow<List<MemoryNoteEntity>> = repository.memoriesFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _currentEmotion = MutableStateFlow("normal")
+    private val _mood = MutableStateFlow(moodStore.load())
+    val mood: StateFlow<YoruMoodState> = _mood.asStateFlow()
+
+    private val _currentEmotion = MutableStateFlow(_mood.value.toLive2DExpression())
     val currentEmotion: StateFlow<String> = _currentEmotion.asStateFlow()
+
+    private fun updateMood(emotion: String) {
+        _mood.value = _mood.value.reactTo(emotion)
+        _currentEmotion.value = _mood.value.toLive2DExpression()
+        moodStore.save(_mood.value)
+    }
 
     private val _isOnlineMode = MutableStateFlow(true)
     val isOnlineMode: StateFlow<Boolean> = _isOnlineMode.asStateFlow()
@@ -70,10 +81,19 @@ class MainViewModel(
             val savedKey = withContext(Dispatchers.IO) { apiKeyStore.readApiKey() }
             _apiKey.value = savedKey
         }
+        // Gentle mood decay keeps expressions from remaining stuck indefinitely.
+        viewModelScope.launch {
+            while (true) {
+                delay(30_000)
+                _mood.value = _mood.value.decay()
+                _currentEmotion.value = _mood.value.toLive2DExpression()
+                moodStore.save(_mood.value)
+            }
+        }
     }
 
     fun setEmotion(emotion: String) {
-        _currentEmotion.value = emotion
+        updateMood(emotion)
     }
 
     fun toggleAudioMute() {
@@ -112,7 +132,11 @@ class MainViewModel(
         _isFrontCamera.value = !_isFrontCamera.value
     }
 
-    fun sendMessage(userText: String, imageBitmap: Bitmap? = null) {
+    fun sendMessage(
+        userText: String,
+        imageBitmap: Bitmap? = null,
+        isFrontCamera: Boolean = false
+    ) {
         if (userText.isBlank() && imageBitmap == null) return
 
         viewModelScope.launch {
@@ -122,9 +146,11 @@ class MainViewModel(
                     userText = userText,
                     isOnlineMode = _isOnlineMode.value,
                     apiKey = _apiKey.value,
-                    imageBitmap = imageBitmap
+                    imageBitmap = imageBitmap,
+                    isFrontCamera = isFrontCamera,
+                    moodContext = _mood.value.toPromptContext()
                 )
-                _currentEmotion.value = response.emotion
+                updateMood(response.emotion)
 
                 // Speak every assistant reply; the existing mute control remains the user's override.
                 ttsManager.speak(response.text, response.emotion, isCritical = false)
@@ -139,7 +165,7 @@ class MainViewModel(
     fun onModelTapped(zone: String) {
         viewModelScope.launch {
             val response = repository.recordTouchInteraction(zone)
-            _currentEmotion.value = response.emotion
+            updateMood(response.emotion)
             // Voice response on touch if high-tier tsundere reaction
             if (response.emotion == "blush" || response.emotion == "angry") {
                 ttsManager.speak(response.text, response.emotion, isCritical = false)
@@ -150,7 +176,7 @@ class MainViewModel(
     fun onStudyCompleted(minutes: Int) {
         viewModelScope.launch {
             val response = repository.recordStudySessionComplete(minutes)
-            _currentEmotion.value = response.emotion
+            updateMood(response.emotion)
             // Critical Event: Pomodoro Timer Completed alert
             ttsManager.speak(response.text, response.emotion, isCritical = true)
         }
@@ -159,7 +185,7 @@ class MainViewModel(
     fun onAppSwitchedAwayDuringStudy() {
         viewModelScope.launch {
             val response = repository.recordStudyInterrupted()
-            _currentEmotion.value = response.emotion
+            updateMood(response.emotion)
             // Critical Event: Pomodoro focus interruption warning
             ttsManager.speak(response.text, response.emotion, isCritical = true)
         }
@@ -169,7 +195,7 @@ class MainViewModel(
         val currentPhrase = userBond.value?.customBedtimePhrase?.ifBlank { null }
             ?: BedtimeWorker.DEFAULT_CURFEW_PHRASE
         BedtimeWorker.showBedtimeNotification(context, currentPhrase)
-        _currentEmotion.value = "angry"
+        updateMood("angry")
         // Critical Event: Midnight / Curfew Lock warning
         ttsManager.speak(
             currentPhrase,
@@ -187,7 +213,7 @@ class MainViewModel(
 
     fun previewCustomPhrase(phrase: String) {
         if (phrase.isNotBlank()) {
-            _currentEmotion.value = "angry"
+            updateMood("angry")
             ttsManager.speak(phrase, "angry", isCritical = true)
         }
     }
@@ -218,11 +244,12 @@ class MainViewModel(
     class Factory(
         private val repository: ChatRepository,
         private val ttsManager: AyakaTtsManager,
-        private val apiKeyStore: SecureApiKeyStore
+        private val apiKeyStore: SecureApiKeyStore,
+        private val moodStore: YoruMoodStore
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return MainViewModel(repository, ttsManager, apiKeyStore) as T
+            return MainViewModel(repository, ttsManager, apiKeyStore, moodStore) as T
         }
     }
 }

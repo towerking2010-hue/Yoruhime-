@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import com.aistudio.yoruhime.data.local.AppDatabase
 import com.aistudio.yoruhime.data.local.ChatMessageEntity
 import com.aistudio.yoruhime.data.local.OfflineDialogueBank
+import com.aistudio.yoruhime.data.local.InCharacterResponse
 import com.aistudio.yoruhime.data.local.UserBondEntity
 import com.aistudio.yoruhime.data.local.MemoryNoteEntity
 import com.aistudio.yoruhime.data.remote.AyakaResponse
@@ -29,7 +30,9 @@ class ChatRepository(
         userText: String,
         isOnlineMode: Boolean,
         apiKey: String,
-        imageBitmap: Bitmap? = null
+        imageBitmap: Bitmap? = null,
+        isFrontCamera: Boolean = false,
+        moodContext: String = ""
     ): AyakaResponse {
         // Persist only facts the user explicitly asks YoruHime to remember.
         updateExplicitMemory(userText)
@@ -70,7 +73,8 @@ class ChatRepository(
                     prompt = userText,
                     imageBitmap = imageBitmap,
                     history = conversationHistory,
-                    memoryNotes = memoryNotes
+                    memoryNotes = memoryNotes,
+                    moodContext = moodContext
                 )
             } catch (e: Exception) {
                 // OpenRouter failed (network, auth, rate limit, or provider error) -> seamless offline fallback
@@ -78,10 +82,14 @@ class ChatRepository(
             }
         }
 
-        // 3. Seamless Offline Fallback
+        // 3. Honest offline fallback: never pretend to have analyzed an image locally.
         if (response == null) {
+            val cameraLabel = if (isFrontCamera) "front-camera" else "rear-camera"
             val fallback = if (imageBitmap != null) {
-                OfflineDialogueBank.getCameraVisionReaction(isFrontCamera = false)
+                InCharacterResponse(
+                    emotion = "normal",
+                    text = "I can see that you sent an image, but I cannot actually inspect it while cloud vision is unavailable. Turn on Cloud mode and configure your API key if you want me to examine this $cameraLabel snapshot."
+                )
             } else {
                 OfflineDialogueBank.generateReply(userText, currentBond.bondLevel)
             }

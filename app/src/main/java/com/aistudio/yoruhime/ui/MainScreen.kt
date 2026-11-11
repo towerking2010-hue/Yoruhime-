@@ -47,7 +47,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Bedtime
-import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
@@ -58,6 +57,7 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Videocam
@@ -99,6 +99,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aistudio.yoruhime.data.local.ChatMessageEntity
 import com.aistudio.yoruhime.ui.camera.ARCameraBackground
+import com.aistudio.yoruhime.ui.camera.CameraPreviewDock
 import com.aistudio.yoruhime.ui.live2d.Live2DController
 import com.aistudio.yoruhime.ui.live2d.Live2DStage
 import com.aistudio.yoruhime.ui.pomodoro.PomodoroSession
@@ -131,6 +132,7 @@ fun MainScreen(
     val apiKey by viewModel.apiKey.collectAsState()
     val isPomodoroVisible by viewModel.isPomodoroVisible.collectAsState()
     val isArCameraActive by viewModel.isArCameraActive.collectAsState()
+    val isCameraDockVisible by viewModel.isCameraDockVisible.collectAsState()
     val isFrontCamera by viewModel.isFrontCamera.collectAsState()
     val isAudioMuted by viewModel.isAudioMuted.collectAsState()
     val isSpeaking by viewModel.isSpeaking.collectAsState()
@@ -240,7 +242,7 @@ fun MainScreen(
     ) {
         // 1. BOTTOM-MOST LAYER: CameraX live preview (AR mode) or Midnight wallpaper
         ARCameraBackground(
-            isCameraActive = isArCameraActive,
+            isCameraActive = isArCameraActive && !isCameraDockVisible,
             isFrontCamera = isFrontCamera,
             modifier = Modifier.fillMaxSize()
         )
@@ -268,6 +270,27 @@ fun MainScreen(
                         viewModel.onModelTapped(zone)
                     },
                     modifier = Modifier.fillMaxSize()
+                )
+
+                // Explicit, user-triggered camera inspection. The dock owns its preview,
+                // front/back switch, and still-image capture; closing it releases CameraX.
+                CameraPreviewDock(
+                    isVisible = isCameraDockVisible,
+                    isFrontCamera = isFrontCamera,
+                    onToggleCameraFacing = { viewModel.toggleCameraFacing() },
+                    onClose = { viewModel.toggleCameraDock(false) },
+                    onCaptureForInspection = { bitmap, fromFrontCamera ->
+                        viewModel.toggleCameraDock(false)
+                        val cameraLabel = if (fromFrontCamera) "front selfie camera" else "rear world camera"
+                        val question = inputText.trim().ifBlank { "Describe what is visible." }
+                        viewModel.sendMessage(
+                            "Ayaka, please inspect this snapshot from the $cameraLabel. User question: $question",
+                            bitmap,
+                            isFrontCamera = fromFrontCamera
+                        )
+                        inputText = ""
+                    },
+                    modifier = Modifier.align(Alignment.BottomCenter)
                 )
 
                 // Top Header Overlay: Bond Status & Mode Switcher
@@ -327,36 +350,16 @@ fun MainScreen(
                             ) {
                                 Icon(
                                     imageVector = if (isArCameraActive) Icons.Default.Videocam else Icons.Default.VideocamOff,
-                                    contentDescription = "Toggle AR Camera World-Feed",
+                                    contentDescription = "Toggle live camera background",
                                     tint = if (isArCameraActive) TextWhite else LavenderPrimary,
                                     modifier = Modifier.size(15.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (isArCameraActive) "AR Live" else "AR Camera",
+                                    text = if (isArCameraActive) "Live" else "Camera",
                                     color = if (isArCameraActive) TextWhite else TextSilver,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-
-                        // Flip Camera Front/Back button (when AR is active)
-                        if (isArCameraActive) {
-                            IconButton(
-                                onClick = { viewModel.toggleCameraFacing() },
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(GlassDark.copy(alpha = 0.85f))
-                                    .border(1.dp, GlassBorder, CircleShape)
-                                    .testTag("flip_camera_facing_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Cameraswitch,
-                                    contentDescription = "Switch Camera Facing",
-                                    tint = LavenderPrimary,
-                                    modifier = Modifier.size(15.dp)
                                 )
                             }
                         }
@@ -382,7 +385,7 @@ fun MainScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (isOnlineMode) "Cloud" else "Guard",
+                                    text = if (isOnlineMode) "Free AI" else "Offline",
                                     color = TextSilver,
                                     fontSize = 11.sp
                                 )
@@ -707,7 +710,7 @@ fun MainScreen(
                         }
                     }
 
-                    // Selected Attachment Preview Card (Photos/Videos)
+                    // Selected Attachment Preview Card (Photos)
                     AnimatedVisibility(
                         visible = attachedBitmap != null,
                         enter = fadeIn(),
@@ -763,11 +766,11 @@ fun MainScreen(
                             .padding(horizontal = 8.dp, vertical = 3.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Distinct Attachment Icon for uploading Photos & Videos
+                        // Photo attachment button
                         IconButton(
                             onClick = {
                                 photoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                 )
                             },
                             modifier = Modifier
@@ -779,8 +782,25 @@ fun MainScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.AttachFile,
-                                contentDescription = "Upload Photo or Video",
+                                contentDescription = "Upload Photo",
                                 tint = if (attachedBitmap != null) LavenderPrimary else TextSilver,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.toggleCameraDock(true) },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(GlassSurface.copy(alpha = 0.75f))
+                                .border(1.dp, GlassBorder, CircleShape)
+                                .testTag("open_camera_inspection_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PhotoCamera,
+                                contentDescription = "Open Ayaka camera inspection",
+                                tint = LavenderPrimary,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -807,7 +827,7 @@ fun MainScreen(
                             keyboardActions = androidx.compose.foundation.text.KeyboardActions(
                                 onSend = {
                                     if (inputText.isNotBlank() || attachedBitmap != null) {
-                                        val text = if (inputText.isNotBlank()) inputText else "Ayaka, inspect this photo/video!"
+                                        val text = if (inputText.isNotBlank()) inputText else "Ayaka, inspect this photo!"
                                         val bmp = attachedBitmap
                                         inputText = ""
                                         attachedBitmap = null
@@ -868,7 +888,7 @@ fun MainScreen(
                         IconButton(
                             onClick = {
                                 if (inputText.isNotBlank() || attachedBitmap != null) {
-                                    val text = if (inputText.isNotBlank()) inputText else "Ayaka, inspect this photo/video!"
+                                    val text = if (inputText.isNotBlank()) inputText else "Ayaka, inspect this photo!"
                                     val bmp = attachedBitmap
                                     inputText = ""
                                     attachedBitmap = null
@@ -902,7 +922,7 @@ fun MainScreen(
             text = {
                 Column {
                     Text(
-                        "Enter your OpenRouter API key for cloud chat. YoruHime uses OpenRouter's automatic model routing. If the key is blank or the request fails, it falls back to the offline dialogue engine.",
+                        "Enter your OpenRouter API key to enable free cloud chat. YoruHime uses OpenRouter's free-model router only and never selects paid models. Free models can be rate-limited or temporarily unavailable; then Ayaka falls back to the built-in offline dialogue bank. The key is encrypted on this device.",
                         fontSize = 12.sp,
                         color = TextSilver
                     )
@@ -939,7 +959,7 @@ fun MainScreen(
                         showApiKeyDialog = false
                     }
                 ) {
-                    Text("Save & Connect", color = LavenderPrimary)
+                    Text("Save API Key", color = LavenderPrimary)
                 }
             },
             dismissButton = {

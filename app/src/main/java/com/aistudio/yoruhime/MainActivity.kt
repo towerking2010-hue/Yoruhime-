@@ -14,13 +14,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.core.content.ContextCompat
 import com.aistudio.yoruhime.ui.MainScreen
 import com.aistudio.yoruhime.ui.MainViewModel
+import com.aistudio.yoruhime.ui.YoruMoodStore
 import com.aistudio.yoruhime.ui.theme.YoruHimeTheme
 
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels {
         val app = application as YoruHimeApplication
-        MainViewModel.Factory(app.repository, app.ttsManager, app.apiKeyStore)
+        MainViewModel.Factory(app.repository, app.ttsManager, app.apiKeyStore, YoruMoodStore(this))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
