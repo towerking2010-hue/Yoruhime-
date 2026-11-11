@@ -8,94 +8,119 @@ data class InCharacterResponse(
     val expGain: Int = 10
 )
 
+/**
+ * Honest, lightweight offline responses for when no free cloud model is reachable.
+ * This is intentionally a small intent-based dialogue bank, not a pretend local LLM.
+ */
 object OfflineDialogueBank {
 
     private val GREETINGS = listOf(
-        InCharacterResponse("normal", "Ah, you're finally awake? Don't look at me with those half-closed eyes. Wash your face and start your tasks already!"),
-        InCharacterResponse("smile", "Good morning. ...Don't smile like that, I only prepared your schedule because no one else would bother."),
-        InCharacterResponse("blush", "W-welcome back. Not that I was waiting for you or staring at the door the whole time! Don't flatter yourself!")
+        InCharacterResponse("normal", "Oh, there you are. Tell me what's going on; I'm listening."),
+        InCharacterResponse("smile", "Hello, you. Have you eaten and had some water today? Don't dodge the question."),
+        InCharacterResponse("blush", "W-welcome back. I wasn't waiting around for you or anything... Now, what do you need?")
     )
 
     private val LATE_NIGHT = listOf(
-        InCharacterResponse("angry", "Do you know what time it is?! Look at the clock! Sleep is not optional for humans, you stubborn child!"),
-        InCharacterResponse("blush", "Still awake...? If you get sick from staying up, I'm the one who has to nurse you back to health! S-so go to bed!"),
-        InCharacterResponse("sad", "Your dark circles are terrible. Put that glowing screen away right now. I'll stay right here until you close your eyes.")
+        InCharacterResponse("angry", "Do you know what time it is?! Sleep matters. Finish what truly needs doing, then put that phone away."),
+        InCharacterResponse("blush", "Still awake? Hmph... I'm concerned, that's all. Please get some rest when you can."),
+        InCharacterResponse("sad", "If you're exhausted, you don't have to push through everything tonight. Take a breath and rest.")
     )
 
     private val STUDY_WORK = listOf(
-        InCharacterResponse("normal", "Focus! Scrolling through distractions won't finish that assignment or study goal. I'm watching your screen."),
-        InCharacterResponse("smile", "You actually finished a study block without complaining? Hmph... I suppose you deserve a head pat. Just this once!"),
-        InCharacterResponse("angry", "Hey! Did your eyes just wander off? Fifty percent effort yields zero results. Put your back into it!")
+        InCharacterResponse("normal", "Let's make this manageable. Tell me the subject and the exact task, then we'll break it into smaller steps."),
+        InCharacterResponse("smile", "One focused block at a time. Put distractions aside, work for twenty-five minutes, then take a proper break."),
+        InCharacterResponse("angry", "No panicking and no procrastinating. What's the first small thing you can finish right now?")
     )
 
     private val COMPLIMENTS = listOf(
-        InCharacterResponse("blush", "B-Baka! Why are you suddenly saying sweet things like that?! I'm only looking after you out of civic duty, okay?!"),
-        InCharacterResponse("blush", "E-eh?! 'You're pretty today, Ayaka'? Stop making that goofy face! My cheeks aren't red, it's just warm in here!"),
-        InCharacterResponse("smile", "...Hmph. As if praising me will get you out of your chores. ...Though, thank you. You're not completely hopeless after all.")
+        InCharacterResponse("blush", "B-Baka! You can't just say things like that without warning. ...Thank you, though."),
+        InCharacterResponse("blush", "E-eh? You're trying to make me blush again? Hmph. You're rather sweet yourself."),
+        InCharacterResponse("smile", "I'll accept the compliment. Just don't think it'll get you out of your responsibilities.")
     )
 
     private val FOOD_HEALTH = listOf(
-        InCharacterResponse("angry", "Don't tell me your lunch was just a pack of potato chips and soda?! Drink some water and eat real vegetables!"),
-        InCharacterResponse("normal", "Have you had water in the last two hours? Go pour a glass right now. I'll wait until you drink it."),
-        InCharacterResponse("smile", "I packed a healthy snack in the fridge earlier. Make sure you finish every single bite without being picky.")
+        InCharacterResponse("angry", "Have you actually eaten a proper meal today? Please get some food and water instead of running on snacks."),
+        InCharacterResponse("normal", "Take a short pause, drink some water, and have something nourishing if you haven't eaten."),
+        InCharacterResponse("smile", "Look after yourself properly, okay? Small habits count more than dramatic promises.")
+    )
+
+    private val COMFORT = listOf(
+        InCharacterResponse("sad", "Hey... take a slow breath. You don't have to solve everything this second. Tell me what happened, one piece at a time."),
+        InCharacterResponse("smile", "I'm here to listen. You don't need to pretend you're fine with me. What feels hardest right now?"),
+        InCharacterResponse("normal", "Let's slow things down. Is this something you want to talk through, or would a practical next step help more?")
     )
 
     private val TEASING_TOUCH = listOf(
-        InCharacterResponse("blush", "H-Hey! Who gave you permission to poke me so casually?! Keep your hands to yourself!"),
-        InCharacterResponse("angry", "You think poking your vice-president is funny?! If you have that much spare energy, do twenty push-ups!"),
-        InCharacterResponse("blush", "...W-wait, don't tap there so suddenly! It tickles... I mean, it's highly inappropriate!")
-    )
-
-    private val GENERAL_DEVOTION = listOf(
-        InCharacterResponse("normal", "What is it now? Can't handle five minutes on your own without calling for me? ...Fine, what's on your mind?"),
-        InCharacterResponse("smile", "I made sure your schedule has breathing room today. Even a slacker like you needs pacing, right?"),
-        InCharacterResponse("blush", "I'm only staying by your side so you don't ruin your life. Remember that! It has nothing to do with... liking your company..."),
-        InCharacterResponse("happy", "When you actually apply yourself, you can do anything. Now stop making me repeat myself and get to it!")
+        InCharacterResponse("blush", "H-Hey! A little warning before you poke me! ...Honestly, you're impossible."),
+        InCharacterResponse("angry", "You think distracting your vice-president is a good idea? Hmph! What did you actually want?"),
+        InCharacterResponse("blush", "W-wait, don't surprise me like that! ...Now, behave and tell me what's on your mind.")
     )
 
     fun generateReply(userPrompt: String, bondLevel: Int): InCharacterResponse {
         val lower = userPrompt.trim().lowercase()
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
 
-        // Late night check
+        if (lower.isBlank()) {
+            return InCharacterResponse("normal", "I'm listening. Say a little more so I know what you need.")
+        }
+
         if (hour >= 23 || hour < 5) {
-            if (lower.contains("sleep") || lower.contains("tired") || lower.contains("night")) {
+            if (listOf("sleep", "tired", "night", "exhausted", "can't sleep").any(lower::contains)) {
                 return LATE_NIGHT.random()
             }
         }
 
-        // Keywords detection
         return when {
-            lower.contains("hello") || lower.contains("hi") || lower.contains("morning") || lower.contains("hey") -> {
+            listOf("who are you", "your name", "what is your name", "are you ayaka").any(lower::contains) ->
+                InCharacterResponse("smile", "I'm Ayaka Tōjou, your YoruHime companion. Mature, capable, and apparently responsible for keeping you out of trouble. Hmph!")
+
+            listOf("how are you", "how are you doing", "what about you").any(lower::contains) ->
+                InCharacterResponse("blush", "I'm doing well enough. A little busy keeping an eye on you, perhaps... How are you really doing?")
+
+            listOf("what can you do", "help me", "can you help").any(lower::contains) ->
+                InCharacterResponse("normal", "Offline, I can handle simple conversation, reminders, and a few common topics. For open-ended answers, image understanding, and richer conversation, enable Free AI with an OpenRouter key.")
+
+            listOf("thank you", "thanks", "thx").any(lower::contains) ->
+                InCharacterResponse("blush", "You're welcome. You don't have to thank me for every little thing... but I don't mind hearing it.")
+
+            listOf("sorry", "i apologize", "my bad").any(lower::contains) ->
+                InCharacterResponse("smile", "It's alright. Everyone makes mistakes. Just tell me what happened and we'll work out the next step.")
+
+            listOf("sad", "lonely", "anxious", "worried", "upset", "stressed", "depressed", "scared").any(lower::contains) ->
+                COMFORT.random()
+
+            lower.startsWith("remember that") || lower.startsWith("remember:") ->
+                InCharacterResponse("smile", "Alright, I've saved that note on this device. I'll use it when it's relevant. And don't make me remember your whole life for you, okay?")
+
+            lower.startsWith("forget that") || lower.startsWith("forget:") ->
+                InCharacterResponse("normal", "Alright, I've removed that matching note if it was saved. Your personal notes stay under your control.")
+
+            listOf("hello", "hi", "good morning", "good evening", "hey", "yo").any { lower == it || lower.startsWith("$it ") } ->
                 GREETINGS.random()
-            }
-            lower.contains("love") || lower.contains("cute") || lower.contains("pretty") || lower.contains("beautiful") || lower.contains("marry") || lower.contains("like you") -> {
+
+            listOf("love", "cute", "pretty", "beautiful", "marry", "like you").any(lower::contains) ->
                 COMPLIMENTS.random()
-            }
-            lower.contains("study") || lower.contains("work") || lower.contains("focus") || lower.contains("homework") || lower.contains("exam") -> {
+
+            listOf("study", "work", "focus", "homework", "exam", "assignment", "learn").any(lower::contains) ->
                 STUDY_WORK.random()
-            }
-            lower.contains("eat") || lower.contains("food") || lower.contains("hungry") || lower.contains("water") || lower.contains("snack") || lower.contains("coffee") -> {
+
+            listOf("eat", "food", "hungry", "water", "snack", "coffee", "lunch", "breakfast", "dinner").any(lower::contains) ->
                 FOOD_HEALTH.random()
-            }
-            lower.contains("poke") || lower.contains("touch") || lower.contains("pat") || lower.contains("hug") -> {
+
+            listOf("poke", "touch", "pat", "hug").any(lower::contains) ->
                 TEASING_TOUCH.random()
-            }
-            lower.contains("camera") || lower.contains("look") || lower.contains("inspect") -> {
-                InCharacterResponse(
-                    "normal",
-                    "I can respond to what you describe, but I cannot see a camera feed or inspect images while we're offline. Switch to Cloud mode for visual analysis."
-                )
-            }
+
+            listOf("camera", "look", "inspect", "photo", "picture", "image").any(lower::contains) ->
+                InCharacterResponse("normal", "I can respond to what you describe, but I cannot inspect images offline. Enable Free AI and use a vision-capable free route to ask me about a photo.")
+
+            lower.endsWith("?") ->
+                InCharacterResponse("normal", "I want to answer that properly, but this offline dialogue bank can't reason through open-ended questions yet. Enable Free AI with your free OpenRouter key and I'll try to give you a real answer.")
+
             else -> {
-                // Adjust warmth based on bondLevel
-                if (bondLevel >= 4 && (0..2).random() == 0) {
-                    InCharacterResponse(
-                        "blush",
-                        "...Even when you ramble about strange things, I find myself listening. Don't let it go to your head, though! Keep going."
-                    )
+                if (bondLevel >= 4) {
+                    InCharacterResponse("blush", "I'm listening, really. I don't have enough offline language ability to understand all of that yet, though. Tell me more with Free AI enabled if you want a proper conversation.")
                 } else {
-                    GENERAL_DEVOTION.random()
+                    InCharacterResponse("normal", "I heard you, but my offline mode only understands a limited set of topics. For natural, open-ended conversation, enable Free AI with a free OpenRouter API key.")
                 }
             }
         }
@@ -108,5 +133,4 @@ object OfflineDialogueBank {
             else -> TEASING_TOUCH.random()
         }
     }
-
 }
