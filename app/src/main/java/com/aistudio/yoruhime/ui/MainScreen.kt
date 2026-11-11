@@ -385,7 +385,7 @@ fun MainScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (isOnlineMode) "Cloud" else "Guard",
+                                    text = if (isOnlineMode) "Free AI" else "Offline",
                                     color = TextSilver,
                                     fontSize = 11.sp
                                 )
@@ -922,7 +922,7 @@ fun MainScreen(
             text = {
                 Column {
                     Text(
-                        "Enter your OpenRouter API key for cloud chat. YoruHime uses OpenRouter's automatic model routing. If the key is blank or the request fails, it falls back to the offline dialogue engine.",
+                        "Enter your OpenRouter API key to enable free cloud chat. YoruHime uses OpenRouter's free-model router only and never selects paid models. Free models can be rate-limited or temporarily unavailable; then Ayaka falls back to the built-in offline dialogue bank. The key is encrypted on this device.",
                         fontSize = 12.sp,
                         color = TextSilver
                     )
@@ -959,7 +959,7 @@ fun MainScreen(
                         showApiKeyDialog = false
                     }
                 ) {
-                    Text("Save & Connect", color = LavenderPrimary)
+                    Text("Save API Key", color = LavenderPrimary)
                 }
             },
             dismissButton = {
