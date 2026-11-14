@@ -26,6 +26,13 @@ import com.aistudio.yoruhime.ui.theme.MidnightBlack
 class Live2DController {
     var webView: WebView? = null
     private var pendingEmotion: String? = null
+    private var renderingEnabled = true
+
+    fun setRenderingEnabled(enabled: Boolean) {
+        renderingEnabled = enabled
+        val script = if (enabled) "window.resumeLive2D && window.resumeLive2D();" else "window.pauseLive2D && window.pauseLive2D();"
+        webView?.post { webView?.evaluateJavascript(script, null) }
+    }
 
     fun setEmotion(emotion: String) {
         val wv = webView
@@ -62,6 +69,7 @@ class Live2DController {
             setEmotion(it)
             pendingEmotion = null
         }
+        setRenderingEnabled(renderingEnabled)
     }
 }
 
@@ -86,6 +94,7 @@ class AndroidBridge(
 @Composable
 fun Live2DStage(
     currentEmotion: String,
+    isVisible: Boolean = true,
     controller: Live2DController = remember { Live2DController() },
     onModelTapped: (String) -> Unit = {},
     modifier: Modifier = Modifier
@@ -94,6 +103,10 @@ fun Live2DStage(
 
     LaunchedEffect(currentEmotion) {
         controller.setEmotion(currentEmotion)
+    }
+
+    LaunchedEffect(isVisible) {
+        controller.setRenderingEnabled(isVisible)
     }
 
     val assetLoader = remember {
