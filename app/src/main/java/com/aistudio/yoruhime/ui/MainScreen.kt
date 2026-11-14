@@ -147,6 +147,7 @@ fun MainScreen(
     var inputText by remember { mutableStateOf("") }
     var attachedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var showApiKeyDialog by remember { mutableStateOf(false) }
+    var connectAfterApiKeySave by remember { mutableStateOf(false) }
     var showMemoryDialog by remember { mutableStateOf(false) }
     var showClearChatConfirmation by remember { mutableStateOf(false) }
     var showClearMemoriesConfirmation by remember { mutableStateOf(false) }
@@ -753,6 +754,7 @@ fun MainScreen(
                                 viewModel.toggleOnlineMode(false)
                             } else if (apiKey.isBlank()) {
                                 tempApiKey = apiKey
+                                connectAfterApiKeySave = true
                                 showApiKeyDialog = true
                             } else {
                                 viewModel.toggleOnlineMode(true)
@@ -760,6 +762,7 @@ fun MainScreen(
                         },
                         onConfigureCloud = {
                             tempApiKey = apiKey
+                            connectAfterApiKeySave = false
                             showApiKeyDialog = true
                         },
                         onToggleAudio = { viewModel.toggleAudioMute() },
@@ -804,7 +807,7 @@ fun MainScreen(
     // API Key Dialog
     if (showApiKeyDialog) {
         AlertDialog(
-            onDismissRequest = { showApiKeyDialog = false },
+            onDismissRequest = { connectAfterApiKeySave = false; showApiKeyDialog = false },
             title = { Text("OpenRouter Cloud Setup", color = TextWhite) },
             text = {
                 Column {
@@ -842,7 +845,12 @@ fun MainScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.updateApiKey(tempApiKey.trim())
+                        val savedKey = tempApiKey.trim()
+                        viewModel.updateApiKey(savedKey)
+                        if (connectAfterApiKeySave && savedKey.isNotBlank()) {
+                            viewModel.toggleOnlineMode(true)
+                        }
+                        connectAfterApiKeySave = false
                         showApiKeyDialog = false
                     }
                 ) {
@@ -850,7 +858,7 @@ fun MainScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showApiKeyDialog = false }) {
+                TextButton(onClick = { connectAfterApiKeySave = false; showApiKeyDialog = false }) {
                     Text("Cancel", color = TextMuted)
                 }
             },
