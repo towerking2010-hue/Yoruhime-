@@ -90,6 +90,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -263,13 +264,15 @@ fun MainScreen(
         // Main workspace: keep the companion view focused and move secondary tools into dedicated destinations.
         Column(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                if (selectedDestination == WorkspaceDestination.COMPANION) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .statusBarsPadding()
-                            .imePadding()
-                    ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            alpha = if (selectedDestination == WorkspaceDestination.COMPANION) 1f else 0f
+                        }
+                        .statusBarsPadding()
+                        .imePadding()
+                ) {
             // TOP 60%: Live2D Transparent AR Stage
             Box(
                 modifier = Modifier
@@ -280,6 +283,7 @@ fun MainScreen(
                 // Live2D WebView Canvas directly floating over camera feed
                 Live2DStage(
                     currentEmotion = currentEmotion,
+                    isVisible = selectedDestination == WorkspaceDestination.COMPANION,
                     controller = live2DController,
                     onModelTapped = { zone ->
                         viewModel.onModelTapped(zone)
@@ -290,7 +294,7 @@ fun MainScreen(
                 // Explicit, user-triggered camera inspection. The dock owns its preview,
                 // front/back switch, and still-image capture; closing it releases CameraX.
                 CameraPreviewDock(
-                    isVisible = isCameraDockVisible,
+                    isVisible = isCameraDockVisible && selectedDestination == WorkspaceDestination.COMPANION,
                     isFrontCamera = isFrontCamera,
                     onToggleCameraFacing = { viewModel.toggleCameraFacing() },
                     onClose = { viewModel.toggleCameraDock(false) },
@@ -701,8 +705,8 @@ fun MainScreen(
                         }
                     }
                 }
-                    }
-                } else {
+                }
+                if (selectedDestination != WorkspaceDestination.COMPANION) {
                     YoruHimeWorkspacePage(
                         destination = selectedDestination,
                         memories = memories,
