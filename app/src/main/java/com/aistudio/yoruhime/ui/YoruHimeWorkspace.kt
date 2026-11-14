@@ -166,7 +166,7 @@ fun YoruHimeWorkspacePage(
                         Spacer(Modifier.width(9.dp))
                         Column(Modifier.weight(1f)) {
                             Text("AI engine", color = TextWhite, fontWeight = FontWeight.SemiBold)
-                            Text(if (isOnlineMode && hasApiKey) "Cloud selected · key saved" else if (isOnlineMode) "Cloud selected · setup required" else "Offline companion", color = TextMuted, fontSize = 12.sp)
+                            Text(if (isOnlineMode && hasApiKey) "OpenRouter · free-model route · key saved" else if (isOnlineMode) "Free cloud route · setup required" else "Offline companion", color = TextMuted, fontSize = 12.sp)
                         }
                     }
                     Spacer(Modifier.height(10.dp))
