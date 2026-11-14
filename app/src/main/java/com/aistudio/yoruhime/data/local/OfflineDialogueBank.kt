@@ -61,7 +61,7 @@ object OfflineDialogueBank {
 
     private val GREETING_REPLIES = listOf(
         InCharacterResponse("smile", "Hey. I'm here, and I'm listening. What have you been up to?"),
-        InCharacterResponse("blush", "Oh, you came back. Hmph... it's nice to see you. How's your day going?"),
+        InCharacterResponse("blush", "Oh, you came back. Hmph... it's nice to see you. I'm listening—how's your day going?"),
         InCharacterResponse("normal", "Hi! I'm listening—what's on your mind?")
     )
 
