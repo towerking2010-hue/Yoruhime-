@@ -814,7 +814,7 @@ fun MainScreen(
             text = {
                 Column {
                     Text(
-                        "Enter your OpenRouter API key for cloud chat. YoruHime uses OpenRouter's automatic model routing. If the key is blank or the request fails, it falls back to the offline dialogue engine.",
+                        "Enter your OpenRouter API key for Cloud chat. YoruHime requests the free-model route only. If a Cloud request fails, Ayaka explains the problem and the app returns to Offline mode. YoruHime never purchases credits or selects paid model IDs.",
                         fontSize = 12.sp,
                         color = TextSilver
                     )
