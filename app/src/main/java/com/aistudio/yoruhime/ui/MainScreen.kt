@@ -1,10 +1,10 @@
 package com.aistudio.yoruhime.ui
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
-import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -205,13 +205,32 @@ fun MainScreen(
                     val bitmap = withContext(Dispatchers.IO) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                             val source = ImageDecoder.createSource(context.contentResolver, uri)
-                            ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                            ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
                                 decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                                decoder.isMutableRequired = true
+                                val longestSide = maxOf(info.size.width, info.size.height).coerceAtLeast(1)
+                                if (longestSide > 1280) {
+                                    val scale = 1280f / longestSide
+                                    decoder.setTargetSize(
+                                        (info.size.width * scale).toInt().coerceAtLeast(1),
+                                        (info.size.height * scale).toInt().coerceAtLeast(1)
+                                    )
+                                }
                             }
                         } else {
-                            @Suppress("DEPRECATION")
-                            MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                            context.contentResolver.openInputStream(uri)?.use {
+                                BitmapFactory.decodeStream(it, null, bounds)
+                            }
+                            val longestSide = maxOf(bounds.outWidth, bounds.outHeight).coerceAtLeast(1)
+                            var sampleSize = 1
+                            while (longestSide / sampleSize > 1280) sampleSize *= 2
+                            val options = BitmapFactory.Options().apply {
+                                inSampleSize = sampleSize
+                                inPreferredConfig = Bitmap.Config.ARGB_8888
+                            }
+                            context.contentResolver.openInputStream(uri)?.use {
+                                BitmapFactory.decodeStream(it, null, options)
+                            } ?: throw IllegalStateException("Image stream unavailable")
                         }
                     }
                     attachedBitmap?.takeIf { it !== bitmap }?.recycle()
@@ -366,7 +385,7 @@ fun MainScreen(
                 }
 
                 // Pomodoro Session Floating Dock Overlaid on top of stage if active
-                if (isPomodoroVisible) {
+                if (isPomodoroVisible && selectedDestination == WorkspaceDestination.COMPANION) {
                     Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                         PomodoroSession(
                             onSessionCompleted = { mins ->
