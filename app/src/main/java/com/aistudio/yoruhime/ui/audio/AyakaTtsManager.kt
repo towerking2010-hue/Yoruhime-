@@ -36,15 +36,26 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
     }
 
     override fun onInit(status: Int) {
+        // An initialization callback may arrive after release(), or the platform TTS
+        // engine may fail to start. Do not leave a dead engine marked as initialized.
+        val activeEngine = tts ?: return
+        if (status != TextToSpeech.SUCCESS) {
+            isInitialized = false
+            tts = null
+            activeEngine.shutdown()
+            _isSpeaking.value = false
+            return
+        }
+
         if (status == TextToSpeech.SUCCESS) {
-            val result = tts?.setLanguage(Locale.US)
+            val result = activeEngine.setLanguage(Locale.US)
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                tts?.setLanguage(Locale.ENGLISH)
+                activeEngine.setLanguage(Locale.ENGLISH)
             }
 
             // Attempt to select an expressive high-pitch female voice if available
             try {
-                val femaleVoice = tts?.voices?.firstOrNull { voice ->
+                val femaleVoice = activeEngine.voices?.firstOrNull { voice ->
                     voice.locale.language == Locale.ENGLISH.language &&
                             (voice.name.contains("female", ignoreCase = true) ||
                              voice.name.contains("#female", ignoreCase = true) ||
@@ -52,13 +63,13 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
                              voice.name.contains("en-us-x-tpf", ignoreCase = true))
                 }
                 if (femaleVoice != null) {
-                    tts?.voice = femaleVoice
+                    activeEngine.voice = femaleVoice
                 }
             } catch (e: Exception) {
                 // Fall back to default engine voice
             }
 
-            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            activeEngine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {
                     _isSpeaking.value = true
                 }
@@ -150,5 +161,7 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
         tts?.stop()
         tts?.shutdown()
         tts = null
+        isInitialized = false
+        _isSpeaking.value = false
     }
 }
