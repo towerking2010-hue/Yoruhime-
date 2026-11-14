@@ -744,6 +744,7 @@ fun MainScreen(
                         isAudioMuted = isAudioMuted,
                         isPomodoroVisible = isPomodoroVisible,
                         onForgetMemory = { viewModel.forgetMemory(it) },
+                        onEditMemory = { id, text -> viewModel.editMemory(id, text) },
                         onClearMemories = { viewModel.clearMemories() },
                         onToggleCloud = {
                             if (isOnlineMode) {
