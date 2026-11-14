@@ -274,7 +274,7 @@ fun MainScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.60f)
+                    .weight(0.56f)
                     .testTag("live2d_stage_section")
             ) {
                 // Live2D WebView Canvas directly floating over camera feed
@@ -342,146 +342,22 @@ fun MainScreen(
                         }
                     }
 
-                    // Top Action Controls: Dedicated AR Camera World-Feed Button, Online Pill & API Key
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    // The companion view keeps only its contextual camera control.
+                    IconButton(
+                        onClick = { viewModel.toggleArCamera() },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(if (isArCameraActive) VioletAccent else GlassDark.copy(alpha = 0.78f))
+                            .border(1.dp, if (isArCameraActive) LavenderPrimary else GlassBorder, CircleShape)
+                            .testTag("toggle_ar_camera_feed_button")
                     ) {
-                        // Dedicated Floating Camera World-Feed Toggle
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = if (isArCameraActive) VioletAccent.copy(alpha = 0.9f) else GlassDark.copy(alpha = 0.75f),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (isArCameraActive) LavenderPrimary else GlassBorder
-                            ),
-                            modifier = Modifier
-                                .clickable { viewModel.toggleArCamera() }
-                                .testTag("toggle_ar_camera_feed_button")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = if (isArCameraActive) Icons.Default.Videocam else Icons.Default.VideocamOff,
-                                    contentDescription = "Toggle live camera background",
-                                    tint = if (isArCameraActive) TextWhite else LavenderPrimary,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (isArCameraActive) "Live" else "Camera",
-                                    color = if (isArCameraActive) TextWhite else TextSilver,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-
-                        // Online/Offline Pill
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = GlassDark.copy(alpha = 0.75f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
-                            modifier = Modifier.clickable {
-                                viewModel.toggleOnlineMode(!isOnlineMode)
-                            }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = if (isOnlineMode) Icons.Default.Cloud else Icons.Default.CloudOff,
-                                    contentDescription = null,
-                                    tint = if (isOnlineMode) LavenderPrimary else SoftGold,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (isOnlineMode) "Cloud" else "Offline",
-                                    color = TextSilver,
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
-
-                        // API Key dialog button
-                        IconButton(
-                            onClick = {
-                                tempApiKey = apiKey
-                                showApiKeyDialog = true
-                            },
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(GlassDark.copy(alpha = 0.75f))
-                                .border(1.dp, GlassBorder, CircleShape)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Key,
-                                contentDescription = "API Key",
-                                tint = LavenderPrimary,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-
-                        // Minimalist Master Speaker Voice Toggle
-                        IconButton(
-                            onClick = { viewModel.toggleAudioMute() },
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(if (isSpeaking) VioletAccent.copy(alpha = 0.85f) else GlassDark.copy(alpha = 0.75f))
-                                .border(
-                                    1.dp,
-                                    if (isSpeaking) LavenderPrimary else if (!isAudioMuted) GlassBorder else SlateBorder,
-                                    CircleShape
-                                )
-                                .testTag("master_audio_toggle_button")
-                        ) {
-                            Icon(
-                                imageVector = if (isAudioMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
-                                contentDescription = if (isAudioMuted) "Unmute Ayaka Voice" else "Mute Ayaka Voice",
-                                tint = if (!isAudioMuted) LavenderPrimary else TextMuted,
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
-                    }
-                }
-
-                // Quick Emotion Selector Chips along the right edge
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    val emotions = listOf(
-                        "blush" to "😳",
-                        "smile" to "😊",
-                        "angry" to "😠",
-                        "happy" to "✨",
-                        "sad" to "🥺",
-                        "normal" to "😐"
-                    )
-                    emotions.forEach { (emo, emoji) ->
-                        Surface(
-                            shape = CircleShape,
-                            color = if (currentEmotion == emo) VioletAccent else GlassDark.copy(alpha = 0.75f),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (currentEmotion == emo) LavenderPrimary else GlassBorder
-                            ),
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clickable { viewModel.setEmotion(emo) }
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(emoji, fontSize = 14.sp)
-                            }
-                        }
+                        Icon(
+                            imageVector = if (isArCameraActive) Icons.Default.Videocam else Icons.Default.VideocamOff,
+                            contentDescription = "Toggle live camera background",
+                            tint = TextWhite,
+                            modifier = Modifier.size(17.dp)
+                        )
                     }
                 }
 
@@ -504,7 +380,7 @@ fun MainScreen(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.40f)
+                    .weight(0.44f)
                     .testTag("chat_section_surface"),
                 shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
                 color = GlassDark.copy(alpha = 0.60f), // Frosted semi-transparent overlay
@@ -515,121 +391,21 @@ fun MainScreen(
                         .fillMaxSize()
                         .padding(top = 8.dp, bottom = 4.dp)
                 ) {
-                    // Toolbar: Pomodoro Toggle, Bedtime Scold Test, Clear Chat
+                    // Keep the conversation header calm; care and engine controls live in their own tabs.
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 2.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            // Study / Pomodoro Toggle
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isPomodoroVisible) VioletAccent else GlassSurface.copy(alpha = 0.65f),
-                                modifier = Modifier
-                                    .clickable { viewModel.togglePomodoro(!isPomodoroVisible) }
-                                    .testTag("toggle_pomodoro_button")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.MenuBook,
-                                        contentDescription = null,
-                                        tint = if (isPomodoroVisible) TextWhite else LavenderPrimary,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        "Study Session",
-                                        fontSize = 11.sp,
-                                        color = if (isPomodoroVisible) TextWhite else TextSilver
-                                    )
-                                }
-                            }
-
-                            // 11:00 PM Curfew & Bedtime Scold Settings Dialog Button
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = GlassSurface.copy(alpha = 0.65f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
-                                modifier = Modifier
-                                    .clickable {
-                                        tempBedtimePhrase = userBond?.customBedtimePhrase
-                                            ?: "It's 11:00 PM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
-                                        selectedHour = userBond?.bedtimeHour ?: 11
-                                        selectedMinute = userBond?.bedtimeMinute ?: 0
-                                        showBedtimeDialog = true
-                                    }
-                                    .testTag("curfew_settings_button")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Bedtime,
-                                        contentDescription = null,
-                                        tint = SoftGold,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    val hour = userBond?.bedtimeHour ?: 11
-                                    val min = (userBond?.bedtimeMinute ?: 0).toString().padStart(2, '0')
-                                    val amPm = if (hour < 12) "AM" else "PM"
-                                    val displayHour = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
-                                    Text(
-                                        "Curfew ($displayHour:$min $amPm)",
-                                        fontSize = 11.sp,
-                                        color = TextSilver
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Icon(
-                                        imageVector = Icons.Default.Settings,
-                                        contentDescription = "Edit Curfew Settings",
-                                        tint = LavenderPrimary,
-                                        modifier = Modifier.size(11.dp)
-                                    )
-                                }
-                            }
-
-                            // Quick Bedtime Alert Test
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = GlassSurface.copy(alpha = 0.65f),
-                                modifier = Modifier
-                                    .clickable { viewModel.triggerTestMidnightAlert(context) }
-                                    .testTag("test_midnight_alert_button")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = null,
-                                        tint = SoftGold,
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text("Test Alert", fontSize = 11.sp, color = TextSilver)
-                                }
-                            }
+                        Column {
+                            Text("CONVERSATION", color = LavenderPrimary, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                            Text("Talk with Ayaka", color = TextWhite, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         }
-
                         IconButton(
                             onClick = { viewModel.clearChat() },
-                            modifier = Modifier.size(28.dp).testTag("clear_chat_button")
+                            modifier = Modifier.size(30.dp).testTag("clear_chat_button")
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Clear Chat",
-                                tint = TextMuted,
-                                modifier = Modifier.size(15.dp)
-                            )
+                            Icon(Icons.Default.Delete, contentDescription = "Clear Chat", tint = TextMuted, modifier = Modifier.size(16.dp))
                         }
                     }
 
@@ -960,6 +736,9 @@ fun MainScreen(
                             selectedMinute = userBond?.bedtimeMinute ?: 0
                             showBedtimeDialog = true
                         },
+                        onTestBedtime = { viewModel.triggerTestMidnightAlert(context) },
+                        currentEmotion = currentEmotion,
+                        onSetEmotion = { viewModel.setEmotion(it) },
                         onStudyCompleted = { viewModel.onStudyCompleted(it) },
                         onStudyInterrupted = { viewModel.onAppSwitchedAwayDuringStudy() },
                         modifier = Modifier.statusBarsPadding().padding(bottom = 12.dp)
