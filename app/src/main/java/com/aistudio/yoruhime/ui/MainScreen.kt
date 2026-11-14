@@ -284,7 +284,9 @@ fun MainScreen(
         )
 
         // Main workspace: keep the companion view focused and move secondary tools into dedicated destinations.
-        Column(modifier = Modifier.fillMaxSize()) {
+        // Reserve the system navigation-bar inset for the entire workspace so the bottom
+        // navigation never sits underneath Android's gesture/three-button navigation area.
+        Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 Column(
                     modifier = Modifier
