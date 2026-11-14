@@ -9,6 +9,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import org.json.JSONObject
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,7 +38,7 @@ class Live2DController {
     fun setEmotion(emotion: String) {
         val wv = webView
         if (wv != null) {
-            val script = "window.setEmotion && window.setEmotion('$emotion');"
+            val script = "window.setEmotion && window.setEmotion(${JSONObject.quote(emotion)});"
             wv.post { wv.evaluateJavascript(script, null) }
         } else {
             pendingEmotion = emotion
@@ -46,21 +47,24 @@ class Live2DController {
 
     fun playMotion(motionName: String = "Idle") {
         val wv = webView ?: return
-        val script = "window.playMotion && window.playMotion('$motionName');"
+        val script = "window.playMotion && window.playMotion(${JSONObject.quote(motionName)});"
         wv.post { wv.evaluateJavascript(script, null) }
     }
 
     fun lookAt(normalizedX: Float, normalizedY: Float) {
         val wv = webView ?: return
-        val script = "window.lookAt && window.lookAt($normalizedX, $normalizedY);"
+        val safeX = normalizedX.takeIf { it.isFinite() }?.coerceIn(-1f, 1f) ?: 0f
+        val safeY = normalizedY.takeIf { it.isFinite() }?.coerceIn(-1f, 1f) ?: 0f
+        val script = "window.lookAt && window.lookAt($safeX, $safeY);"
         wv.post { wv.evaluateJavascript(script, null) }
     }
 
     fun showSpeech(text: String, emotion: String? = null) {
         val wv = webView ?: return
-        val escapedText = text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ")
-        val emoParam = if (emotion != null) "'$emotion'" else "null"
-        val script = "window.showSpeech && window.showSpeech('$escapedText', $emoParam);"
+        // Quote cloud-generated text as a JS literal instead of interpolating raw code.
+        val quotedText = JSONObject.quote(text)
+        val emoParam = emotion?.let { JSONObject.quote(it) } ?: "null"
+        val script = "window.showSpeech && window.showSpeech($quotedText, $emoParam);"
         wv.post { wv.evaluateJavascript(script, null) }
     }
 
@@ -157,6 +161,14 @@ fun Live2DStage(
                         ): WebResourceResponse? {
                             val url = request?.url ?: return null
                             return assetLoader.shouldInterceptRequest(url)
+                        }
+
+                        override fun shouldOverrideUrlLoading(
+                            view: WebView?,
+                            request: WebResourceRequest?
+                        ): Boolean {
+                            // Keep this surface restricted to its bundled local asset origin.
+                            return request?.url?.host != "appassets.androidplatform.net"
                         }
                     }
 
