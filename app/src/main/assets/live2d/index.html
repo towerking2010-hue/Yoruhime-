@@ -101,9 +101,9 @@
       box-shadow: 0 0 6px #8A70D6;
     }
   </style>
-  <script src="live2dcubismcore.min.js"></script>
-  <script src="pixi.min.js"></script>
-  <script src="cubism4.min.js"></script>
+  <script defer src="live2dcubismcore.min.js"></script>
+  <script defer src="pixi.min.js"></script>
+  <script defer src="cubism4.min.js"></script>
 </head>
 <body>
   <div id="stage-container">
@@ -165,8 +165,10 @@
           height: height,
           transparent: true,
           backgroundAlpha: 0,
-          antialias: true,
-          resolution: Math.min(window.devicePixelRatio || 1, 2),
+          antialias: false,
+          // A capped backing resolution avoids rendering four full-resolution pixels
+          // per CSS pixel on mid-range phones while retaining a crisp model.
+          resolution: Math.min(window.devicePixelRatio || 1, 1.5),
           autoDensity: true,
           autoStart: false // Managed 30 FPS Loop
         });
@@ -235,9 +237,10 @@
     });
 
     function resizeParticleCanvas() {
-      pCanvas.width = window.innerWidth * (window.devicePixelRatio || 1);
-      pCanvas.height = window.innerHeight * (window.devicePixelRatio || 1);
-      pCtx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+      pCanvas.width = Math.round(window.innerWidth * pixelRatio);
+      pCanvas.height = Math.round(window.innerHeight * pixelRatio);
+      pCtx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     }
 
     function resizeModel() {
@@ -334,6 +337,7 @@
     }
 
     function renderParticles() {
+      if (particles.length === 0) return;
       pCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
@@ -347,14 +351,13 @@
           continue;
         }
 
-        pCtx.save();
         pCtx.globalAlpha = p.alpha;
         pCtx.fillStyle = p.color;
         pCtx.beginPath();
         pCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         pCtx.fill();
-        pCtx.restore();
       }
+      pCtx.globalAlpha = 1;
     }
 
     // Exposed JS bridge methods
