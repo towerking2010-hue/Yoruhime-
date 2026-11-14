@@ -68,7 +68,7 @@ class ChatRepository(
         // 2. Try OpenRouter only when Cloud mode is selected.
         if (isOnlineMode) {
             if (apiKey.isBlank()) {
-                cloudFailure = "No OpenRouter API key is saved. Tap the key icon, add your key, save it, then retry."
+                cloudFailure = "No OpenRouter API key is saved. Open Settings → API setup, add your key, save it, then choose Try cloud."
             } else {
                 try {
                     response = openRouterService.generateReply(
@@ -91,7 +91,7 @@ class ChatRepository(
             val cameraLabel = if (isFrontCamera) "front-camera" else "rear-camera"
             val fallbackText = when {
                 imageBitmap != null && !isOnlineMode ->
-                    "I received your $cameraLabel snapshot, but Guard (offline) mode cannot inspect images. Switch the top mode control to Cloud and retry."
+                    "I received your $cameraLabel snapshot, but Offline mode cannot inspect images. Open Settings, choose Try cloud, and retry."
                 imageBitmap != null ->
                     "I couldn't inspect that snapshot because Cloud vision failed. $cloudFailure"
                 isOnlineMode ->
