@@ -256,6 +256,12 @@ class MainViewModel(
         }
     }
 
+    fun editMemory(id: Long, content: String) {
+        viewModelScope.launch {
+            repository.editMemory(id, content)
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         // Release the lazily-created Android TTS engine when this ViewModel is permanently cleared.
