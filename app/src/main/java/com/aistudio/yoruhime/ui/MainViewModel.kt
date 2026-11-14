@@ -12,6 +12,7 @@ import com.aistudio.yoruhime.data.repository.ChatRepository
 import com.aistudio.yoruhime.data.local.SecureApiKeyStore
 import com.aistudio.yoruhime.service.BedtimeWorker
 import com.aistudio.yoruhime.ui.audio.AyakaTtsManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +21,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.delay
 
 class MainViewModel(
@@ -73,6 +76,10 @@ class MainViewModel(
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _sendError = MutableStateFlow<String?>(null)
+    val sendError: StateFlow<String?> = _sendError.asStateFlow()
+    private val sendMutex = Mutex()
 
     init {
         // Initial in-character check
@@ -142,30 +149,35 @@ class MainViewModel(
     ) {
         if (userText.isBlank() && imageBitmap == null) return
 
+        // Serialize sends so rapid taps cannot race Room writes, reorder history,
+        // or let an earlier request hide the loading state of a later one.
         viewModelScope.launch {
-            _isLoading.value = true
-            try {
-                val response = repository.sendUserMessage(
-                    userText = userText,
-                    isOnlineMode = _isOnlineMode.value,
-                    apiKey = _apiKey.value,
-                    imageBitmap = imageBitmap,
-                    isFrontCamera = isFrontCamera
-                )
-                // A failed Cloud request is returned as a local response. Switch the mode
-                // control back to Offline so subsequent messages do not keep retrying a
-                // slow/unavailable free endpoint until the user explicitly re-enables Cloud.
-                if (_isOnlineMode.value && !response.isOnline) {
-                    _isOnlineMode.value = false
+            sendMutex.withLock {
+                _isLoading.value = true
+                _sendError.value = null
+                try {
+                    val response = repository.sendUserMessage(
+                        userText = userText,
+                        isOnlineMode = _isOnlineMode.value,
+                        apiKey = _apiKey.value,
+                        imageBitmap = imageBitmap,
+                        isFrontCamera = isFrontCamera
+                    )
+                    // A failed Cloud request is returned as a local response. Switch the mode
+                    // control back to Offline so subsequent messages do not keep retrying a
+                    // slow/unavailable free endpoint until the user explicitly re-enables Cloud.
+                    if (_isOnlineMode.value && !response.isOnline) {
+                        _isOnlineMode.value = false
+                    }
+                    updateMood(response.emotion)
+                    ttsManager.speak(response.text, response.emotion, isCritical = false)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    _sendError.value = "That message couldn't be completed. Please try again."
+                } finally {
+                    _isLoading.value = false
                 }
-                updateMood(response.emotion)
-
-                // Speak every assistant reply; the existing mute control remains the user's override.
-                ttsManager.speak(response.text, response.emotion, isCritical = false)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                _isLoading.value = false
             }
         }
     }
