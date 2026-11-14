@@ -160,6 +160,7 @@ fun MainScreen(
     val live2DController = remember { Live2DController() }
     val listState = rememberLazyListState()
     val uiScope = rememberCoroutineScope()
+    var selectedDestination by remember { mutableStateOf(WorkspaceDestination.COMPANION) }
 
     LaunchedEffect(apiKey) {
         if (!showApiKeyDialog) tempApiKey = apiKey
@@ -254,19 +255,21 @@ fun MainScreen(
     ) {
         // 1. BOTTOM-MOST LAYER: CameraX live preview (AR mode) or Midnight wallpaper
         ARCameraBackground(
-            isCameraActive = isArCameraActive && !isCameraDockVisible,
+            isCameraActive = isArCameraActive && !isCameraDockVisible && selectedDestination == WorkspaceDestination.COMPANION,
             isFrontCamera = isFrontCamera,
             modifier = Modifier.fillMaxSize()
         )
 
-        // 2. FOREGROUND CONTENT: Live2D Stage (Top 60%) + Frosted Glass Chat Overlay (Bottom 40%)
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .imePadding()
-        ) {
+        // Main workspace: keep the companion view focused and move secondary tools into dedicated destinations.
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                if (selectedDestination == WorkspaceDestination.COMPANION) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding()
+                            .imePadding()
+                    ) {
             // TOP 60%: Live2D Transparent AR Stage
             Box(
                 modifier = Modifier
@@ -922,7 +925,51 @@ fun MainScreen(
                         }
                     }
                 }
+                    }
+                } else {
+                    YoruHimeWorkspacePage(
+                        destination = selectedDestination,
+                        memories = memories,
+                        bond = userBond,
+                        isOnlineMode = isOnlineMode,
+                        hasApiKey = apiKey.isNotBlank(),
+                        isAudioMuted = isAudioMuted,
+                        isPomodoroVisible = isPomodoroVisible,
+                        onForgetMemory = { viewModel.forgetMemory(it) },
+                        onClearMemories = { viewModel.clearMemories() },
+                        onToggleCloud = {
+                            if (isOnlineMode) {
+                                viewModel.toggleOnlineMode(false)
+                            } else if (apiKey.isBlank()) {
+                                tempApiKey = apiKey
+                                showApiKeyDialog = true
+                            } else {
+                                viewModel.toggleOnlineMode(true)
+                            }
+                        },
+                        onConfigureCloud = {
+                            tempApiKey = apiKey
+                            showApiKeyDialog = true
+                        },
+                        onToggleAudio = { viewModel.toggleAudioMute() },
+                        onTogglePomodoro = { viewModel.togglePomodoro(!isPomodoroVisible) },
+                        onConfigureBedtime = {
+                            tempBedtimePhrase = userBond?.customBedtimePhrase
+                                ?: "It's 11:00 PM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
+                            selectedHour = userBond?.bedtimeHour ?: 23
+                            selectedMinute = userBond?.bedtimeMinute ?: 0
+                            showBedtimeDialog = true
+                        },
+                        onStudyCompleted = { viewModel.onStudyCompleted(it) },
+                        onStudyInterrupted = { viewModel.onAppSwitchedAwayDuringStudy() },
+                        modifier = Modifier.statusBarsPadding().padding(bottom = 12.dp)
+                    )
+                }
             }
+            YoruHimeBottomBar(
+                selected = selectedDestination,
+                onSelect = { selectedDestination = it }
+            )
         }
     }
 
