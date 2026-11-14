@@ -69,6 +69,9 @@ fun YoruHimeWorkspacePage(
     onToggleAudio: () -> Unit,
     onTogglePomodoro: () -> Unit,
     onConfigureBedtime: () -> Unit,
+    onTestBedtime: () -> Unit,
+    currentEmotion: String,
+    onSetEmotion: (String) -> Unit,
     onStudyCompleted: (Int) -> Unit,
     onStudyInterrupted: () -> Unit,
     modifier: Modifier = Modifier
@@ -145,6 +148,8 @@ fun YoruHimeWorkspacePage(
                     Text("Daily reminder: " + formatBedtime(bond?.bedtimeHour ?: 23, bond?.bedtimeMinute ?: 0), color = TextSilver, fontSize = 13.sp)
                     Spacer(Modifier.height(8.dp))
                     AccentAction("Adjust bedtime reminder", onConfigureBedtime)
+                    Spacer(Modifier.height(6.dp))
+                    TextButton(onClick = onTestBedtime) { Text("Test bedtime alert", color = SoftGold) }
                 }
             }
             WorkspaceDestination.SETTINGS -> {
@@ -178,6 +183,23 @@ fun YoruHimeWorkspacePage(
                             Text(if (isAudioMuted) "Muted" else "Voice enabled", color = TextMuted, fontSize = 12.sp)
                         }
                         TextButton(onClick = onToggleAudio) { Text(if (isAudioMuted) "Unmute" else "Mute", color = LavenderPrimary) }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                WorkspaceCard {
+                    Text("Ayaka's expression", color = TextWhite, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        listOf("normal" to "😐", "smile" to "😊", "blush" to "😳", "happy" to "✨", "sad" to "🥺", "angry" to "😠").forEach { (mood, emoji) ->
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (currentEmotion == mood) VioletAccent else SlateSurface,
+                                border = BorderStroke(1.dp, if (currentEmotion == mood) LavenderPrimary else SlateBorder),
+                                modifier = Modifier.clickable { onSetEmotion(mood) }
+                            ) {
+                                Text(emoji, modifier = Modifier.padding(horizontal = 9.dp, vertical = 8.dp), fontSize = 16.sp)
+                            }
+                        }
                     }
                 }
                 Spacer(Modifier.height(12.dp))
