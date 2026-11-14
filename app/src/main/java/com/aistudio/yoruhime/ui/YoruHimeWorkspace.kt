@@ -86,6 +86,7 @@ fun YoruHimeWorkspacePage(
 ) {
     var editingMemoryId by remember { mutableStateOf<Long?>(null) }
     var editingMemoryText by remember { mutableStateOf("") }
+    var confirmClearAll by remember { mutableStateOf(false) }
     val pageScroll = if (destination == WorkspaceDestination.MEMORIES) Modifier else Modifier.verticalScroll(rememberScrollState())
     Column(modifier.fillMaxSize().then(pageScroll).background(MidnightBlack).padding(horizontal = 20.dp, vertical = 18.dp)) {
         Text("YORUHIME  /  " + destination.label.uppercase(), color = LavenderPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp)
@@ -105,7 +106,7 @@ fun YoruHimeWorkspacePage(
                 } else {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text(memories.size.toString() + " saved note(s)", color = TextSilver, fontSize = 12.sp)
-                        TextButton(onClick = onClearMemories) { Text("Clear all", color = BlushPink) }
+                        TextButton(onClick = { confirmClearAll = true }) { Text("Clear all", color = BlushPink) }
                     }
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp)) {
                         items(memories, key = { it.id }) { memory ->
@@ -228,6 +229,20 @@ fun YoruHimeWorkspacePage(
         }
     }
 
+    if (confirmClearAll) {
+        AlertDialog(
+            onDismissRequest = { confirmClearAll = false },
+            title = { Text("Clear all saved memories?", color = TextWhite) },
+            text = { Text("This permanently removes every saved note from this device. Your chat history will remain.", color = TextMuted) },
+            confirmButton = {
+                TextButton(onClick = { onClearMemories(); confirmClearAll = false }) { Text("Clear memories", color = BlushPink) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearAll = false }) { Text("Keep them", color = LavenderPrimary) }
+            },
+            containerColor = SlateDark
+        )
+    }
     if (editingMemoryId != null) {
         AlertDialog(
             onDismissRequest = { editingMemoryId = null },
