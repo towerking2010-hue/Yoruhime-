@@ -20,6 +20,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -63,6 +64,7 @@ fun ARCameraBackground(
     var cameraError by remember { mutableStateOf<String?>(null) }
 
     var cameraProviderInstance by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+    var bindRequestGeneration by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(isCameraActive) {
         if (isCameraActive && !hasPermission) {
@@ -71,6 +73,7 @@ fun ARCameraBackground(
     }
 
     LaunchedEffect(isCameraActive, hasPermission, isFrontCamera, previewView) {
+        val requestGeneration = ++bindRequestGeneration
         if (!isCameraActive || !hasPermission || previewView == null) {
             cameraProviderInstance?.unbindAll()
             cameraError = null
@@ -82,6 +85,8 @@ fun ARCameraBackground(
         cameraProviderFuture.addListener({
             try {
                 val cameraProvider = cameraProviderFuture.get()
+                if (requestGeneration != bindRequestGeneration || !isCameraActive || !hasPermission) return@addListener
+                val activePreviewView = previewView ?: return@addListener
                 cameraProviderInstance = cameraProvider
 
                 val lensFacing = if (isFrontCamera) {
@@ -92,7 +97,7 @@ fun ARCameraBackground(
                 val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
 
                 val preview = Preview.Builder().build().also {
-                    it.surfaceProvider = previewView?.surfaceProvider
+                    it.surfaceProvider = activePreviewView.surfaceProvider
                 }
 
                 cameraProvider.unbindAll()
@@ -109,6 +114,7 @@ fun ARCameraBackground(
 
     DisposableEffect(isCameraActive) {
         onDispose {
+            bindRequestGeneration++
             try {
                 cameraProviderInstance?.unbindAll()
             } catch (e: Exception) {
