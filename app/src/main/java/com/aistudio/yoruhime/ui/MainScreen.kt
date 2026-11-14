@@ -1213,6 +1213,8 @@ fun MainScreen(
     }
 }
 
+}
+
 @Composable
 fun ChatMessageBubble(
     message: ChatMessageEntity,
