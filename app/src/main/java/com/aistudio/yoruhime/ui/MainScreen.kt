@@ -854,7 +854,7 @@ fun MainScreen(
                         showApiKeyDialog = false
                     }
                 ) {
-                    Text("Save & Connect", color = LavenderPrimary)
+                    Text(if (connectAfterApiKeySave) "Save & Connect" else "Save Key", color = LavenderPrimary)
                 }
             },
             dismissButton = {
