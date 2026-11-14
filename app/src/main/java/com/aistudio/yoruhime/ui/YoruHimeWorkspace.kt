@@ -14,6 +14,10 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -66,6 +70,7 @@ fun YoruHimeWorkspacePage(
     isAudioMuted: Boolean,
     isPomodoroVisible: Boolean,
     onForgetMemory: (String) -> Unit,
+    onEditMemory: (Long, String) -> Unit,
     onClearMemories: () -> Unit,
     onToggleCloud: () -> Unit,
     onConfigureCloud: () -> Unit,
@@ -79,6 +84,8 @@ fun YoruHimeWorkspacePage(
     onStudyInterrupted: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var editingMemoryId by remember { mutableStateOf<Long?>(null) }
+    var editingMemoryText by remember { mutableStateOf("") }
     val pageScroll = if (destination == WorkspaceDestination.MEMORIES) Modifier else Modifier.verticalScroll(rememberScrollState())
     Column(modifier.fillMaxSize().then(pageScroll).background(MidnightBlack).padding(horizontal = 20.dp, vertical = 18.dp)) {
         Text("YORUHIME  /  " + destination.label.uppercase(), color = LavenderPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp)
@@ -105,6 +112,12 @@ fun YoruHimeWorkspacePage(
                             WorkspaceCard {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(memory.content, color = TextWhite, fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
+                                    IconButton(onClick = {
+                                        editingMemoryId = memory.id
+                                        editingMemoryText = memory.content
+                                    }) {
+                                        Icon(Icons.Default.Edit, contentDescription = "Edit memory", tint = LavenderPrimary)
+                                    }
                                     IconButton(onClick = { onForgetMemory(memory.content) }) {
                                         Icon(Icons.Default.Delete, contentDescription = "Forget memory", tint = BlushPink)
                                     }
@@ -213,6 +226,36 @@ fun YoruHimeWorkspacePage(
                 }
             }
         }
+    }
+
+    if (editingMemoryId != null) {
+        AlertDialog(
+            onDismissRequest = { editingMemoryId = null },
+            title = { Text("Edit saved memory", color = TextWhite) },
+            text = {
+                OutlinedTextField(
+                    value = editingMemoryText,
+                    onValueChange = { editingMemoryText = it.take(240) },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 4,
+                    label = { Text("Memory note") }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    editingMemoryId?.let { id -> onEditMemory(id, editingMemoryText) }
+                    editingMemoryId = null
+                }, enabled = editingMemoryText.isNotBlank()) {
+                    Text("Save", color = LavenderPrimary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingMemoryId = null }) {
+                    Text("Cancel", color = TextMuted)
+                }
+            },
+            containerColor = SlateDark
+        )
     }
 }
 
