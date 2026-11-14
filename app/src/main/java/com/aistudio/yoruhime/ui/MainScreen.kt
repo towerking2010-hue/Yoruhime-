@@ -1,10 +1,10 @@
 package com.aistudio.yoruhime.ui
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
-import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -84,11 +84,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -117,6 +119,9 @@ import com.aistudio.yoruhime.ui.theme.TextMuted
 import com.aistudio.yoruhime.ui.theme.TextSilver
 import com.aistudio.yoruhime.ui.theme.TextWhite
 import com.aistudio.yoruhime.ui.theme.VioletAccent
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,11 +142,15 @@ fun MainScreen(
     val isAudioMuted by viewModel.isAudioMuted.collectAsState()
     val isSpeaking by viewModel.isSpeaking.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val sendError by viewModel.sendError.collectAsState()
 
     var inputText by remember { mutableStateOf("") }
     var attachedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var showApiKeyDialog by remember { mutableStateOf(false) }
+    var connectAfterApiKeySave by remember { mutableStateOf(false) }
     var showMemoryDialog by remember { mutableStateOf(false) }
+    var showClearChatConfirmation by remember { mutableStateOf(false) }
+    var showClearMemoriesConfirmation by remember { mutableStateOf(false) }
     var tempApiKey by remember { mutableStateOf(apiKey) }
     var showBedtimeDialog by remember { mutableStateOf(false) }
     var tempBedtimePhrase by remember {
@@ -155,6 +164,8 @@ fun MainScreen(
 
     val live2DController = remember { Live2DController() }
     val listState = rememberLazyListState()
+    val uiScope = rememberCoroutineScope()
+    var selectedDestination by remember { mutableStateOf(WorkspaceDestination.COMPANION) }
 
     LaunchedEffect(apiKey) {
         if (!showApiKeyDialog) tempApiKey = apiKey
@@ -191,20 +202,45 @@ fun MainScreen(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null) {
-            try {
-                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    val source = ImageDecoder.createSource(context.contentResolver, uri)
-                    ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
-                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                        decoder.isMutableRequired = true
+            // Image decoding can take hundreds of milliseconds for large photos.
+            // Keep that work off the UI thread so chat and Live2D remain responsive.
+            uiScope.launch {
+                try {
+                    val bitmap = withContext(Dispatchers.IO) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            val source = ImageDecoder.createSource(context.contentResolver, uri)
+                            ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                                val longestSide = maxOf(info.size.width, info.size.height).coerceAtLeast(1)
+                                if (longestSide > 1280) {
+                                    val scale = 1280f / longestSide
+                                    decoder.setTargetSize(
+                                        (info.size.width * scale).toInt().coerceAtLeast(1),
+                                        (info.size.height * scale).toInt().coerceAtLeast(1)
+                                    )
+                                }
+                            }
+                        } else {
+                            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                            context.contentResolver.openInputStream(uri)?.use {
+                                BitmapFactory.decodeStream(it, null, bounds)
+                            }
+                            val longestSide = maxOf(bounds.outWidth, bounds.outHeight).coerceAtLeast(1)
+                            var sampleSize = 1
+                            while (longestSide / sampleSize > 1280) sampleSize *= 2
+                            val options = BitmapFactory.Options().apply {
+                                inSampleSize = sampleSize
+                                inPreferredConfig = Bitmap.Config.ARGB_8888
+                            }
+                            context.contentResolver.openInputStream(uri)?.use {
+                                BitmapFactory.decodeStream(it, null, options)
+                            } ?: throw IllegalStateException("Image stream unavailable")
+                        }
                     }
-                } else {
-                    @Suppress("DEPRECATION")
-                    MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                    attachedBitmap = bitmap
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Couldn't load that image: ${e.localizedMessage ?: "unknown error"}", Toast.LENGTH_SHORT).show()
                 }
-                attachedBitmap = bitmap
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
         }
     }
@@ -242,29 +278,36 @@ fun MainScreen(
     ) {
         // 1. BOTTOM-MOST LAYER: CameraX live preview (AR mode) or Midnight wallpaper
         ARCameraBackground(
-            isCameraActive = isArCameraActive && !isCameraDockVisible,
+            isCameraActive = isArCameraActive && !isCameraDockVisible && selectedDestination == WorkspaceDestination.COMPANION,
             isFrontCamera = isFrontCamera,
             modifier = Modifier.fillMaxSize()
         )
 
-        // 2. FOREGROUND CONTENT: Live2D Stage (Top 60%) + Frosted Glass Chat Overlay (Bottom 40%)
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .imePadding()
-        ) {
+        // Main workspace: keep the companion view focused and move secondary tools into dedicated destinations.
+        // Reserve the system navigation-bar inset for the entire workspace so the bottom
+        // navigation never sits underneath Android's gesture/three-button navigation area.
+        Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            alpha = if (selectedDestination == WorkspaceDestination.COMPANION) 1f else 0f
+                        }
+                        .statusBarsPadding()
+                        .imePadding()
+                ) {
             // TOP 60%: Live2D Transparent AR Stage
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.60f)
+                    .weight(0.56f)
                     .testTag("live2d_stage_section")
             ) {
                 // Live2D WebView Canvas directly floating over camera feed
                 Live2DStage(
                     currentEmotion = currentEmotion,
+                    isVisible = selectedDestination == WorkspaceDestination.COMPANION,
                     controller = live2DController,
                     onModelTapped = { zone ->
                         viewModel.onModelTapped(zone)
@@ -275,7 +318,7 @@ fun MainScreen(
                 // Explicit, user-triggered camera inspection. The dock owns its preview,
                 // front/back switch, and still-image capture; closing it releases CameraX.
                 CameraPreviewDock(
-                    isVisible = isCameraDockVisible,
+                    isVisible = isCameraDockVisible && selectedDestination == WorkspaceDestination.COMPANION,
                     isFrontCamera = isFrontCamera,
                     onToggleCameraFacing = { viewModel.toggleCameraFacing() },
                     onClose = { viewModel.toggleCameraDock(false) },
@@ -327,151 +370,27 @@ fun MainScreen(
                         }
                     }
 
-                    // Top Action Controls: Dedicated AR Camera World-Feed Button, Online Pill & API Key
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    // The companion view keeps only its contextual camera control.
+                    IconButton(
+                        onClick = { viewModel.toggleArCamera() },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(if (isArCameraActive) VioletAccent else GlassDark.copy(alpha = 0.78f))
+                            .border(1.dp, if (isArCameraActive) LavenderPrimary else GlassBorder, CircleShape)
+                            .testTag("toggle_ar_camera_feed_button")
                     ) {
-                        // Dedicated Floating Camera World-Feed Toggle
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = if (isArCameraActive) VioletAccent.copy(alpha = 0.9f) else GlassDark.copy(alpha = 0.75f),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (isArCameraActive) LavenderPrimary else GlassBorder
-                            ),
-                            modifier = Modifier
-                                .clickable { viewModel.toggleArCamera() }
-                                .testTag("toggle_ar_camera_feed_button")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = if (isArCameraActive) Icons.Default.Videocam else Icons.Default.VideocamOff,
-                                    contentDescription = "Toggle live camera background",
-                                    tint = if (isArCameraActive) TextWhite else LavenderPrimary,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (isArCameraActive) "Live" else "Camera",
-                                    color = if (isArCameraActive) TextWhite else TextSilver,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-
-                        // Online/Offline Pill
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = GlassDark.copy(alpha = 0.75f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
-                            modifier = Modifier.clickable {
-                                viewModel.toggleOnlineMode(!isOnlineMode)
-                            }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = if (isOnlineMode) Icons.Default.Cloud else Icons.Default.CloudOff,
-                                    contentDescription = null,
-                                    tint = if (isOnlineMode) LavenderPrimary else SoftGold,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (isOnlineMode) "Cloud" else "Offline",
-                                    color = TextSilver,
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
-
-                        // API Key dialog button
-                        IconButton(
-                            onClick = {
-                                tempApiKey = apiKey
-                                showApiKeyDialog = true
-                            },
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(GlassDark.copy(alpha = 0.75f))
-                                .border(1.dp, GlassBorder, CircleShape)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Key,
-                                contentDescription = "API Key",
-                                tint = LavenderPrimary,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-
-                        // Minimalist Master Speaker Voice Toggle
-                        IconButton(
-                            onClick = { viewModel.toggleAudioMute() },
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(if (isSpeaking) VioletAccent.copy(alpha = 0.85f) else GlassDark.copy(alpha = 0.75f))
-                                .border(
-                                    1.dp,
-                                    if (isSpeaking) LavenderPrimary else if (!isAudioMuted) GlassBorder else SlateBorder,
-                                    CircleShape
-                                )
-                                .testTag("master_audio_toggle_button")
-                        ) {
-                            Icon(
-                                imageVector = if (isAudioMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
-                                contentDescription = if (isAudioMuted) "Unmute Ayaka Voice" else "Mute Ayaka Voice",
-                                tint = if (!isAudioMuted) LavenderPrimary else TextMuted,
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
-                    }
-                }
-
-                // Quick Emotion Selector Chips along the right edge
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    val emotions = listOf(
-                        "blush" to "😳",
-                        "smile" to "😊",
-                        "angry" to "😠",
-                        "happy" to "✨",
-                        "sad" to "🥺",
-                        "normal" to "😐"
-                    )
-                    emotions.forEach { (emo, emoji) ->
-                        Surface(
-                            shape = CircleShape,
-                            color = if (currentEmotion == emo) VioletAccent else GlassDark.copy(alpha = 0.75f),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (currentEmotion == emo) LavenderPrimary else GlassBorder
-                            ),
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clickable { viewModel.setEmotion(emo) }
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(emoji, fontSize = 14.sp)
-                            }
-                        }
+                        Icon(
+                            imageVector = if (isArCameraActive) Icons.Default.Videocam else Icons.Default.VideocamOff,
+                            contentDescription = "Toggle live camera background",
+                            tint = TextWhite,
+                            modifier = Modifier.size(17.dp)
+                        )
                     }
                 }
 
                 // Pomodoro Session Floating Dock Overlaid on top of stage if active
-                if (isPomodoroVisible) {
+                if (isPomodoroVisible && selectedDestination == WorkspaceDestination.COMPANION) {
                     Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                         PomodoroSession(
                             onSessionCompleted = { mins ->
@@ -489,7 +408,7 @@ fun MainScreen(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.40f)
+                    .weight(0.44f)
                     .testTag("chat_section_surface"),
                 shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
                 color = GlassDark.copy(alpha = 0.60f), // Frosted semi-transparent overlay
@@ -500,121 +419,21 @@ fun MainScreen(
                         .fillMaxSize()
                         .padding(top = 8.dp, bottom = 4.dp)
                 ) {
-                    // Toolbar: Pomodoro Toggle, Bedtime Scold Test, Clear Chat
+                    // Keep the conversation header calm; care and engine controls live in their own tabs.
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 2.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            // Study / Pomodoro Toggle
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isPomodoroVisible) VioletAccent else GlassSurface.copy(alpha = 0.65f),
-                                modifier = Modifier
-                                    .clickable { viewModel.togglePomodoro(!isPomodoroVisible) }
-                                    .testTag("toggle_pomodoro_button")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.MenuBook,
-                                        contentDescription = null,
-                                        tint = if (isPomodoroVisible) TextWhite else LavenderPrimary,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        "Study Session",
-                                        fontSize = 11.sp,
-                                        color = if (isPomodoroVisible) TextWhite else TextSilver
-                                    )
-                                }
-                            }
-
-                            // 11:00 PM Curfew & Bedtime Scold Settings Dialog Button
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = GlassSurface.copy(alpha = 0.65f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
-                                modifier = Modifier
-                                    .clickable {
-                                        tempBedtimePhrase = userBond?.customBedtimePhrase
-                                            ?: "It's 11:00 PM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
-                                        selectedHour = userBond?.bedtimeHour ?: 11
-                                        selectedMinute = userBond?.bedtimeMinute ?: 0
-                                        showBedtimeDialog = true
-                                    }
-                                    .testTag("curfew_settings_button")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Bedtime,
-                                        contentDescription = null,
-                                        tint = SoftGold,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    val hour = userBond?.bedtimeHour ?: 11
-                                    val min = (userBond?.bedtimeMinute ?: 0).toString().padStart(2, '0')
-                                    val amPm = if (hour < 12) "AM" else "PM"
-                                    val displayHour = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
-                                    Text(
-                                        "Curfew ($displayHour:$min $amPm)",
-                                        fontSize = 11.sp,
-                                        color = TextSilver
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Icon(
-                                        imageVector = Icons.Default.Settings,
-                                        contentDescription = "Edit Curfew Settings",
-                                        tint = LavenderPrimary,
-                                        modifier = Modifier.size(11.dp)
-                                    )
-                                }
-                            }
-
-                            // Quick Bedtime Alert Test
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = GlassSurface.copy(alpha = 0.65f),
-                                modifier = Modifier
-                                    .clickable { viewModel.triggerTestMidnightAlert(context) }
-                                    .testTag("test_midnight_alert_button")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = null,
-                                        tint = SoftGold,
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text("Test Alert", fontSize = 11.sp, color = TextSilver)
-                                }
-                            }
+                        Column {
+                            Text("CONVERSATION", color = LavenderPrimary, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                            Text("Talk with Ayaka", color = TextWhite, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         }
-
                         IconButton(
-                            onClick = { viewModel.clearChat() },
-                            modifier = Modifier.size(28.dp).testTag("clear_chat_button")
+                            onClick = { showClearChatConfirmation = true },
+                            modifier = Modifier.size(30.dp).testTag("clear_chat_button")
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Clear Chat",
-                                tint = TextMuted,
-                                modifier = Modifier.size(15.dp)
-                            )
+                            Icon(Icons.Default.Delete, contentDescription = "Clear Chat", tint = TextMuted, modifier = Modifier.size(16.dp))
                         }
                     }
 
@@ -708,6 +527,15 @@ fun MainScreen(
                                 }
                             }
                         }
+                    }
+
+                    sendError?.let { error ->
+                        Text(
+                            text = error,
+                            color = BlushPink,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+                        )
                     }
 
                     // Selected Attachment Preview Card (Photos)
@@ -910,19 +738,83 @@ fun MainScreen(
                         }
                     }
                 }
+                }
+                if (selectedDestination != WorkspaceDestination.COMPANION) {
+                    YoruHimeWorkspacePage(
+                        destination = selectedDestination,
+                        memories = memories,
+                        bond = userBond,
+                        isOnlineMode = isOnlineMode,
+                        hasApiKey = apiKey.isNotBlank(),
+                        isAudioMuted = isAudioMuted,
+                        isPomodoroVisible = isPomodoroVisible,
+                        onForgetMemory = { viewModel.forgetMemory(it) },
+                        onEditMemory = { id, text -> viewModel.editMemory(id, text) },
+                        onClearMemories = { viewModel.clearMemories() },
+                        onToggleCloud = {
+                            if (isOnlineMode) {
+                                viewModel.toggleOnlineMode(false)
+                            } else if (apiKey.isBlank()) {
+                                tempApiKey = apiKey
+                                connectAfterApiKeySave = true
+                                showApiKeyDialog = true
+                            } else {
+                                viewModel.toggleOnlineMode(true)
+                            }
+                        },
+                        onConfigureCloud = {
+                            tempApiKey = apiKey
+                            connectAfterApiKeySave = false
+                            showApiKeyDialog = true
+                        },
+                        onToggleAudio = { viewModel.toggleAudioMute() },
+                        onTogglePomodoro = { viewModel.togglePomodoro(!isPomodoroVisible) },
+                        onConfigureBedtime = {
+                            tempBedtimePhrase = userBond?.customBedtimePhrase
+                                ?: "It's 11:00 PM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
+                            selectedHour = userBond?.bedtimeHour ?: 23
+                            selectedMinute = userBond?.bedtimeMinute ?: 0
+                            showBedtimeDialog = true
+                        },
+                        onTestBedtime = { viewModel.triggerTestMidnightAlert(context) },
+                        currentEmotion = currentEmotion,
+                        onSetEmotion = { viewModel.setEmotion(it) },
+                        onStudyCompleted = { viewModel.onStudyCompleted(it) },
+                        onStudyInterrupted = { viewModel.onAppSwitchedAwayDuringStudy() },
+                        modifier = Modifier.statusBarsPadding().padding(bottom = 12.dp)
+                    )
+                }
             }
+            YoruHimeBottomBar(
+                selected = selectedDestination,
+                onSelect = { selectedDestination = it }
+            )
         }
     }
 
+    if (showClearChatConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showClearChatConfirmation = false },
+            title = { Text("Clear conversation?", color = TextWhite) },
+            text = { Text("This permanently deletes the chat history on this device. Saved memories and bond progress will stay.", color = TextSilver) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearChat(); showClearChatConfirmation = false }) { Text("Clear chat", color = BlushPink) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearChatConfirmation = false }) { Text("Keep chat", color = LavenderPrimary) }
+            },
+            containerColor = SlateDark
+        )
+    }
     // API Key Dialog
     if (showApiKeyDialog) {
         AlertDialog(
-            onDismissRequest = { showApiKeyDialog = false },
+            onDismissRequest = { connectAfterApiKeySave = false; showApiKeyDialog = false },
             title = { Text("OpenRouter Cloud Setup", color = TextWhite) },
             text = {
                 Column {
                     Text(
-                        "Enter your OpenRouter API key for cloud chat. YoruHime uses OpenRouter's automatic model routing. If the key is blank or the request fails, it falls back to the offline dialogue engine.",
+                        "Enter your OpenRouter API key for Cloud chat. YoruHime requests the free-model route only. If a Cloud request fails, Ayaka explains the problem and the app returns to Offline mode. YoruHime never purchases credits or selects paid model IDs.",
                         fontSize = 12.sp,
                         color = TextSilver
                     )
@@ -955,15 +847,20 @@ fun MainScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.updateApiKey(tempApiKey.trim())
+                        val savedKey = tempApiKey.trim()
+                        viewModel.updateApiKey(savedKey)
+                        if (connectAfterApiKeySave && savedKey.isNotBlank()) {
+                            viewModel.toggleOnlineMode(true)
+                        }
+                        connectAfterApiKeySave = false
                         showApiKeyDialog = false
                     }
                 ) {
-                    Text("Save & Connect", color = LavenderPrimary)
+                    Text(if (connectAfterApiKeySave) "Save & Connect" else "Save Key", color = LavenderPrimary)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showApiKeyDialog = false }) {
+                TextButton(onClick = { connectAfterApiKeySave = false; showApiKeyDialog = false }) {
                     Text("Cancel", color = TextMuted)
                 }
             },
@@ -1017,10 +914,7 @@ fun MainScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    viewModel.clearMemories()
-                    showMemoryDialog = false
-                }) {
+                TextButton(onClick = { showClearMemoriesConfirmation = true }) {
                     Text("Clear all", color = BlushPink)
                 }
             },
@@ -1033,6 +927,24 @@ fun MainScreen(
         )
     }
 
+    if (showClearMemoriesConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showClearMemoriesConfirmation = false },
+            title = { Text("Clear all saved memories?", color = TextWhite) },
+            text = { Text("This permanently removes every saved note from this device. Your conversation history will remain.", color = TextSilver) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.clearMemories()
+                    showClearMemoriesConfirmation = false
+                    showMemoryDialog = false
+                }) { Text("Clear memories", color = BlushPink) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearMemoriesConfirmation = false }) { Text("Keep them", color = LavenderPrimary) }
+            },
+            containerColor = SlateDark
+        )
+    }
     // Bedtime & Curfew Settings Dialog (11:00 PM Curfew / Midnight / Custom Phrase)
     if (showBedtimeDialog) {
         val scrollState = rememberScrollState()
@@ -1351,6 +1263,8 @@ fun MainScreen(
             containerColor = SlateDark
         )
     }
+}
+
 }
 
 @Composable

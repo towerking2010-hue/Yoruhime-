@@ -13,6 +13,13 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
 
     private var tts: TextToSpeech? = null
     private var isInitialized = false
+    private var pendingSpeech: PendingSpeech? = null
+
+    private data class PendingSpeech(
+        val text: String,
+        val emotion: String,
+        val isCritical: Boolean
+    )
 
     private val _isMuted = MutableStateFlow(false)
     val isMuted: StateFlow<Boolean> = _isMuted.asStateFlow()
@@ -20,20 +27,35 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
     private val _isSpeaking = MutableStateFlow(false)
     val isSpeaking: StateFlow<Boolean> = _isSpeaking.asStateFlow()
 
-    init {
-        tts = TextToSpeech(context.applicationContext, this)
+    // The Android TTS engine can take time to initialize. Do not start it while
+    // the user is merely opening YoruHime; initialize on the first spoken reply.
+    private fun ensureEngine() {
+        if (tts == null) {
+            tts = TextToSpeech(context.applicationContext, this)
+        }
     }
 
     override fun onInit(status: Int) {
+        // An initialization callback may arrive after release(), or the platform TTS
+        // engine may fail to start. Do not leave a dead engine marked as initialized.
+        val activeEngine = tts ?: return
+        if (status != TextToSpeech.SUCCESS) {
+            isInitialized = false
+            tts = null
+            activeEngine.shutdown()
+            _isSpeaking.value = false
+            return
+        }
+
         if (status == TextToSpeech.SUCCESS) {
-            val result = tts?.setLanguage(Locale.US)
+            val result = activeEngine.setLanguage(Locale.US)
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                tts?.setLanguage(Locale.ENGLISH)
+                activeEngine.setLanguage(Locale.ENGLISH)
             }
 
             // Attempt to select an expressive high-pitch female voice if available
             try {
-                val femaleVoice = tts?.voices?.firstOrNull { voice ->
+                val femaleVoice = activeEngine.voices?.firstOrNull { voice ->
                     voice.locale.language == Locale.ENGLISH.language &&
                             (voice.name.contains("female", ignoreCase = true) ||
                              voice.name.contains("#female", ignoreCase = true) ||
@@ -41,13 +63,13 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
                              voice.name.contains("en-us-x-tpf", ignoreCase = true))
                 }
                 if (femaleVoice != null) {
-                    tts?.voice = femaleVoice
+                    activeEngine.voice = femaleVoice
                 }
             } catch (e: Exception) {
                 // Fall back to default engine voice
             }
 
-            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            activeEngine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {
                     _isSpeaking.value = true
                 }
@@ -62,6 +84,10 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
             })
 
             isInitialized = true
+            pendingSpeech?.let { queued ->
+                pendingSpeech = null
+                speakNow(queued)
+            }
         }
     }
 
@@ -86,15 +112,22 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
         emotion: String,
         isCritical: Boolean = false
     ) {
-        if (!isInitialized || tts == null) return
-
-        // Respect master mute unless critical event specifically requested override, or if user explicitly clicked replay
+        // Respect master mute unless a critical event explicitly overrides it.
         if (_isMuted.value && !isCritical) return
-
         val cleanText = sanitizeForSpeech(text)
         if (cleanText.isBlank()) return
 
-        val (pitch, rate) = when (emotion.lowercase()) {
+        val request = PendingSpeech(cleanText, emotion, isCritical)
+        if (!isInitialized || tts == null) {
+            pendingSpeech = request
+            ensureEngine()
+            return
+        }
+        speakNow(request)
+    }
+
+    private fun speakNow(request: PendingSpeech) {
+        val (pitch, rate) = when (request.emotion.lowercase()) {
             "angry" -> Pair(1.26f, 1.16f)   // Sharp scolding
             "blush" -> Pair(1.36f, 1.22f)   // Flustered stuttering panic
             "smile", "happy" -> Pair(1.02f, 0.94f) // Warm maternal comfort
@@ -106,7 +139,7 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
         tts?.setSpeechRate(rate)
 
         val utteranceId = "ayaka_${System.currentTimeMillis()}"
-        tts?.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+        tts?.speak(request.text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
     }
 
     private fun sanitizeForSpeech(raw: String): String {
@@ -118,13 +151,17 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
     }
 
     fun stop() {
+        pendingSpeech = null
         tts?.stop()
         _isSpeaking.value = false
     }
 
     fun release() {
+        pendingSpeech = null
         tts?.stop()
         tts?.shutdown()
         tts = null
+        isInitialized = false
+        _isSpeaking.value = false
     }
 }

@@ -20,6 +20,9 @@ interface MemoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveMemory(memory: MemoryNoteEntity): Long
 
+    @Query("UPDATE memory_notes SET content = :content, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateMemory(id: Long, content: String, updatedAt: Long)
+
     @Query("DELETE FROM memory_notes WHERE content = :content COLLATE NOCASE")
     suspend fun forgetMemory(content: String)
 
