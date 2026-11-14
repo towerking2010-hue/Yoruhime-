@@ -13,6 +13,13 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
 
     private var tts: TextToSpeech? = null
     private var isInitialized = false
+    private var pendingSpeech: PendingSpeech? = null
+
+    private data class PendingSpeech(
+        val text: String,
+        val emotion: String,
+        val isCritical: Boolean
+    )
 
     private val _isMuted = MutableStateFlow(false)
     val isMuted: StateFlow<Boolean> = _isMuted.asStateFlow()
