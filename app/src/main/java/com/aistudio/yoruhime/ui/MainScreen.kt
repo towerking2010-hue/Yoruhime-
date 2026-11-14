@@ -233,7 +233,6 @@ fun MainScreen(
                             } ?: throw IllegalStateException("Image stream unavailable")
                         }
                     }
-                    attachedBitmap?.takeIf { it !== bitmap }?.recycle()
                     attachedBitmap = bitmap
                 } catch (e: Exception) {
                     Toast.makeText(context, "Couldn't load that image: ${e.localizedMessage ?: "unknown error"}", Toast.LENGTH_SHORT).show()
