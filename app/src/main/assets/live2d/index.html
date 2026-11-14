@@ -148,6 +148,7 @@
     const pCanvas = document.getElementById('particles-canvas');
     const pCtx = pCanvas.getContext('2d');
     let particles = [];
+    let particlesWereRendered = false;
 
     window.addEventListener('DOMContentLoaded', async () => {
       try {
@@ -337,8 +338,15 @@
     }
 
     function renderParticles() {
-      if (particles.length === 0) return;
+      if (particles.length === 0) {
+        if (particlesWereRendered) {
+          pCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+          particlesWereRendered = false;
+        }
+        return;
+      }
       pCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      particlesWereRendered = true;
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         p.x += p.vx;
