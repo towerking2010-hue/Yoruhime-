@@ -84,6 +84,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -117,6 +118,9 @@ import com.aistudio.yoruhime.ui.theme.TextMuted
 import com.aistudio.yoruhime.ui.theme.TextSilver
 import com.aistudio.yoruhime.ui.theme.TextWhite
 import com.aistudio.yoruhime.ui.theme.VioletAccent
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -155,6 +159,7 @@ fun MainScreen(
 
     val live2DController = remember { Live2DController() }
     val listState = rememberLazyListState()
+    val uiScope = rememberCoroutineScope()
 
     LaunchedEffect(apiKey) {
         if (!showApiKeyDialog) tempApiKey = apiKey
@@ -191,20 +196,27 @@ fun MainScreen(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null) {
-            try {
-                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    val source = ImageDecoder.createSource(context.contentResolver, uri)
-                    ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
-                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                        decoder.isMutableRequired = true
+            // Image decoding can take hundreds of milliseconds for large photos.
+            // Keep that work off the UI thread so chat and Live2D remain responsive.
+            uiScope.launch {
+                try {
+                    val bitmap = withContext(Dispatchers.IO) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            val source = ImageDecoder.createSource(context.contentResolver, uri)
+                            ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                                decoder.isMutableRequired = true
+                            }
+                        } else {
+                            @Suppress("DEPRECATION")
+                            MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                        }
                     }
-                } else {
-                    @Suppress("DEPRECATION")
-                    MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                    attachedBitmap?.takeIf { it !== bitmap }?.recycle()
+                    attachedBitmap = bitmap
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Couldn't load that image: ${e.localizedMessage ?: "unknown error"}", Toast.LENGTH_SHORT).show()
                 }
-                attachedBitmap = bitmap
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
         }
     }
