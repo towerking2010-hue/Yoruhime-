@@ -53,7 +53,9 @@ class MainViewModel(
         } ?: "normal"
     }
 
-    private val _isOnlineMode = MutableStateFlow(true)
+    // Start offline so a fresh install never makes a network request or uses a provider key
+    // until the user explicitly chooses Cloud mode.
+    private val _isOnlineMode = MutableStateFlow(false)
     val isOnlineMode: StateFlow<Boolean> = _isOnlineMode.asStateFlow()
 
     private val _apiKey = MutableStateFlow("")
