@@ -246,7 +246,8 @@ class MainViewModel(
 
     override fun onCleared() {
         super.onCleared()
-        ttsManager.stop()
+        // Release the lazily-created Android TTS engine when this ViewModel is permanently cleared.
+        ttsManager.release()
     }
 
     class Factory(
