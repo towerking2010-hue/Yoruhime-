@@ -148,6 +148,8 @@ fun MainScreen(
     var attachedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var showApiKeyDialog by remember { mutableStateOf(false) }
     var showMemoryDialog by remember { mutableStateOf(false) }
+    var showClearChatConfirmation by remember { mutableStateOf(false) }
+    var showClearMemoriesConfirmation by remember { mutableStateOf(false) }
     var tempApiKey by remember { mutableStateOf(apiKey) }
     var showBedtimeDialog by remember { mutableStateOf(false) }
     var tempBedtimePhrase by remember {
@@ -425,7 +427,7 @@ fun MainScreen(
                             Text("Talk with Ayaka", color = TextWhite, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         }
                         IconButton(
-                            onClick = { viewModel.clearChat() },
+                            onClick = { showClearChatConfirmation = true },
                             modifier = Modifier.size(30.dp).testTag("clear_chat_button")
                         ) {
                             Icon(Icons.Default.Delete, contentDescription = "Clear Chat", tint = TextMuted, modifier = Modifier.size(16.dp))
@@ -785,6 +787,20 @@ fun MainScreen(
         }
     }
 
+    if (showClearChatConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showClearChatConfirmation = false },
+            title = { Text("Clear conversation?", color = TextWhite) },
+            text = { Text("This permanently deletes the chat history on this device. Saved memories and bond progress will stay.", color = TextSilver) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearChat(); showClearChatConfirmation = false }) { Text("Clear chat", color = BlushPink) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearChatConfirmation = false }) { Text("Keep chat", color = LavenderPrimary) }
+            },
+            containerColor = SlateDark
+        )
+    }
     // API Key Dialog
     if (showApiKeyDialog) {
         AlertDialog(
@@ -888,10 +904,7 @@ fun MainScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    viewModel.clearMemories()
-                    showMemoryDialog = false
-                }) {
+                TextButton(onClick = { showClearMemoriesConfirmation = true }) {
                     Text("Clear all", color = BlushPink)
                 }
             },
@@ -904,6 +917,24 @@ fun MainScreen(
         )
     }
 
+    if (showClearMemoriesConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showClearMemoriesConfirmation = false },
+            title = { Text("Clear all saved memories?", color = TextWhite) },
+            text = { Text("This permanently removes every saved note from this device. Your conversation history will remain.", color = TextSilver) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.clearMemories()
+                    showClearMemoriesConfirmation = false
+                    showMemoryDialog = false
+                }) { Text("Clear memories", color = BlushPink) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearMemoriesConfirmation = false }) { Text("Keep them", color = LavenderPrimary) }
+            },
+            containerColor = SlateDark
+        )
+    }
     // Bedtime & Curfew Settings Dialog (11:00 PM Curfew / Midnight / Custom Phrase)
     if (showBedtimeDialog) {
         val scrollState = rememberScrollState()
