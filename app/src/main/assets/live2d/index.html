@@ -213,9 +213,15 @@
           lastInteractionTime = performance.now();
         });
 
-        // Strict 30 FPS Render Loop
+        // Strict 30 FPS render loop. Keep the WebView mounted between tabs,
+        // but stop its animation work whenever the companion stage is not visible.
+        let renderLoopActive = false;
+        let companionStageVisible = true;
+        let renderFrameHandle = null;
+
         function loop(timestamp) {
-          requestAnimationFrame(loop);
+          if (!renderLoopActive || document.hidden || !companionStageVisible) return;
+          renderFrameHandle = requestAnimationFrame(loop);
           const elapsed = timestamp - lastRenderTime;
           if (elapsed >= FRAME_INTERVAL) {
             lastRenderTime = timestamp - (elapsed % FRAME_INTERVAL);
@@ -227,7 +233,38 @@
             app.renderer.render(app.stage);
           }
         }
-        requestAnimationFrame(loop);
+
+        function stopRenderLoop() {
+          renderLoopActive = false;
+          if (renderFrameHandle !== null) {
+            cancelAnimationFrame(renderFrameHandle);
+            renderFrameHandle = null;
+          }
+        }
+
+        function startRenderLoop() {
+          if (renderLoopActive || document.hidden || !companionStageVisible) return;
+          renderLoopActive = true;
+          lastRenderTime = performance.now();
+          renderFrameHandle = requestAnimationFrame(loop);
+        }
+
+        window.pauseLive2D = function() {
+          companionStageVisible = false;
+          stopRenderLoop();
+        };
+
+        window.resumeLive2D = function() {
+          companionStageVisible = true;
+          startRenderLoop();
+        };
+
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) stopRenderLoop();
+          else startRenderLoop();
+        });
+
+        startRenderLoop();
 
         if (window.AndroidBridge && window.AndroidBridge.onModelReady) {
           window.AndroidBridge.onModelReady();
