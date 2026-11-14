@@ -95,7 +95,7 @@ fun YoruHimeWorkspacePage(
             WorkspaceDestination.MEMORIES -> {
                 Text("What Ayaka remembers", color = TextWhite, fontSize = 25.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
-                Text("Only facts you explicitly ask her to remember are stored here on this device.", color = TextMuted, fontSize = 13.sp)
+                Text("Notes are stored on this device. When Cloud chat is enabled, relevant notes are included in requests to OpenRouter.", color = TextMuted, fontSize = 13.sp)
                 Spacer(Modifier.height(16.dp))
                 if (memories.isEmpty()) {
                     WorkspaceCard {
@@ -222,7 +222,7 @@ fun YoruHimeWorkspacePage(
                 Spacer(Modifier.height(12.dp))
                 WorkspaceCard {
                     Text("Privacy & control", color = TextWhite, fontWeight = FontWeight.SemiBold)
-                    Text("Saved memories stay in the local database. You can review or delete them at any time.", color = TextMuted, fontSize = 12.sp)
+                    Text("Saved memories stay in the local database. When Cloud chat is enabled, relevant notes are shared with OpenRouter to provide context. You can edit or delete them here.", color = TextMuted, fontSize = 12.sp)
                 }
             }
         }
