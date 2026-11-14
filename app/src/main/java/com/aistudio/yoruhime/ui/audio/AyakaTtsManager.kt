@@ -20,8 +20,12 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
     private val _isSpeaking = MutableStateFlow(false)
     val isSpeaking: StateFlow<Boolean> = _isSpeaking.asStateFlow()
 
-    init {
-        tts = TextToSpeech(context.applicationContext, this)
+    // The Android TTS engine can take time to initialize. Do not start it while
+    // the user is merely opening YoruHime; initialize on the first spoken reply.
+    private fun ensureEngine() {
+        if (tts == null) {
+            tts = TextToSpeech(context.applicationContext, this)
+        }
     }
 
     override fun onInit(status: Int) {
@@ -62,6 +66,10 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
             })
 
             isInitialized = true
+            pendingSpeech?.let { queued ->
+                pendingSpeech = null
+                speakNow(queued)
+            }
         }
     }
 
@@ -86,15 +94,22 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
         emotion: String,
         isCritical: Boolean = false
     ) {
-        if (!isInitialized || tts == null) return
-
-        // Respect master mute unless critical event specifically requested override, or if user explicitly clicked replay
+        // Respect master mute unless a critical event explicitly overrides it.
         if (_isMuted.value && !isCritical) return
-
         val cleanText = sanitizeForSpeech(text)
         if (cleanText.isBlank()) return
 
-        val (pitch, rate) = when (emotion.lowercase()) {
+        val request = PendingSpeech(cleanText, emotion, isCritical)
+        if (!isInitialized || tts == null) {
+            pendingSpeech = request
+            ensureEngine()
+            return
+        }
+        speakNow(request)
+    }
+
+    private fun speakNow(request: PendingSpeech) {
+        val (pitch, rate) = when (request.emotion.lowercase()) {
             "angry" -> Pair(1.26f, 1.16f)   // Sharp scolding
             "blush" -> Pair(1.36f, 1.22f)   // Flustered stuttering panic
             "smile", "happy" -> Pair(1.02f, 0.94f) // Warm maternal comfort
@@ -106,7 +121,7 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
         tts?.setSpeechRate(rate)
 
         val utteranceId = "ayaka_${System.currentTimeMillis()}"
-        tts?.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+        tts?.speak(request.text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
     }
 
     private fun sanitizeForSpeech(raw: String): String {
@@ -118,11 +133,13 @@ class AyakaTtsManager(private val context: Context) : TextToSpeech.OnInitListene
     }
 
     fun stop() {
+        pendingSpeech = null
         tts?.stop()
         _isSpeaking.value = false
     }
 
     fun release() {
+        pendingSpeech = null
         tts?.stop()
         tts?.shutdown()
         tts = null
