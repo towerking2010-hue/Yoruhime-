@@ -142,6 +142,7 @@ fun MainScreen(
     val isAudioMuted by viewModel.isAudioMuted.collectAsState()
     val isSpeaking by viewModel.isSpeaking.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val sendError by viewModel.sendError.collectAsState()
 
     var inputText by remember { mutableStateOf("") }
     var attachedBitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -521,6 +522,15 @@ fun MainScreen(
                                 }
                             }
                         }
+                    }
+
+                    sendError?.let { error ->
+                        Text(
+                            text = error,
+                            color = BlushPink,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+                        )
                     }
 
                     // Selected Attachment Preview Card (Photos)
