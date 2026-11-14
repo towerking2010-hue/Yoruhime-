@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -77,7 +79,8 @@ fun YoruHimeWorkspacePage(
     onStudyInterrupted: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier.fillMaxSize().background(MidnightBlack).padding(horizontal = 20.dp, vertical = 18.dp)) {
+    val pageScroll = if (destination == WorkspaceDestination.MEMORIES) Modifier else Modifier.verticalScroll(rememberScrollState())
+    Column(modifier.fillMaxSize().then(pageScroll).background(MidnightBlack).padding(horizontal = 20.dp, vertical = 18.dp)) {
         Text("YORUHIME  /  " + destination.label.uppercase(), color = LavenderPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp)
         Spacer(Modifier.height(12.dp))
         when (destination) {
