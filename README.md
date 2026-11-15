@@ -1,135 +1,78 @@
-# YoruHime
+# YoruHime (夜姫)
 
-YoruHime is a native Android companion app built around **Ayaka Tōjou**: a mature, caring, gently strict tsundere companion with a playful side. The app keeps the existing Live2D character as its current renderer and uses a free-only cloud route with a lightweight offline fallback.
+**YoruHime** is a native Android companion app built with Kotlin and Jetpack Compose. Its companion is **Ayaka Tōjou (東条 絢香)**: a mature, caring, gently strict *mommy-tsundere* who balances warmth with occasional playful teasing.
 
-> **Project status:** This branch is an integration and validation branch. A successful CI build proves compilation, unit tests, and APK assembly only; camera, voice, Live2D rendering, database migration, and performance still require real-device checks.
+The project targets mid-range Android devices, including the Samsung Galaxy A31 running Android 12.
 
-## Product principles
+## Project principles
 
-- Ayaka remains the same character: warm, protective, emotionally perceptive, confident, and occasionally flustered or teasing.
-- Playful Riko-inspired tsundere behaviour is a situational mode, not a replacement personality. Distress cues take priority over teasing.
-- Cloud AI must remain **free-only**. The app uses OpenRouter's `openrouter/free` router and does not configure paid model fallbacks, purchases, or automatic top-ups.
-- Offline responses are intentionally limited scripted responses. YoruHime must not pretend that offline mode provides full LLM reasoning or image understanding.
-- Preserve local chat, memory, bond, and schedule data during upgrades.
-- Keep the app usable on mid-range Android hardware, including the Samsung Galaxy A31.
+- **Ayaka stays Ayaka.** Her core identity is warm, protective, emotionally perceptive, capable, and occasionally tsundere. Teasing never overrides a serious or distressed moment.
+- **Free cloud only.** Cloud chat uses OpenRouter's `openrouter/free` router. YoruHime does not configure paid model fallbacks, subscriptions, purchases, or automatic top-ups.
+- **Honest offline mode.** Local dialogue works without a network connection. It does not pretend to perform cloud-level reasoning or image analysis.
+- **Privacy and control.** Chat history and explicit memory notes are stored locally. The OpenRouter key is encrypted with Android Keystore. Camera capture is user-triggered.
+- **Preserve user data.** Room migrations are used; destructive migration fallbacks must not be added.
+- **Performance first.** Avoid unnecessary background camera use, perpetual high-cost animation, and repeated WebView recreation.
 
-## Current application
+## Current feature set
 
-| Item | Value |
+| Feature | Current implementation |
 |---|---|
-| Platform | Native Android |
-| Language / UI | Kotlin, Jetpack Compose, Material 3 |
-| Application ID (installed production package) | `com.aistudio.yoruhime.dpxmzt` |
-| Debug test package | `com.aistudio.yoruhime.dpxmzt.test` |
-| Minimum Android | API 26 |
-| Compile / target SDK | 36 |
-| Java / Kotlin JVM target | 21 |
-| App version in this branch | 2.0.1 (versionCode 3) |
-| Local database | Room |
-| Avatar renderer | Bundled Live2D in WebView / Pixi |
-| Camera | CameraX |
-| Cloud provider | OpenRouter free-model router |
+| Companion avatar | Existing bundled Live2D model rendered in a WebView using Pixi/WebGL, with expressions, idle motion, gaze and touch reactions |
+| Chat | Jetpack Compose chat UI, Room-backed history, recent conversation context |
+| Cloud AI | OpenRouter OpenAI-compatible chat API, strict `openrouter/free` routing |
+| Offline chat | Local in-character response bank with explicit messaging when a request needs cloud reasoning |
+| Memory | Explicit remember/forget commands, locally stored notes, review/edit/delete/clear controls |
+| API key | User-supplied OpenRouter key encrypted at rest using AES-GCM and Android Keystore |
+| Voice | Android TextToSpeech and speech-recognition input; TTS initializes lazily |
+| Camera | CameraX preview and still-image capture; captured images can be sent for cloud vision |
+| Focus | Pomodoro sessions (15, 25, 45, 60 minutes), break, interruption reaction and bond experience |
+| Bond | Local progression and study/touch/chat experience |
+| Bedtime | User-configurable daily WorkManager reminder, defaulting to 11:00 PM |
+| Avatar direction | Renderer-neutral Ayaka animation director and Live2D adapter foundation |
 
-## Features
+## Important limitations (do not overclaim)
 
-### Companion and avatar
-- Live2D stage with the bundled Tsubaki model, touch zones, idle motion, speech bubble, and six registered expressions: normal, smile, blush, happy, sad, and angry.
-- The renderer-neutral `AyakaAnimationDirector` selects semantic face, gaze, head, body, and gesture cues.
-- The current Live2D adapter maps supported cues to actual model expressions, gaze focus, and subtle head/body offsets.
-- Android TTS speaking state drives a subtle mouth-open animation; this is utterance-level movement, not phoneme-accurate lip-sync.
-- After 45 seconds of quiet on the Companion tab, Ayaka makes one restrained idle gaze/head adjustment rather than running extra high-cost animations continuously.
-- Conversation cues can switch between Ayaka's caring mode and a brief Riko-inspired tsundere mode. Distress cues override playful cues.
-- The current model only includes an idle motion clip. Arm/hand gestures such as waving are not implemented by this rig. A VRM/VRMA renderer and a new Ayaka model are future work, not current features.
+- The current avatar is **Live2D**, not a finished VRM/3D avatar. The animation director and adapter are a foundation; a final VRM model, renderer, animation assets and full model-driven motion system are not yet complete.
+- The camera feature captures still images. It does **not** provide continuous video understanding, automatic fatigue/stress diagnosis, AR world tracking, depth occlusion, or a finished photo-compositing "Together Mode".
+- Cloud vision depends on the free router having an eligible free model that accepts image input. If none is available or the provider is unavailable, the app must report that honestly and fall back without spending money.
+- WorkManager is not an exact-to-the-minute alarm service. Android battery policies and notification permission affect delivery.
+- CI builds and unit tests do not replace physical-device validation. Camera, microphone, TTS voice availability, WebGL rendering, Room upgrades, notification delivery and frame pacing must still be checked on a Galaxy A31 / Android 12.
 
-### Chat and AI
-- Chat history is stored locally in Room.
-- Cloud chat sends recent conversation context (up to 12 messages) to OpenRouter.
-- The only configured model route is `openrouter/free`. Free providers may be rate-limited, unavailable, or unsuitable for a particular request.
-- Image requests require an eligible free model that supports image input. If no such model is available, the app reports the failure and does not switch to a paid model.
-- Offline dialogue covers a limited set of common intents. Complex questions receive an honest offline limitation message.
-- Quick replies and all conversation paths still require real-device regression testing.
+## Build
 
-### Memories and privacy
-- The user can explicitly save a note by saying `Remember that ...` or remove one by saying `Forget that ...`.
-- Saved notes can be reviewed, edited, deleted individually, or cleared.
-- Memory notes remain in the local Room database. When Cloud chat is enabled, up to 12 notes may be included in the OpenRouter request for context.
-- The OpenRouter API key is encrypted with AES-GCM using a key held in Android Keystore. The key is not embedded in the app.
-- Clearing chat history does not clear saved memories or bond progress.
+The project uses Kotlin, Jetpack Compose, Android Gradle Plugin 8.9.0, Kotlin 2.1.10, Gradle 8.11.1 and JDK 21.
 
-### Voice
-- Replies use Android's installed Text-to-Speech engine.
-- Speech rate and pitch vary by the reply's emotion tag.
-- The first TTS initialization is lazy; the first utterance is queued while the engine starts.
-- Chat voice input uses the Android speech-recognition service. Availability and language support depend on the device's installed services.
-- This is system TTS, not a custom cloned Ayaka voice.
-
-### Camera and photos
-- CameraX provides a user-triggered preview dock with front/rear camera switching and still-image capture.
-- Android Photo Picker can attach a selected image without broad storage permission.
-- Images are downsampled before upload to limit memory use.
-- Camera preview and snapshot capture do not require an API key. Cloud image analysis requires Cloud mode, a saved key, internet, and a free image-capable model.
-- Offline mode never claims to have inspected an image.
-- The full-screen camera background is a camera feed behind the Live2D overlay. It is **not spatial AR**: no world tracking, plane detection, depth occlusion, or world-anchored placement is implemented.
-- Continuous live-video understanding and always-on camera monitoring are not implemented.
-
-### Focus and care
-- Focus timer presets: 15, 25, 45, and 60 minutes, followed by a five-minute break.
-- The active focus session is kept as one shared composable while navigating between tabs. Leaving YoruHime during a focus block pauses it and should trigger Ayaka's return reaction.
-- Focus progress contributes study minutes and bond experience.
-- WorkManager schedules a daily bedtime/curfew notification. The default is 11:00 PM; custom time and phrase are stored locally.
-- WorkManager delivery is best-effort and can be delayed by Android battery restrictions. This is a reminder, not a device lock.
-- Timer process-death restoration is not yet implemented.
-
-### Workspace
-- **Companion:** Ayaka, conversation, camera, and focus overlay.
-- **Memories:** review, edit, and delete explicit memory notes.
-- **Care:** bond progress, study time, focus session entry, and bedtime reminder.
-- **Settings:** cloud/offline selection, API-key setup, voice mute, and manual expression selection.
-
-## Build and validation
-
-The GitHub Actions workflow uses JDK 21, Gradle 8.11.1, and runs:
+Run the CI-equivalent tasks from the repository root:
 
 ```bash
 gradle testDebugUnitTest assembleDebug
 ```
 
-The debug APK output path is:
+The debug build uses the `.test` application ID suffix so it can be installed side-by-side with the existing production package. It is a separate app with separate local data; it does not inherit the installed app's chat history or memories.
 
-```
-app/build/outputs/apk/debug/app-debug.apk
-```
+- Production application ID: `com.aistudio.yoruhime.dpxmzt`
+- Debug test application ID: `com.aistudio.yoruhime.dpxmzt.test`
+- Minimum Android version: Android 8.0 (API 26)
+- Target SDK: 36
+- Java/Kotlin target: 21
 
-The debug variant adds the `.test` application ID suffix and the `YoruHime Test` label. It is intended to install alongside the existing production app without replacing its package or app data. The test package has separate storage and will not contain production chat or memory data.
+## Configuration
 
-A successful CI run does **not** prove that the app launches on a Galaxy A31 or that camera, Live2D/WebGL, TTS, speech recognition, notifications, or migrations work on the device. Complete the checklist in [docs/DEVICE_TEST_CHECKLIST.md](docs/DEVICE_TEST_CHECKLIST.md) before treating a build as release-ready.
+1. Install the YoruHime Test debug APK.
+2. Open Settings / API setup.
+3. Add an OpenRouter API key supplied by the user.
+4. Save it. The app encrypts the key locally.
+5. Select Cloud when you want to attempt a free-router request. Offline mode remains available.
 
-## Current limitations and planned work
+Creating or storing an API key does not require buying credits. Do not enable paid model fallbacks or automatic top-ups.
 
-- Select or create a legally redistributable Ayaka VRM model. A free download is not automatically licensed for bundling in an APK.
-- Prototype a VRM 1.0 renderer with Three.js and three-vrm, then profile it on the Galaxy A31 before replacing or supplementing Live2D.
-- Add actual VRMA clips and model-specific expression/morph mappings only after a suitable model and license are confirmed.
-- Build Together Mode as a camera preview with a movable/resizable avatar overlay and a real composite photo export. This is not implemented yet.
-- Persist focus timer state across process death if that behaviour is desired.
-- Complete physical-device validation, UI accessibility checks, Room migration tests, and camera lifecycle tests.
-- Audit all bundled Live2D runtime/model asset licenses and attribution requirements before public redistribution.
+## Development status
 
-## Repository workflow
+The active integration work is tracked in [PR #11](https://github.com/towerking2010-hue/Yoruhime-/pull/11) on the `yoruhime/finish-integration` branch. Keep this PR in draft until the current CI run passes and the documented device checklist has been completed.
 
-- Work on `yoruhime/finish-integration` while completing integration and validation.
-- Keep pull request #11 in draft until the source review and CI are complete.
-- Do not merge into `main` merely because an APK assembles.
-- Preserve the production package ID and existing user data.
-- Never add paid model IDs, paid fallbacks, purchase flows, or auto-top-up behaviour.
+- [Device test checklist](docs/DEVICE_TEST_CHECKLIST.md)
+- [Ayaka expressive avatar architecture](docs/AYAKA_EXPRESSIVE_AVATAR.md)
+- [Pull requests](https://github.com/towerking2010-hue/Yoruhime-/pulls)
+- [GitHub Actions](https://github.com/towerking2010-hue/Yoruhime-/actions)
 
-## Key resources
-
-- [OpenRouter API documentation](https://openrouter.ai/docs)
-- [OpenRouter free router](https://openrouter.ai/openrouter/free)
-- [Android CameraX](https://developer.android.com/training/camerax)
-- [Android WorkManager](https://developer.android.com/topic/libraries/architecture/workmanager)
-- [Android Keystore](https://developer.android.com/privacy-and-security/keystore)
-- [Three.js](https://threejs.org/)
-- [three-vrm](https://github.com/pixiv/three-vrm)
-- [VRM specification](https://vrm.dev/en/)
-- [VRoid Studio](https://vroid.com/en/studio)
+**A successful CI build is not a release certification.** Do not describe any feature as device-verified unless it has actually been tested on hardware.
