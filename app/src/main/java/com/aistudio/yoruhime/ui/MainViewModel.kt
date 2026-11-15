@@ -153,7 +153,9 @@ class MainViewModel(
 
     fun updateApiKey(key: String) {
         _apiKey.value = key
-        refreshAutomaticCloudMode()
+        // Never leave Cloud selected after the user removes their key, even when
+        // they previously chose a manual mode override.
+        if (key.isBlank()) _isOnlineMode.value = false else refreshAutomaticCloudMode()
         viewModelScope.launch(Dispatchers.IO) {
             runCatching { apiKeyStore.saveApiKey(key) }
                 .onFailure { it.printStackTrace() }
