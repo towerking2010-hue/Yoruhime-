@@ -36,6 +36,8 @@ YoruHime is a native Android companion app built around **Ayaka Tōjou**: a matu
 - Live2D stage with the bundled Tsubaki model, touch zones, idle motion, speech bubble, and six registered expressions: normal, smile, blush, happy, sad, and angry.
 - The renderer-neutral `AyakaAnimationDirector` selects semantic face, gaze, head, body, and gesture cues.
 - The current Live2D adapter maps supported cues to actual model expressions, gaze focus, and subtle head/body offsets.
+- Android TTS speaking state drives a subtle mouth-open animation; this is utterance-level movement, not phoneme-accurate lip-sync.
+- After 45 seconds of quiet on the Companion tab, Ayaka makes one restrained idle gaze/head adjustment rather than running extra high-cost animations continuously.
 - Conversation cues can switch between Ayaka's caring mode and a brief Riko-inspired tsundere mode. Distress cues override playful cues.
 - The current model only includes an idle motion clip. Arm/hand gestures such as waving are not implemented by this rig. A VRM/VRMA renderer and a new Ayaka model are future work, not current features.
 
