@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
@@ -228,23 +229,10 @@ private fun HomeScreen(
                 .border(1.dp, Color(0xFF51456F), RoundedCornerShape(30.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(
-                    Modifier.size(116.dp).clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(Color(0xFF554477), Color(0xFF22243D))))
-                        .border(1.dp, Violet.copy(alpha = .7f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("綾香", color = Lilac, fontSize = 38.sp, fontWeight = FontWeight.Light)
-                }
+            Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+                AyakaAvatar(Modifier.weight(1f).fillMaxWidth())
                 Text("AYAKA TŌJŌ", color = White, fontSize = 17.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                Text("I'm right here.", color = Lilac, fontSize = 13.sp)
-                Text("BOND LEVEL ${1 + bondCount / 20}  ·  ${bondCount % 20}/20", color = Lilac, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                LinearProgressIndicator(progress = { (bondCount % 20) / 20f }, modifier = Modifier.width(132.dp).height(4.dp).clip(CircleShape), color = Violet, trackColor = Panel2)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF80D9B2)))
-                    Text("Ready to talk", color = Muted, fontSize = 11.sp)
-                }
+                Text("Tap to say hello", color = Lilac, fontSize = 11.sp, modifier = Modifier.padding(bottom = 28.dp, top = 3.dp))
             }
             Row(Modifier.align(Alignment.TopEnd).padding(14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MiniAction(Icons.Rounded.CameraAlt, "Camera", onCamera)
