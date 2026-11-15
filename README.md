@@ -24,7 +24,7 @@ YoruHime is a native Android companion app built around **Ayaka Tōjou**: a matu
 | Minimum Android | API 26 |
 | Compile / target SDK | 36 |
 | Java / Kotlin JVM target | 21 |
-| App version in this branch | 2.0.0 (versionCode 2) |
+| App version in this branch | 2.0.1 (versionCode 3) |
 | Local database | Room |
 | Avatar renderer | Bundled Live2D in WebView / Pixi |
 | Camera | CameraX |
