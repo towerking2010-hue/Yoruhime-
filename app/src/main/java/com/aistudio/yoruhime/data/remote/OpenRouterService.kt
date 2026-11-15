@@ -140,13 +140,21 @@ class OpenRouterService {
                 } else {
                     imageBitmap
                 }
-                val outputStream = ByteArrayOutputStream()
-                imageForUpload.compress(Bitmap.CompressFormat.JPEG, 75, outputStream)
-                if (imageForUpload !== imageBitmap) imageForUpload.recycle()
-                val encodedImage = Base64.encodeToString(
-                    outputStream.toByteArray(),
-                    Base64.NO_WRAP
-                )
+                // Recycle the temporary downscaled copy even if JPEG compression fails.
+                // The caller retains ownership of the original attachment bitmap.
+                val jpegBytes = ByteArrayOutputStream().use { outputStream ->
+                    try {
+                        check(imageForUpload.compress(Bitmap.CompressFormat.JPEG, 75, outputStream)) {
+                            "The selected image could not be encoded."
+                        }
+                        outputStream.toByteArray()
+                    } finally {
+                        if (imageForUpload !== imageBitmap && !imageForUpload.isRecycled) {
+                            imageForUpload.recycle()
+                        }
+                    }
+                }
+                val encodedImage = Base64.encodeToString(jpegBytes, Base64.NO_WRAP)
                 JSONArray()
                     .put(JSONObject().apply {
                         put("type", "text")
