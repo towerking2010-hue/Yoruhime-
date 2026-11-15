@@ -95,7 +95,7 @@ private fun YoruHimeApp() {
     }
     DisposableEffect(tts) { onDispose { tts.stop(); tts.shutdown() } }
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
-    var messages by remember { mutableStateOf(store.messages().map { it.content }.ifEmpty { listOf("Good evening. You finally came back. Have you eaten yet?") }) }
+    var messages by remember { mutableStateOf(store.messages().ifEmpty { listOf(ChatLine("assistant", "Good evening. You finally came back. Have you eaten yet?")) }) }
     var sending by remember { mutableStateOf(false) }
     var photo by remember { mutableStateOf<Bitmap?>(null) }
     var showPhoto by remember { mutableStateOf(false) }
@@ -118,19 +118,19 @@ private fun YoruHimeApp() {
                         draft = draft,
                         onDraft = { draft = it },
                         sending = sending,
-                        onSpeak = { text -> if (voiceEnabled) { tts.language = Locale.US; tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ayaka-reply") } },
+                        onSpeak = { messages.lastOrNull { it.role == "assistant" }?.content?.let { text -> if (voiceEnabled) { tts.language = Locale.US; tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ayaka-reply") } } },
                         onVoiceInput = { micPermission.launch(android.Manifest.permission.RECORD_AUDIO) },
                         onSend = {
                             val value = draft.trim()
                             if (value.isNotEmpty() && !sending) {
                                 draft = ""
-                                messages = messages + value
+                                messages = messages + ChatLine("user", value)
                                 store.addMessage("user", value)
                                 sending = true
                                 scope.launch {
                                     val answer = engine.reply(value)
                                     store.addMessage("assistant", answer)
-                                    messages = messages + answer
+                                    messages = messages + ChatLine("assistant", answer)
                                     sending = false
                                 }
                             }
@@ -203,7 +203,7 @@ private fun TopBar(destination: Destination) {
 
 @Composable
 private fun HomeScreen(
-    messages: List<String>, draft: String, onDraft: (String) -> Unit,
+    messages: List<ChatLine>, draft: String, onDraft: (String) -> Unit,
     sending: Boolean, onSpeak: (String) -> Unit, onVoiceInput: () -> Unit, onSend: () -> Unit, onCamera: () -> Unit
 ) {
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -249,8 +249,14 @@ private fun HomeScreen(
             }
             LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 items(messages) { message ->
-                    Surface(color = Panel2, shape = RoundedCornerShape(16.dp)) {
-                        Text(message, Modifier.fillMaxWidth().padding(12.dp), color = White, fontSize = 13.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (message.role == "user") Arrangement.End else Arrangement.Start) {
+                        Surface(
+                            color = if (message.role == "user") Color(0xFF46366D) else Panel2,
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.widthIn(max = 290.dp)
+                        ) {
+                            Text(message.content, Modifier.padding(12.dp), color = White, fontSize = 13.sp)
+                        }
                     }
                 }
             }
