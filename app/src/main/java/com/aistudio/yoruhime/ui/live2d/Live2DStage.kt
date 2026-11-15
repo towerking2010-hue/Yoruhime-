@@ -22,11 +22,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebViewAssetLoader
+import com.aistudio.yoruhime.ui.avatar.AvatarPerformance
+import com.aistudio.yoruhime.ui.avatar.AyakaLive2DPerformanceAdapter
 import com.aistudio.yoruhime.ui.theme.MidnightBlack
 
 class Live2DController {
     var webView: WebView? = null
     private var pendingEmotion: String? = null
+    private var pendingPerformance: AvatarPerformance? = null
     private var renderingEnabled = true
 
     fun setRenderingEnabled(enabled: Boolean) {
@@ -68,10 +71,38 @@ class Live2DController {
         wv.post { wv.evaluateJavascript(script, null) }
     }
 
+    fun setHeadTilt(degrees: Float) {
+        val safe = degrees.takeIf { it.isFinite() }?.coerceIn(-8f, 8f) ?: 0f
+        val script = "window.setHeadTilt && window.setHeadTilt($safe);"
+        webView?.let { wv -> wv.post { wv.evaluateJavascript(script, null) } }
+    }
+
+    fun setBodyLean(degrees: Float) {
+        val safe = degrees.takeIf { it.isFinite() }?.coerceIn(-4f, 4f) ?: 0f
+        val script = "window.setBodyLean && window.setBodyLean($safe);"
+        webView?.let { wv -> wv.post { wv.evaluateJavascript(script, null) } }
+    }
+
+    fun applyPerformance(performance: AvatarPerformance) {
+        if (webView == null) {
+            pendingPerformance = performance
+            return
+        }
+        val mapped = AyakaLive2DPerformanceAdapter.map(performance)
+        setEmotion(mapped.expression)
+        lookAt(mapped.gazeX, mapped.gazeY)
+        setHeadTilt(mapped.headTiltDegrees)
+        setBodyLean(mapped.bodyLeanDegrees)
+    }
+
     fun onReady() {
         pendingEmotion?.let {
             setEmotion(it)
             pendingEmotion = null
+        }
+        pendingPerformance?.let {
+            pendingPerformance = null
+            applyPerformance(it)
         }
         setRenderingEnabled(renderingEnabled)
     }
@@ -98,6 +129,7 @@ class AndroidBridge(
 @Composable
 fun Live2DStage(
     currentEmotion: String,
+    performance: AvatarPerformance? = null,
     isVisible: Boolean = true,
     controller: Live2DController = remember { Live2DController() },
     onModelTapped: (String) -> Unit = {},
@@ -105,8 +137,9 @@ fun Live2DStage(
 ) {
     val context = LocalContext.current
 
-    LaunchedEffect(currentEmotion) {
-        controller.setEmotion(currentEmotion)
+    LaunchedEffect(currentEmotion, performance) {
+        if (performance != null) controller.applyPerformance(performance)
+        else controller.setEmotion(currentEmotion)
     }
 
     LaunchedEffect(isVisible) {
