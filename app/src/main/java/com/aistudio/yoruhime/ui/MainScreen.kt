@@ -454,6 +454,7 @@ fun MainScreen(
                         onSessionCompleted = { mins -> viewModel.onStudyCompleted(mins) },
                         onAppSwitchedAway = { viewModel.onAppSwitchedAwayDuringStudy() },
                         onClose = { viewModel.togglePomodoro(false) },
+                        isVisible = isPomodoroVisible && selectedDestination == WorkspaceDestination.COMPANION,
                         modifier = if (isPomodoroVisible && selectedDestination == WorkspaceDestination.COMPANION) {
                             Modifier
                         } else {
