@@ -28,19 +28,22 @@ import com.aistudio.yoruhime.ui.theme.MidnightBlack
 
 class Live2DController {
     var webView: WebView? = null
+    private var isReady = false
     private var pendingEmotion: String? = null
     private var pendingPerformance: AvatarPerformance? = null
+    private var pendingSpeech: Pair<String, String?>? = null
     private var renderingEnabled = true
 
     fun setRenderingEnabled(enabled: Boolean) {
         renderingEnabled = enabled
+        if (!isReady) return
         val script = if (enabled) "window.resumeLive2D && window.resumeLive2D();" else "window.pauseLive2D && window.pauseLive2D();"
         webView?.post { webView?.evaluateJavascript(script, null) }
     }
 
     fun setEmotion(emotion: String) {
         val wv = webView
-        if (wv != null) {
+        if (wv != null && isReady) {
             val script = "window.setEmotion && window.setEmotion(${JSONObject.quote(emotion)});"
             wv.post { wv.evaluateJavascript(script, null) }
         } else {
@@ -63,6 +66,10 @@ class Live2DController {
     }
 
     fun showSpeech(text: String, emotion: String? = null) {
+        if (!isReady) {
+            pendingSpeech = text to emotion
+            return
+        }
         val wv = webView ?: return
         // Quote cloud-generated text as a JS literal instead of interpolating raw code.
         val quotedText = JSONObject.quote(text)
@@ -96,13 +103,18 @@ class Live2DController {
     }
 
     fun onReady() {
+        isReady = true
         pendingEmotion?.let {
-            setEmotion(it)
             pendingEmotion = null
+            setEmotion(it)
         }
         pendingPerformance?.let {
             pendingPerformance = null
             applyPerformance(it)
+        }
+        pendingSpeech?.let { (text, emotion) ->
+            pendingSpeech = null
+            showSpeech(text, emotion)
         }
         setRenderingEnabled(renderingEnabled)
     }
