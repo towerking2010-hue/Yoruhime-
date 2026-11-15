@@ -293,14 +293,23 @@ private fun CareCard(icon: androidx.compose.ui.graphics.vector.ImageVector, titl
 }
 
 @Composable
-private fun SettingsScreen() {
-    var cloud by rememberSaveable { mutableStateOf(false) }
+private fun SettingsScreen(vault: ApiKeyVault) {
+    var apiKey by rememberSaveable { mutableStateOf("") }
+    var configured by remember { mutableStateOf(vault.read() != null) }
     var voice by rememberSaveable { mutableStateOf(true) }
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("PERSONAL SPACE", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
         Text("Settings", color = White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-        SettingToggle("Free cloud AI", "Connect only to free model routes. No paid fallback.", cloud) { cloud = it }
-        SettingToggle("Voice replies", "Allow spoken responses from Ayaka.", voice) { voice = it }
+        Text("FREE AI CONNECTION", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        OutlinedTextField(
+            value = apiKey, onValueChange = { apiKey = it }, modifier = Modifier.fillMaxWidth(),
+            label = { Text("OpenRouter API key") }, placeholder = { Text("sk-or-…") },
+            singleLine = true, shape = RoundedCornerShape(16.dp)
+        )
+        Button(onClick = { if (apiKey.isNotBlank()) { vault.save(apiKey); apiKey = ""; configured = true } }, modifier = Modifier.fillMaxWidth()) { Text("Save encrypted API key") }
+        Text(if (configured) "API key saved securely on this device." else "Offline mode · add your free OpenRouter key to enable cloud chat.", color = Muted, fontSize = 12.sp)
+        TextButton(onClick = { vault.clear(); configured = false; apiKey = "" }) { Text("Remove API key") }
+        SettingToggle("Voice replies", "Voice playback controls will be connected in a later milestone.", voice) { voice = it }
         Surface(color = Panel, shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.padding(16.dp)) {
                 Text("Privacy first", color = White, fontWeight = FontWeight.SemiBold)
