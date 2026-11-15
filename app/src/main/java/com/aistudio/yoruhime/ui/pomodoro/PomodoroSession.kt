@@ -185,7 +185,7 @@ fun PomodoroSession(
                     )
                 }
                 IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, contentDescription = "Close focus session", tint = TextMuted)
+                    Icon(Icons.Default.Close, contentDescription = "Hide focus timer", tint = TextMuted)
                 }
             }
 
