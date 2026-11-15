@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -39,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,6 +72,7 @@ enum class PomodoroState {
 fun PomodoroSession(
     onSessionCompleted: (Int) -> Unit,
     onAppSwitchedAway: () -> Unit,
+    onClose: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedMinutes by remember { mutableIntStateOf(25) }
@@ -79,23 +82,27 @@ fun PomodoroSession(
     var isBreak by remember { mutableStateOf(false) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
+    val currentState by rememberUpdatedState(state)
+    val currentOnAppSwitchedAway by rememberUpdatedState(onAppSwitchedAway)
+    var wasSwitchedAway by remember { mutableStateOf(false) }
 
-    // Detect app switching away during active focus session and scold on return
-    DisposableEffect(lifecycleOwner, state) {
-        var wasSwitchedAway = false
+    // Keep one observer for the entire session. Keying this effect to state used to
+    // dispose the observer immediately after ON_PAUSE changed FOCUSING to PAUSED,
+    // losing the "away" flag before ON_RESUME could deliver the callback.
+    DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if ((event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) && state == PomodoroState.FOCUSING) {
+            if ((event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) &&
+                currentState == PomodoroState.FOCUSING
+            ) {
                 wasSwitchedAway = true
                 state = PomodoroState.PAUSED
             } else if (event == Lifecycle.Event.ON_RESUME && wasSwitchedAway) {
                 wasSwitchedAway = false
-                onAppSwitchedAway()
+                currentOnAppSwitchedAway()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // Timer Loop
@@ -175,6 +182,9 @@ fun PomodoroSession(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium
                     )
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Default.Close, contentDescription = "Close focus session", tint = TextMuted)
+                    }
                 }
             }
 
