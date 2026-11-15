@@ -136,7 +136,7 @@ private fun YoruHimeApp() {
                                 draft = ""
                                 messages = messages + ChatLine("user", value)
                                 store.addMessage("user", value)
-                                bondCount = store.userMessageCount()
+                                bondCount = store.bondCount()
                                 sending = true
                                 scope.launch {
                                     val answer = engine.reply(value)
@@ -170,7 +170,7 @@ private fun YoruHimeApp() {
                                 val question = "Please describe what you notice in this photo."
                                 messages = messages + ChatLine("user", question)
                                 store.addMessage("user", question)
-                                bondCount = store.userMessageCount()
+                                bondCount = store.bondCount()
                                 showPhoto = false
                                 sending = true
                                 scope.launch {
