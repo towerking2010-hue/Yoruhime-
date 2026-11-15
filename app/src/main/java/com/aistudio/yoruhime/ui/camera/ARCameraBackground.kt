@@ -20,8 +20,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -59,8 +61,10 @@ fun ARCameraBackground(
     }
 
     var previewView by remember { mutableStateOf<PreviewView?>(null) }
+    var cameraError by remember { mutableStateOf<String?>(null) }
 
     var cameraProviderInstance by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+    var bindRequestGeneration by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(isCameraActive) {
         if (isCameraActive && !hasPermission) {
@@ -69,15 +73,20 @@ fun ARCameraBackground(
     }
 
     LaunchedEffect(isCameraActive, hasPermission, isFrontCamera, previewView) {
+        val requestGeneration = ++bindRequestGeneration
         if (!isCameraActive || !hasPermission || previewView == null) {
             cameraProviderInstance?.unbindAll()
+            cameraError = null
             return@LaunchedEffect
         }
 
+        cameraError = null
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener({
             try {
                 val cameraProvider = cameraProviderFuture.get()
+                if (requestGeneration != bindRequestGeneration || !isCameraActive || !hasPermission) return@addListener
+                val activePreviewView = previewView ?: return@addListener
                 cameraProviderInstance = cameraProvider
 
                 val lensFacing = if (isFrontCamera) {
@@ -88,7 +97,7 @@ fun ARCameraBackground(
                 val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
 
                 val preview = Preview.Builder().build().also {
-                    it.surfaceProvider = previewView?.surfaceProvider
+                    it.surfaceProvider = activePreviewView.surfaceProvider
                 }
 
                 cameraProvider.unbindAll()
@@ -98,13 +107,14 @@ fun ARCameraBackground(
                     preview
                 )
             } catch (e: Exception) {
-                e.printStackTrace()
+                cameraError = e.localizedMessage ?: "Unable to start the camera. Check permission and close other apps using it."
             }
         }, ContextCompat.getMainExecutor(context))
     }
 
     DisposableEffect(isCameraActive) {
         onDispose {
+            bindRequestGeneration++
             try {
                 cameraProviderInstance?.unbindAll()
             } catch (e: Exception) {
@@ -140,20 +150,30 @@ fun ARCameraBackground(
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize()
         ) {
-            AndroidView(
-                factory = { ctx ->
-                    PreviewView(ctx).apply {
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
-                        scaleType = PreviewView.ScaleType.FILL_CENTER
-                        implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                        previewView = this
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
+            Box(modifier = Modifier.fillMaxSize()) {
+                AndroidView(
+                    factory = { ctx ->
+                        PreviewView(ctx).apply {
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            scaleType = PreviewView.ScaleType.FILL_CENTER
+                            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                            previewView = this
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+                cameraError?.let { error ->
+                    androidx.compose.material3.Text(
+                        text = "Camera unavailable: $error",
+                        color = Color.White,
+                        modifier = Modifier.align(Alignment.Center)
+                            .background(MidnightBlack.copy(alpha = 0.85f))
+                    )
+                }
+            }
         }
     }
 }

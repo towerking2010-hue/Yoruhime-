@@ -1,8 +1,6 @@
 {
   "name": "YoruHime",
-  "description": "YoruHime - Interactive Live2D companion app featuring Ayaka Tōjou with CameraX vision, Pomodoro focus timer, and AI chat.",
+  "description": "Native Kotlin Android companion featuring Ayaka Tōjou, Live2D expressive avatar, OpenRouter free-only chat, offline dialogue, Room memory, CameraX still-image inspection, voice, focus timer, and bedtime reminders.",
   "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "majorCapabilities": []
 }

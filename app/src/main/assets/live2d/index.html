@@ -101,9 +101,9 @@
       box-shadow: 0 0 6px #8A70D6;
     }
   </style>
-  <script src="live2dcubismcore.min.js"></script>
-  <script src="pixi.min.js"></script>
-  <script src="cubism4.min.js"></script>
+  <script defer src="live2dcubismcore.min.js"></script>
+  <script defer src="pixi.min.js"></script>
+  <script defer src="cubism4.min.js"></script>
 </head>
 <body>
   <div id="stage-container">
@@ -121,6 +121,8 @@
   <script>
     let app = null;
     let currentModel = null;
+    let modelBaseWidth = 0;
+    let modelBaseHeight = 0;
     const TARGET_FPS = 30;
     const FRAME_INTERVAL = 1000 / TARGET_FPS;
     let lastRenderTime = performance.now();
@@ -140,30 +142,18 @@
     let reactiveAngleZ = 0;
     let reactiveVelocityZ = 0;
 
+    // Semantic performance targets supplied by Ayaka's Kotlin animation director.
+    let currentHeadTilt = 0, targetHeadTilt = 0;
+    let currentBodyLean = 0, targetBodyLean = 0;
+
     // Active Emotion State
     let activeEmotion = 'normal';
-    let emotionParams = {
-      browY: 0,
-      mouthForm: 0,
-      eyeOpen: 1,
-      targetBrowY: 0,
-      targetMouthForm: 0,
-      targetEyeOpen: 1
-    };
-
-    const EMOTION_MAP = {
-      'blush':  { button: 'Button2', browY: 0.2, mouth: 0.1, eyeOpen: 0.95 },
-      'smile':  { button: 'Button4', browY: 0.4, mouth: 0.8, eyeOpen: 0.85 },
-      'happy':  { button: 'Button3', browY: 0.6, mouth: 1.0, eyeOpen: 0.75 },
-      'sad':    { button: 'Button1', browY: -0.5, mouth: -0.6, eyeOpen: 0.8 },
-      'angry':  { button: 'Button7', browY: -0.8, mouth: -0.4, eyeOpen: 1.0 },
-      'normal': { button: null, browY: 0.0, mouth: 0.0, eyeOpen: 1.0 }
-    };
-
+    let isSpeechActive = false;
     // Particle FX Canvas
     const pCanvas = document.getElementById('particles-canvas');
     const pCtx = pCanvas.getContext('2d');
     let particles = [];
+    let particlesWereRendered = false;
 
     window.addEventListener('DOMContentLoaded', async () => {
       try {
@@ -181,8 +171,10 @@
           height: height,
           transparent: true,
           backgroundAlpha: 0,
-          antialias: true,
-          resolution: Math.min(window.devicePixelRatio || 1, 2),
+          antialias: false,
+          // A capped backing resolution avoids rendering four full-resolution pixels
+          // per CSS pixel on mid-range phones while retaining a crisp model.
+          resolution: Math.min(window.devicePixelRatio || 1, 1.5),
           autoDensity: true,
           autoStart: false // Managed 30 FPS Loop
         });
@@ -194,6 +186,10 @@
         });
 
         app.stage.addChild(currentModel);
+        // Cache the unscaled dimensions once. Reading model.width after a resize
+        // returns the already-scaled size and causes drift on repeated resizes.
+        modelBaseWidth = currentModel.width;
+        modelBaseHeight = currentModel.height;
         resizeModel();
         window.addEventListener('resize', resizeModel);
 
@@ -222,9 +218,15 @@
           lastInteractionTime = performance.now();
         });
 
-        // Strict 30 FPS Render Loop
+        // Strict 30 FPS render loop. Keep the WebView mounted between tabs,
+        // but stop its animation work whenever the companion stage is not visible.
+        let renderLoopActive = false;
+        let companionStageVisible = true;
+        let renderFrameHandle = null;
+
         function loop(timestamp) {
-          requestAnimationFrame(loop);
+          if (!renderLoopActive || document.hidden || !companionStageVisible) return;
+          renderFrameHandle = requestAnimationFrame(loop);
           const elapsed = timestamp - lastRenderTime;
           if (elapsed >= FRAME_INTERVAL) {
             lastRenderTime = timestamp - (elapsed % FRAME_INTERVAL);
@@ -236,7 +238,38 @@
             app.renderer.render(app.stage);
           }
         }
-        requestAnimationFrame(loop);
+
+        function stopRenderLoop() {
+          renderLoopActive = false;
+          if (renderFrameHandle !== null) {
+            cancelAnimationFrame(renderFrameHandle);
+            renderFrameHandle = null;
+          }
+        }
+
+        function startRenderLoop() {
+          if (renderLoopActive || document.hidden || !companionStageVisible) return;
+          renderLoopActive = true;
+          lastRenderTime = performance.now();
+          renderFrameHandle = requestAnimationFrame(loop);
+        }
+
+        window.pauseLive2D = function() {
+          companionStageVisible = false;
+          stopRenderLoop();
+        };
+
+        window.resumeLive2D = function() {
+          companionStageVisible = true;
+          startRenderLoop();
+        };
+
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) stopRenderLoop();
+          else startRenderLoop();
+        });
+
+        startRenderLoop();
 
         if (window.AndroidBridge && window.AndroidBridge.onModelReady) {
           window.AndroidBridge.onModelReady();
@@ -247,9 +280,10 @@
     });
 
     function resizeParticleCanvas() {
-      pCanvas.width = window.innerWidth * (window.devicePixelRatio || 1);
-      pCanvas.height = window.innerHeight * (window.devicePixelRatio || 1);
-      pCtx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+      pCanvas.width = Math.round(window.innerWidth * pixelRatio);
+      pCanvas.height = Math.round(window.innerHeight * pixelRatio);
+      pCtx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     }
 
     function resizeModel() {
@@ -258,14 +292,16 @@
       const h = window.innerHeight;
       app.renderer.resize(w, h);
 
-      const scaleX = (w * 0.96) / currentModel.width;
-      const scaleY = (h * 0.96) / currentModel.height;
-      const baseScale = Math.min(scaleX, scaleY) * 1.38;
+      // Fit the full model inside the actual Compose stage; the old 1.38
+      // multiplier enlarged it beyond the viewport and clipped the head/legs.
+      const scaleX = (w * 0.94) / Math.max(modelBaseWidth, 1);
+      const scaleY = (h * 0.94) / Math.max(modelBaseHeight, 1);
+      const fitScale = Math.min(scaleX, scaleY);
 
-      currentModel.scale.set(baseScale);
-      currentModel.anchor.set(0.5, 0.34);
+      currentModel.scale.set(fitScale);
+      currentModel.anchor.set(0.5, 0.5);
       currentModel.x = w * 0.5;
-      currentModel.y = h * 0.44;
+      currentModel.y = h * 0.5;
     }
 
     function updateProceduralAnimations(timestamp, elapsed) {
@@ -281,17 +317,28 @@
       currentFocusY += (targetFocusY - currentFocusY) * 0.08;
       currentModel.focus(currentFocusX * (window.innerWidth * 0.4), currentFocusY * (window.innerHeight * 0.3));
 
+      // Blend semantic head/body cues smoothly instead of snapping the rig.
+      currentHeadTilt += (targetHeadTilt - currentHeadTilt) * 0.08;
+      currentBodyLean += (targetBodyLean - currentBodyLean) * 0.08;
+
       // 2. Procedural Breathing (ParamBreath)
       const breathVal = (Math.sin(timestamp * 0.0022) + 1) * 0.5;
       core.setParameterValueById('ParamBreath', breathVal);
+
+      // Lightweight TTS-driven mouth movement. This follows utterance start/end,
+      // not phoneme timing, so it remains subtle rather than pretending to be true lip-sync.
+      const speechMouthOpen = isSpeechActive
+        ? 0.12 + Math.abs(Math.sin(timestamp * 0.026)) * 0.38
+        : 0;
+      core.setParameterValueById('ParamMouthOpenY', speechMouthOpen);
 
       // 3. Subtle Organic Head & Body Sway
       reactiveVelocityZ += (0 - reactiveAngleZ) * 0.15;
       reactiveVelocityZ *= 0.85;
       reactiveAngleZ += reactiveVelocityZ;
 
-      const swayZ = Math.sin(timestamp * 0.001) * 2.2 + reactiveAngleZ;
-      const swayBody = Math.cos(timestamp * 0.0007) * 1.4;
+      const swayZ = Math.sin(timestamp * 0.001) * 2.2 + reactiveAngleZ + currentHeadTilt;
+      const swayBody = Math.cos(timestamp * 0.0007) * 1.4 + currentBodyLean;
       core.setParameterValueById('ParamAngleZ', swayZ);
       core.setParameterValueById('ParamBodyAngleZ', swayBody);
 
@@ -316,17 +363,10 @@
         }
       }
 
-      // 5. Emotion Parameter Tweens
-      emotionParams.browY += (emotionParams.targetBrowY - emotionParams.browY) * 0.12;
-      emotionParams.mouthForm += (emotionParams.targetMouthForm - emotionParams.mouthForm) * 0.12;
-      emotionParams.eyeOpen += (emotionParams.targetEyeOpen - emotionParams.eyeOpen) * 0.12;
-
-      const finalEyeOpen = emotionParams.eyeOpen * eyeBlinkMultiplier;
+      // 5. Natural blink only. Expressions own their facial parameters.
+      const finalEyeOpen = eyeBlinkMultiplier;
       core.setParameterValueById('ParamEyeROpen', Math.max(0, Math.min(1, finalEyeOpen)));
       core.setParameterValueById('ParamEyeLOpen', Math.max(0, Math.min(1, finalEyeOpen)));
-      core.setParameterValueById('ParamBrowRY', emotionParams.browY);
-      core.setParameterValueById('ParamBrowLY', emotionParams.browY);
-      core.setParameterValueById('ParamMouthForm', emotionParams.mouthForm);
     }
 
     // Particle FX
@@ -351,7 +391,15 @@
     }
 
     function renderParticles() {
+      if (particles.length === 0) {
+        if (particlesWereRendered) {
+          pCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+          particlesWereRendered = false;
+        }
+        return;
+      }
       pCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      particlesWereRendered = true;
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         p.x += p.vx;
@@ -364,43 +412,45 @@
           continue;
         }
 
-        pCtx.save();
         pCtx.globalAlpha = p.alpha;
         pCtx.fillStyle = p.color;
         pCtx.beginPath();
         pCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         pCtx.fill();
-        pCtx.restore();
       }
+      pCtx.globalAlpha = 1;
     }
 
     // Exposed JS bridge methods
     window.setEmotion = function(emotion) {
       activeEmotion = emotion || 'normal';
-      const config = EMOTION_MAP[activeEmotion] || EMOTION_MAP['normal'];
-
-      // Reset button parameters
-      if (currentModel && currentModel.internalModel && currentModel.internalModel.coreModel) {
-        const core = currentModel.internalModel.coreModel;
-        ['Button1', 'Button2', 'Button3', 'Button4', 'Button7'].forEach(b => {
-          core.setParameterValueById(b, 0.0);
-        });
-        if (config.button) {
-          core.setParameterValueById(config.button, 1.0);
-        }
-      }
-
-      emotionParams.targetBrowY = config.browY;
-      emotionParams.targetMouthForm = config.mouth;
-      emotionParams.targetEyeOpen = config.eyeOpen;
-
+      // The model registers real expression files in tsubaki.model3.json.
+      // Avoid also writing guessed facial parameter IDs that fight expression blending.
       try {
-        if (activeEmotion === 'normal') {
-          currentModel.expression();
-        } else {
-          currentModel.expression(activeEmotion);
-        }
-      } catch (e) { /* fallback gracefully */ }
+        currentModel.expression(activeEmotion);
+      } catch (e) {
+        console.warn("Live2D expression unavailable:", activeEmotion, e);
+      }
+    };
+
+    // Kotlin's renderer adapter uses normalized gaze coordinates and gentle
+    // rig offsets. Pointer tracking and semantic cues share the same damped targets.
+    window.lookAt = function(x, y) {
+      targetFocusX = Number.isFinite(x) ? Math.max(-1, Math.min(1, x)) : 0;
+      targetFocusY = Number.isFinite(y) ? Math.max(-1, Math.min(1, y)) : 0;
+      lastInteractionTime = performance.now();
+    };
+
+    window.setHeadTilt = function(degrees) {
+      targetHeadTilt = Number.isFinite(degrees) ? Math.max(-8, Math.min(8, degrees)) : 0;
+    };
+
+    window.setBodyLean = function(degrees) {
+      targetBodyLean = Number.isFinite(degrees) ? Math.max(-4, Math.min(4, degrees)) : 0;
+    };
+
+    window.setSpeaking = function(speaking) {
+      isSpeechActive = Boolean(speaking);
     };
 
     window.playMotion = function(motionName) {

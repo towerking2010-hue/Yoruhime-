@@ -9,6 +9,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import org.json.JSONObject
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,19 +19,40 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebViewAssetLoader
+import com.aistudio.yoruhime.ui.avatar.AvatarPerformance
+import com.aistudio.yoruhime.ui.avatar.AyakaLive2DPerformanceAdapter
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.aistudio.yoruhime.ui.theme.MidnightBlack
 
 class Live2DController {
     var webView: WebView? = null
+    private var isReady = false
     private var pendingEmotion: String? = null
+    private var pendingPerformance: AvatarPerformance? = null
+    private var pendingSpeech: Pair<String, String?>? = null
+    private var speakingEnabled = false
+    private var renderingEnabled = true
+
+    fun setRenderingEnabled(enabled: Boolean) {
+        renderingEnabled = enabled
+        if (!isReady) return
+        val wv = webView ?: return
+        wv.post {
+            if (enabled) wv.onResume() else wv.onPause()
+            val script = if (enabled) "window.resumeLive2D && window.resumeLive2D();" else "window.pauseLive2D && window.pauseLive2D();"
+            wv.evaluateJavascript(script, null)
+        }
+    }
 
     fun setEmotion(emotion: String) {
         val wv = webView
-        if (wv != null) {
-            val script = "window.setEmotion && window.setEmotion('$emotion');"
+        if (wv != null && isReady) {
+            val script = "window.setEmotion && window.setEmotion(${JSONObject.quote(emotion)});"
             wv.post { wv.evaluateJavascript(script, null) }
         } else {
             pendingEmotion = emotion
@@ -39,29 +61,78 @@ class Live2DController {
 
     fun playMotion(motionName: String = "Idle") {
         val wv = webView ?: return
-        val script = "window.playMotion && window.playMotion('$motionName');"
+        val script = "window.playMotion && window.playMotion(${JSONObject.quote(motionName)});"
         wv.post { wv.evaluateJavascript(script, null) }
     }
 
     fun lookAt(normalizedX: Float, normalizedY: Float) {
         val wv = webView ?: return
-        val script = "window.lookAt && window.lookAt($normalizedX, $normalizedY);"
+        val safeX = normalizedX.takeIf { it.isFinite() }?.coerceIn(-1f, 1f) ?: 0f
+        val safeY = normalizedY.takeIf { it.isFinite() }?.coerceIn(-1f, 1f) ?: 0f
+        val script = "window.lookAt && window.lookAt($safeX, $safeY);"
         wv.post { wv.evaluateJavascript(script, null) }
     }
 
     fun showSpeech(text: String, emotion: String? = null) {
+        if (!isReady) {
+            pendingSpeech = text to emotion
+            return
+        }
         val wv = webView ?: return
-        val escapedText = text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ")
-        val emoParam = if (emotion != null) "'$emotion'" else "null"
-        val script = "window.showSpeech && window.showSpeech('$escapedText', $emoParam);"
+        // Quote cloud-generated text as a JS literal instead of interpolating raw code.
+        val quotedText = JSONObject.quote(text)
+        val emoParam = emotion?.let { JSONObject.quote(it) } ?: "null"
+        val script = "window.showSpeech && window.showSpeech($quotedText, $emoParam);"
         wv.post { wv.evaluateJavascript(script, null) }
     }
 
-    fun onReady() {
-        pendingEmotion?.let {
-            setEmotion(it)
-            pendingEmotion = null
+    fun setSpeaking(speaking: Boolean) {
+        speakingEnabled = speaking
+        if (!isReady) return
+        val script = "window.setSpeaking && window.setSpeaking($speaking);"
+        webView?.let { wv -> wv.post { wv.evaluateJavascript(script, null) } }
+    }
+
+    fun setHeadTilt(degrees: Float) {
+        val safe = degrees.takeIf { it.isFinite() }?.coerceIn(-8f, 8f) ?: 0f
+        val script = "window.setHeadTilt && window.setHeadTilt($safe);"
+        webView?.let { wv -> wv.post { wv.evaluateJavascript(script, null) } }
+    }
+
+    fun setBodyLean(degrees: Float) {
+        val safe = degrees.takeIf { it.isFinite() }?.coerceIn(-4f, 4f) ?: 0f
+        val script = "window.setBodyLean && window.setBodyLean($safe);"
+        webView?.let { wv -> wv.post { wv.evaluateJavascript(script, null) } }
+    }
+
+    fun applyPerformance(performance: AvatarPerformance) {
+        if (webView == null || !isReady) {
+            pendingPerformance = performance
+            return
         }
+        val mapped = AyakaLive2DPerformanceAdapter.map(performance)
+        setEmotion(mapped.expression)
+        lookAt(mapped.gazeX, mapped.gazeY)
+        setHeadTilt(mapped.headTiltDegrees)
+        setBodyLean(mapped.bodyLeanDegrees)
+    }
+
+    fun onReady() {
+        isReady = true
+        pendingEmotion?.let {
+            pendingEmotion = null
+            setEmotion(it)
+        }
+        pendingPerformance?.let {
+            pendingPerformance = null
+            applyPerformance(it)
+        }
+        pendingSpeech?.let { (text, emotion) ->
+            pendingSpeech = null
+            showSpeech(text, emotion)
+        }
+        setSpeaking(speakingEnabled)
+        setRenderingEnabled(renderingEnabled)
     }
 }
 
@@ -86,14 +157,44 @@ class AndroidBridge(
 @Composable
 fun Live2DStage(
     currentEmotion: String,
+    performance: AvatarPerformance? = null,
+    isSpeaking: Boolean = false,
+    isVisible: Boolean = true,
     controller: Live2DController = remember { Live2DController() },
     onModelTapped: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val appInForeground = remember {
+        androidx.compose.runtime.mutableStateOf(
+            lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        )
+    }
 
-    LaunchedEffect(currentEmotion) {
-        controller.setEmotion(currentEmotion)
+    LaunchedEffect(currentEmotion, performance) {
+        if (performance != null) controller.applyPerformance(performance)
+        else controller.setEmotion(currentEmotion)
+    }
+
+    LaunchedEffect(isSpeaking) {
+        controller.setSpeaking(isSpeaking)
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> appInForeground.value = true
+                Lifecycle.Event.ON_PAUSE -> appInForeground.value = false
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(isVisible, appInForeground.value) {
+        controller.setRenderingEnabled(isVisible && appInForeground.value)
     }
 
     val assetLoader = remember {
@@ -144,6 +245,14 @@ fun Live2DStage(
                         ): WebResourceResponse? {
                             val url = request?.url ?: return null
                             return assetLoader.shouldInterceptRequest(url)
+                        }
+
+                        override fun shouldOverrideUrlLoading(
+                            view: WebView?,
+                            request: WebResourceRequest?
+                        ): Boolean {
+                            // Keep this surface restricted to its bundled local asset origin.
+                            return request?.url?.host != "appassets.androidplatform.net"
                         }
                     }
 

@@ -29,6 +29,10 @@
       {
         "Name": "smile",
         "File": "EXP3/smile.exp3.json"
+      },
+      {
+        "Name": "normal",
+        "File": "EXP3/normal.exp3.json"
       }
     ],
     "Motions": {

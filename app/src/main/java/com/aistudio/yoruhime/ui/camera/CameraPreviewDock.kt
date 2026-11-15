@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.graphics.BitmapFactory
 import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -41,13 +42,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -58,6 +61,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -79,11 +83,12 @@ import com.aistudio.yoruhime.ui.theme.TextMuted
 import com.aistudio.yoruhime.ui.theme.TextSilver
 import com.aistudio.yoruhime.ui.theme.TextWhite
 import com.aistudio.yoruhime.ui.theme.VioletAccent
-import java.util.concurrent.Executors
 
 @Composable
 fun CameraPreviewDock(
     isVisible: Boolean,
+    isFrontCamera: Boolean,
+    onToggleCameraFacing: () -> Unit,
     onClose: () -> Unit,
     onCaptureForInspection: (Bitmap, Boolean) -> Unit, // bitmap, isFrontCamera
     modifier: Modifier = Modifier
@@ -105,9 +110,10 @@ fun CameraPreviewDock(
         hasCameraPermission = granted
     }
 
-    var isFrontCamera by remember { mutableStateOf(true) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var previewView by remember { mutableStateOf<PreviewView?>(null) }
+    var cameraReady by remember { mutableStateOf(false) }
+    var cameraError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(isVisible) {
         if (isVisible && !hasCameraPermission) {
@@ -116,17 +122,27 @@ fun CameraPreviewDock(
     }
 
     var cameraProviderInstance by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+    var bindRequestGeneration by remember { mutableIntStateOf(0) }
 
     // Bind Camera lifecycle when isVisible, permission, or lens facing toggles
     LaunchedEffect(isVisible, hasCameraPermission, isFrontCamera, previewView) {
+        val requestGeneration = ++bindRequestGeneration
         if (!isVisible || !hasCameraPermission || previewView == null) {
+            cameraReady = false
+            imageCapture = null
             cameraProviderInstance?.unbindAll()
             return@LaunchedEffect
         }
 
+        cameraReady = false
+        cameraError = null
+        imageCapture = null
+
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener({
             try {
+                val activePreviewView = previewView ?: return@addListener
+                if (requestGeneration != bindRequestGeneration || !isVisible || !hasCameraPermission) return@addListener
                 val cameraProvider = cameraProviderFuture.get()
                 cameraProviderInstance = cameraProvider
 
@@ -138,13 +154,14 @@ fun CameraPreviewDock(
                 val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
 
                 val preview = Preview.Builder().build().also {
-                    it.surfaceProvider = previewView?.surfaceProvider
+                    it.setSurfaceProvider(activePreviewView.surfaceProvider)
                 }
 
                 val capture = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                    .setTargetRotation(activePreviewView.display?.rotation ?: android.view.Surface.ROTATION_0)
+                    .setJpegQuality(80)
                     .build()
-                imageCapture = capture
 
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(
@@ -153,14 +170,20 @@ fun CameraPreviewDock(
                     preview,
                     capture
                 )
+                imageCapture = capture
+                cameraReady = true
+                cameraError = null
             } catch (e: Exception) {
-                e.printStackTrace()
+                imageCapture = null
+                cameraReady = false
+                cameraError = e.localizedMessage ?: "Unable to start this camera. Check camera permission and close other apps using it."
             }
         }, ContextCompat.getMainExecutor(context))
     }
 
     DisposableEffect(isVisible) {
         onDispose {
+            bindRequestGeneration++
             try {
                 cameraProviderInstance?.unbindAll()
             } catch (e: Exception) {
@@ -196,14 +219,14 @@ fun CameraPreviewDock(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = if (isFrontCamera) Icons.Default.Psychology else Icons.Default.Visibility,
+                            imageVector = if (isFrontCamera) Icons.Default.PhotoCamera else Icons.Default.Visibility,
                             contentDescription = null,
                             tint = LavenderPrimary,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (isFrontCamera) "Ayaka Stress & Fatigue Tracker" else "Ayaka Workspace Inspector",
+                            text = if (isFrontCamera) "Front Camera Snapshot" else "Rear Camera Snapshot",
                             style = MaterialTheme.typography.titleMedium,
                             color = TextWhite,
                             fontSize = 13.sp
@@ -212,7 +235,7 @@ fun CameraPreviewDock(
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(
-                            onClick = { isFrontCamera = !isFrontCamera },
+                            onClick = onToggleCameraFacing,
                             modifier = Modifier.size(36.dp).testTag("camera_switch_button")
                         ) {
                             Icon(
@@ -301,7 +324,7 @@ fun CameraPreviewDock(
                             color = GlassDark.copy(alpha = 0.85f)
                         ) {
                             Text(
-                                text = if (isFrontCamera) "FRONT: Face & Fatigue Active" else "BACK: Meal & Workspace Active",
+                                text = if (isFrontCamera) "FRONT CAMERA • SNAPSHOT" else "REAR CAMERA • SNAPSHOT",
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 color = LavenderPrimary,
                                 fontSize = 10.sp
@@ -318,7 +341,34 @@ fun CameraPreviewDock(
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "With Cloud mode and an API key enabled, one still image is sent to your selected AI provider. Offline mode cannot analyze images.",
+                        color = TextMuted,
+                        fontSize = 10.sp
+                    )
                     Spacer(modifier = Modifier.height(10.dp))
+
+                    cameraError?.let { error ->
+                        Text(
+                            text = "Camera error: $error",
+                            color = TextSilver,
+                            fontSize = 11.sp
+                        )
+                    } ?: if (!cameraReady) {
+                        Text(
+                            text = "Starting camera…",
+                            color = TextMuted,
+                            fontSize = 11.sp
+                        )
+                    } else {
+                        Text(
+                            text = "Camera ready. Cloud vision requires your OpenRouter key; preview and snapshot do not.",
+                            color = TextMuted,
+                            fontSize = 10.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     // Inspection Action Buttons
                     Row(
@@ -327,15 +377,22 @@ fun CameraPreviewDock(
                     ) {
                         val coroutineScope = rememberCoroutineScope()
                         Button(
+                            enabled = cameraReady && imageCapture != null,
                             onClick = {
                                 coroutineScope.launch {
                                     isFlashing = true
                                     delay(120)
                                     isFlashing = false
                                 }
-                                captureSnapshot(context, imageCapture) { bitmap ->
-                                    onCaptureForInspection(bitmap, isFrontCamera)
-                                }
+                                captureSnapshot(
+                                    context = context,
+                                    imageCapture = imageCapture,
+                                    coroutineScope = coroutineScope,
+                                    onCaptured = { bitmap -> onCaptureForInspection(bitmap, isFrontCamera) },
+                                    onError = { error ->
+                                        cameraError = error
+                                    }
+                                )
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = VioletAccent),
                             shape = RoundedCornerShape(12.dp),
@@ -348,7 +405,7 @@ fun CameraPreviewDock(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (isFrontCamera) "Track Stress Level" else "Inspect My Space",
+                                text = "Ask Ayaka to Inspect",
                                 color = TextWhite,
                                 fontSize = 12.sp
                             )
@@ -384,27 +441,66 @@ fun CameraPreviewDock(
 private fun captureSnapshot(
     context: Context,
     imageCapture: ImageCapture?,
-    onCaptured: (Bitmap) -> Unit
+    coroutineScope: CoroutineScope,
+    onCaptured: (Bitmap) -> Unit,
+    onError: (String) -> Unit
 ) {
-    val capture = imageCapture ?: return
-    val executor = ContextCompat.getMainExecutor(context)
+    val capture = imageCapture ?: run {
+        onError("Camera is still starting. Wait a moment and try again.")
+        return
+    }
+    val callbackExecutor = ContextCompat.getMainExecutor(context)
 
     capture.takePicture(
-        executor,
+        callbackExecutor,
         object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(image: ImageProxy) {
+                val rotationDegrees = image.imageInfo.rotationDegrees
                 val buffer = image.planes[0].buffer
                 val bytes = ByteArray(buffer.remaining())
                 buffer.get(bytes)
-                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 image.close()
-                if (bitmap != null) {
-                    onCaptured(bitmap)
+
+                // Decode and rotate off the UI thread, sampling large camera frames down
+                // before allocating a full-resolution bitmap on mid-range phones.
+                coroutineScope.launch(Dispatchers.Default) {
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                    val maxDimension = maxOf(bounds.outWidth, bounds.outHeight).coerceAtLeast(1)
+                    var sampleSize = 1
+                    while (maxDimension / sampleSize > 1280) sampleSize *= 2
+
+                    val decoded = BitmapFactory.decodeByteArray(
+                        bytes,
+                        0,
+                        bytes.size,
+                        BitmapFactory.Options().apply { inSampleSize = sampleSize }
+                    ) ?: run {
+                        withContext(Dispatchers.Main) {
+                            onError("The camera took a photo, but the image could not be decoded.")
+                        }
+                        return@launch
+                    }
+
+                    val upright = if (rotationDegrees != 0) {
+                        val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+                        Bitmap.createBitmap(
+                            decoded, 0, 0, decoded.width, decoded.height, matrix, true
+                        ).also { rotated ->
+                            if (rotated !== decoded) decoded.recycle()
+                        }
+                    } else {
+                        decoded
+                    }
+
+                    withContext(Dispatchers.Main) {
+                        onCaptured(upright)
+                    }
                 }
             }
 
             override fun onError(exception: ImageCaptureException) {
-                exception.printStackTrace()
+                onError(exception.localizedMessage ?: "The camera could not capture an image.")
             }
         }
     )

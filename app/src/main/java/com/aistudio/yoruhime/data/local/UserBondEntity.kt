@@ -12,8 +12,8 @@ data class UserBondEntity(
     val streakDays: Int = 1,
     val totalStudyMinutes: Int = 0,
     val nickname: String = "Junior",
-    val customBedtimePhrase: String = "It's 11:00 AM curfew! Put your phone down right now and take a rest, you hopeless slacker!",
-    val bedtimeHour: Int = 11,
+    val customBedtimePhrase: String = "It's 11:00 PM curfew! Put your phone down right now and take a rest, you hopeless slacker!",
+    val bedtimeHour: Int = 23,
     val bedtimeMinute: Int = 0,
     val lastActiveTimestamp: Long = System.currentTimeMillis()
 ) {

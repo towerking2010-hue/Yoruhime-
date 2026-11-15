@@ -53,56 +53,64 @@ object OfflineDialogueBank {
         InCharacterResponse("happy", "When you actually apply yourself, you can do anything. Now stop making me repeat myself and get to it!")
     )
 
-    private val CAMERA_FRONT_TIRED = listOf(
-        InCharacterResponse("sad", "[Camera Analysis] Look at those eyes. Your facial tension indicates severe fatigue. Close your eyes for at least 5 minutes!"),
-        InCharacterResponse("blush", "[Camera Analysis] Staring straight into the lens at me? Your posture isn't bad today, but don't lean so close... it's distracting!")
+    private val TIRED_CARE = listOf(
+        InCharacterResponse("sad", "Oh, sweetheart... if you're that exhausted, stop pushing yourself for a moment. Drink some water, put the phone down, and let yourself rest. I'll help you plan tomorrow."),
+        InCharacterResponse("blush", "You're running on empty again? Honestly... take a proper break, Junior. I can be strict about deadlines, but I'm not asking you to run yourself into the ground."),
+        InCharacterResponse("sad", "That sounds like a genuinely rough day. You don't have to prove anything to me tonight. Get comfortable, breathe, and sleep if you can.")
     )
 
-    private val CAMERA_BACK_INSPECT = listOf(
-        InCharacterResponse("angry", "[Camera Inspection] What is that mess on your desk?! Tidy up those papers and cables immediately before starting!"),
-        InCharacterResponse("normal", "[Camera Inspection] Hmm... desk looks workable. Keep your water bottle nearby and don't let clutter pile up.")
+    private val GREETING_REPLIES = listOf(
+        InCharacterResponse("smile", "Hey. I'm here, and I'm listening. What have you been up to?"),
+        InCharacterResponse("blush", "Oh, you came back. Hmph... it's nice to see you. I'm listening—how's your day going?"),
+        InCharacterResponse("normal", "Hi! I'm listening—what's on your mind?")
+    )
+
+    private val THANK_YOU_REPLIES = listOf(
+        InCharacterResponse("blush", "You're welcome. I was happy to help... not that you need to make a big deal out of it."),
+        InCharacterResponse("smile", "Anytime. Just make sure you give yourself some credit too.")
+    )
+
+    private val CHECK_IN_REPLIES = listOf(
+        InCharacterResponse("smile", "Not much chaos on my end. I'm right here with you. What's happening in your world?"),
+        InCharacterResponse("normal", "I'm here and ready to listen. Tell me what's going on."),
+        InCharacterResponse("blush", "I was keeping myself busy, obviously. But you have my attention now. How are you?")
     )
 
     fun generateReply(userPrompt: String, bondLevel: Int): InCharacterResponse {
         val lower = userPrompt.trim().lowercase()
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        val exactGreeting = lower.matches(Regex("^(yo|sup|hey|hiya|hello|hi|good morning|good afternoon|good evening)[!. ]*$"))
 
-        // Late night check
-        if (hour >= 23 || hour < 5) {
-            if (lower.contains("sleep") || lower.contains("tired") || lower.contains("night")) {
-                return LATE_NIGHT.random()
-            }
+        // Emotional needs take priority over teasing or generic keyword replies.
+        if (listOf("exhausted", "sleepy", "worn out", "overwhelmed", "burnt out", "burned out").any { keyword -> lower.contains(keyword) } ||
+            (lower.contains("tired") && listOf("so ", "really", "very").any { keyword -> lower.contains(keyword) })) {
+            return TIRED_CARE.random()
         }
 
-        // Keywords detection
+        if ((hour >= 22 || hour < 6) &&
+            listOf("sleep", "tired", "night", "awake", "bed").any { keyword -> lower.contains(keyword) }) {
+            return LATE_NIGHT.random()
+        }
+
         return when {
-            lower.contains("hello") || lower.contains("hi") || lower.contains("morning") || lower.contains("hey") -> {
-                GREETINGS.random()
-            }
-            lower.contains("love") || lower.contains("cute") || lower.contains("pretty") || lower.contains("beautiful") || lower.contains("marry") || lower.contains("like you") -> {
-                COMPLIMENTS.random()
-            }
-            lower.contains("study") || lower.contains("work") || lower.contains("focus") || lower.contains("homework") || lower.contains("exam") -> {
-                STUDY_WORK.random()
-            }
-            lower.contains("eat") || lower.contains("food") || lower.contains("hungry") || lower.contains("water") || lower.contains("snack") || lower.contains("coffee") -> {
-                FOOD_HEALTH.random()
-            }
-            lower.contains("poke") || lower.contains("touch") || lower.contains("pat") || lower.contains("hug") -> {
-                TEASING_TOUCH.random()
-            }
-            lower.contains("camera") || lower.contains("look") || lower.contains("inspect") -> {
-                CAMERA_BACK_INSPECT.random()
-            }
+            exactGreeting -> GREETING_REPLIES.random()
+            listOf("what's happening", "what is happening", "what's up", "whats up", "how are you", "how's it going", "hows it going").any { lower.contains(it) } ->
+                CHECK_IN_REPLIES.random()
+            listOf("thank you", "thanks", "thx", "appreciate it").any { lower.contains(it) } -> THANK_YOU_REPLIES.random()
+            listOf("love", "cute", "pretty", "beautiful", "marry", "like you", "miss you").any { keyword -> lower.contains(keyword) } -> COMPLIMENTS.random()
+            listOf("study", "work", "focus", "homework", "exam", "assignment").any { keyword -> lower.contains(keyword) } -> STUDY_WORK.random()
+            listOf("eat", "food", "hungry", "water", "snack", "coffee", "lunch", "dinner").any { keyword -> lower.contains(keyword) } -> FOOD_HEALTH.random()
+            listOf("poke", "touch", "pat", "hug").any { keyword -> lower.contains(keyword) } -> TEASING_TOUCH.random()
+            listOf("camera", "look at", "show you", "see this", "inspect").any { keyword -> lower.contains(keyword) } ->
+                InCharacterResponse("normal", "I can't see your surroundings from text alone. Attach a photo or use the camera snapshot, then connect Cloud mode with your OpenRouter key so I can analyse the actual image. I won't pretend I've seen something I haven't.")
+            lower.contains("?") || listOf("what ", "why ", "how ", "when ", "where ", "who ", "can you", "could you", "should i", "should I").any { lower.startsWith(it) } ->
+                InCharacterResponse("normal", "I want to give you a proper answer, but I'm in offline mode right now. I can handle a few basic topics, but I can't reason through every question without a connected AI model. Tell me a little more, or connect a free Cloud model when you're ready.")
+            lower.length < 4 -> InCharacterResponse("smile", "I'm listening. Go on—what did you want to tell me?")
             else -> {
-                // Adjust warmth based on bondLevel
-                if (bondLevel >= 4 && (0..2).random() == 0) {
-                    InCharacterResponse(
-                        "blush",
-                        "...Even when you ramble about strange things, I find myself listening. Don't let it go to your head, though! Keep going."
-                    )
+                if (bondLevel >= 4) {
+                    InCharacterResponse("smile", "I read that. I don't want to give you a random canned answer—tell me what part matters most, and I'll do my best with the offline tools I have.")
                 } else {
-                    GENERAL_DEVOTION.random()
+                    InCharacterResponse("normal", "I hear you. I'm currently using limited offline replies, so I may not understand the full meaning yet. Could you explain a little more?")
                 }
             }
         }
@@ -116,11 +124,4 @@ object OfflineDialogueBank {
         }
     }
 
-    fun getCameraVisionReaction(isFrontCamera: Boolean): InCharacterResponse {
-        return if (isFrontCamera) {
-            CAMERA_FRONT_TIRED.random()
-        } else {
-            CAMERA_BACK_INSPECT.random()
-        }
-    }
 }

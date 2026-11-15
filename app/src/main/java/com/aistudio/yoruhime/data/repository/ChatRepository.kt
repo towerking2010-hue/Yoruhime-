@@ -4,17 +4,21 @@ import android.graphics.Bitmap
 import com.aistudio.yoruhime.data.local.AppDatabase
 import com.aistudio.yoruhime.data.local.ChatMessageEntity
 import com.aistudio.yoruhime.data.local.OfflineDialogueBank
+import com.aistudio.yoruhime.data.local.InCharacterResponse
 import com.aistudio.yoruhime.data.local.UserBondEntity
+import com.aistudio.yoruhime.data.local.MemoryNoteEntity
 import com.aistudio.yoruhime.data.remote.AyakaResponse
-import com.aistudio.yoruhime.data.remote.GeminiService
+import com.aistudio.yoruhime.data.remote.OpenRouterService
+import com.aistudio.yoruhime.data.remote.ConversationTurn
 import kotlinx.coroutines.flow.Flow
 
 class ChatRepository(
     private val database: AppDatabase,
-    private val geminiService: GeminiService = GeminiService()
+    private val openRouterService: OpenRouterService = OpenRouterService()
 ) {
     val messagesFlow: Flow<List<ChatMessageEntity>> = database.chatDao().getAllMessagesFlow()
     val bondFlow: Flow<UserBondEntity?> = database.bondDao().getBondFlow()
+    val memoriesFlow: Flow<List<MemoryNoteEntity>> = database.memoryDao().getAllMemoriesFlow()
 
     suspend fun getBond(): UserBondEntity {
         return database.bondDao().getBond() ?: UserBondEntity().also {
@@ -26,8 +30,28 @@ class ChatRepository(
         userText: String,
         isOnlineMode: Boolean,
         apiKey: String,
-        imageBitmap: Bitmap? = null
+        imageBitmap: Bitmap? = null,
+        isFrontCamera: Boolean? = null
     ): AyakaResponse {
+        // Persist only facts the user explicitly asks YoruHime to remember.
+        updateExplicitMemory(userText)
+
+        val memoryNotes = database.memoryDao()
+            .getRelevantMemories(limit = 12)
+            .map { it.content }
+
+        // Load the latest exchange history before saving this turn.
+        // ChatDao returns newest-first; the model needs chronological order.
+        val conversationHistory = database.chatDao()
+            .getRecentMessages(limit = 12)
+            .asReversed()
+            .map { message ->
+                ConversationTurn(
+                    role = if (message.isFromUser) "user" else "assistant",
+                    content = message.text
+                )
+            }
+
         // 1. Save user message to Room
         database.chatDao().insertMessage(
             ChatMessageEntity(
@@ -39,25 +63,47 @@ class ChatRepository(
 
         val currentBond = getBond()
         var response: AyakaResponse? = null
+        var cloudFailure: String? = null
 
-        // 2. Try online generation if enabled and key provided
-        if (isOnlineMode && apiKey.isNotBlank()) {
-            try {
-                response = geminiService.generateReply(
-                    apiKey = apiKey,
-                    prompt = userText,
-                    imageBitmap = imageBitmap
-                )
-            } catch (e: Exception) {
-                // Online failed (e.g. no connection, 429 quota exhaustion) -> seamless fallback
-                response = null
+        // 2. Try OpenRouter only when Cloud mode is selected.
+        if (isOnlineMode) {
+            if (apiKey.isBlank()) {
+                cloudFailure = "No OpenRouter API key is saved. Open Settings → API setup, add your key, save it, then choose Try cloud."
+            } else {
+                try {
+                    response = openRouterService.generateReply(
+                        apiKey = apiKey,
+                        prompt = userText,
+                        imageBitmap = imageBitmap,
+                        history = conversationHistory,
+                        memoryNotes = memoryNotes
+                    )
+                } catch (e: Exception) {
+                    cloudFailure = (e.message ?: "Unknown network/provider error")
+                        .replace(Regex("\\s+"), " ")
+                        .take(220)
+                }
             }
         }
 
-        // 3. Seamless Offline Fallback
+        // 3. Explain Cloud failures; never silently disguise them as successful replies.
         if (response == null) {
-            val fallback = if (imageBitmap != null) {
-                OfflineDialogueBank.getCameraVisionReaction(isFrontCamera = false)
+            val imageSourceLabel = when (isFrontCamera) {
+                true -> "front-camera snapshot"
+                false -> "rear-camera snapshot"
+                null -> "attached image"
+            }
+            val fallbackText = when {
+                imageBitmap != null && !isOnlineMode ->
+                    "I received your $imageSourceLabel, but Offline mode cannot inspect images. Open Settings, choose Try cloud, and retry."
+                imageBitmap != null ->
+                    "I couldn't inspect your $imageSourceLabel because Cloud vision failed. $cloudFailure"
+                isOnlineMode ->
+                    "I couldn't reach Cloud, so I haven't passed this off as a successful reply. $cloudFailure"
+                else -> null
+            }
+            val fallback = if (fallbackText != null) {
+                InCharacterResponse("sad", fallbackText)
             } else {
                 OfflineDialogueBank.generateReply(userText, currentBond.bondLevel)
             }
@@ -191,5 +237,54 @@ class ChatRepository(
 
     suspend fun clearHistory() {
         database.chatDao().clearAllMessages()
+    }
+
+    suspend fun clearMemories() {
+        database.memoryDao().clearMemories()
+    }
+
+    suspend fun forgetMemory(content: String) {
+        database.memoryDao().forgetMemory(content)
+    }
+
+    suspend fun editMemory(id: Long, content: String) {
+        val cleaned = content.trim().take(240)
+        if (cleaned.isNotBlank()) {
+            database.memoryDao().updateMemory(id, cleaned, System.currentTimeMillis())
+        }
+    }
+
+    private suspend fun updateExplicitMemory(userText: String) {
+        val rememberMatch = Regex(
+            "^\\s*(?:remember that|remember:)\\s*(.+)$",
+            RegexOption.IGNORE_CASE
+        ).find(userText)
+
+        if (rememberMatch != null) {
+            val note = rememberMatch.groupValues[1].trim().take(240)
+            if (note.isNotBlank()) {
+                val existing = database.memoryDao().findMemory(note)
+                database.memoryDao().saveMemory(
+                    MemoryNoteEntity(
+                        id = existing?.id ?: 0,
+                        content = note,
+                        category = "user_note",
+                        createdAt = existing?.createdAt ?: System.currentTimeMillis(),
+                        updatedAt = System.currentTimeMillis(),
+                        importance = 3
+                    )
+                )
+            }
+            return
+        }
+
+        val forgetMatch = Regex(
+            "^\\s*(?:forget that|forget:)\\s*(.+)$",
+            RegexOption.IGNORE_CASE
+        ).find(userText)
+        if (forgetMatch != null) {
+            val note = forgetMatch.groupValues[1].trim()
+            if (note.isNotBlank()) database.memoryDao().forgetMemory(note)
+        }
     }
 }

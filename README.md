@@ -1,35 +1,78 @@
 # YoruHime (夜姫)
 
-An interactive native Android companion application built with Kotlin and Jetpack Compose featuring **Ayaka Tōjou** (東条 絢香), your strict, maternal "mommy-tsundere" senior student council vice-president.
+**YoruHime** is a native Android companion app built with Kotlin and Jetpack Compose. Its companion is **Ayaka Tōjou (東条 絢香)**: a mature, caring, gently strict *mommy-tsundere* who balances warmth with occasional playful teasing.
 
-## Features
+The project targets mid-range Android devices, including the Samsung Galaxy A31 running Android 12.
 
-1. **Live2D Rendering Stage (Top 60% of Screen)**
-   - High-performance WebGL stage running in an optimized Android WebView with `WebViewAssetLoader`.
-   - Renders the Live2D model with expressions (`smile`, `blush`, `happy`, `sad`, `angry`, `normal`) and motions.
-   - Enforces a strict 30 FPS rendering cap to guarantee smooth frame pacing and low thermal/battery consumption on mid-range devices (like the Galaxy A31).
-   - Interactive touch and gaze tracking reacting to touches on her head, face, or chest with flustered in-character dialogue.
+## Project principles
 
-2. **Chat & Personality Interface (Bottom 40% of Screen)**
-   - Dark translucent glassmorphism interface styled in deep midnight indigos (`#0B0F19`), slate grays, and soft lavender accents.
-   - **Ayaka Tōjou's Mommy-Tsundere AI**: Demanding and high-standard, complaining that taking care of you is an exhausting chore, but fiercely protective, maternal, and prone to flustered blushing panics when caught showing affection.
-   - **Infinite Chat Guarantee**: Connected to the Gemini API for online cloud inference with an automatic seamless offline fallback to a rich local in-character response engine and Room database. You will never be cut off or blocked by quota limits.
+- **Ayaka stays Ayaka.** Her core identity is warm, protective, emotionally perceptive, capable, and occasionally tsundere. Teasing never overrides a serious or distressed moment.
+- **Free cloud only.** Cloud chat uses OpenRouter's `openrouter/free` router. YoruHime does not configure paid model fallbacks, subscriptions, purchases, or automatic top-ups.
+- **Honest offline mode.** Local dialogue works without a network connection. It does not pretend to perform cloud-level reasoning or image analysis.
+- **Privacy and control.** Chat history and explicit memory notes are stored locally. The OpenRouter key is encrypted with Android Keystore. Camera capture is user-triggered.
+- **Preserve user data.** Room migrations are used; destructive migration fallbacks must not be added.
+- **Performance first.** Avoid unnecessary background camera use, perpetual high-cost animation, and repeated WebView recreation.
 
-3. **Multimodal Vision & Camera Integration (CameraX)**
-   - Floating Picture-in-Picture camera dock with front/back camera toggling.
-   - **Front Camera**: Real-time facial expression and stress/fatigue analysis that triggers Ayaka's maternal care or scolding.
-   - **Back Camera**: Visual workspace and late-night meal inspection allowing Ayaka to inspect your desk or snacks and roast/advise you in character.
+## Current feature set
 
-4. **"Ayaka's Strict Study Session" (Pomodoro Timer)**
-   - Focus intervals (15, 25, 45, 60 mins) and break intervals.
-   - Lifecycle state detection: if you switch apps away while the timer is running, Ayaka immediately fires an in-character scolding when you return!
-   - Awards Bond EXP upon completion.
+| Feature | Current implementation |
+|---|---|
+| Companion avatar | Existing bundled Live2D model rendered in a WebView using Pixi/WebGL, with expressions, idle motion, gaze and touch reactions |
+| Chat | Jetpack Compose chat UI, Room-backed history, recent conversation context |
+| Cloud AI | OpenRouter OpenAI-compatible chat API, strict `openrouter/free` routing |
+| Offline chat | Local in-character response bank with explicit messaging when a request needs cloud reasoning |
+| Memory | Explicit remember/forget commands, locally stored notes, review/edit/delete/clear controls |
+| API key | User-supplied OpenRouter key encrypted at rest using AES-GCM and Android Keystore |
+| Voice | Android TextToSpeech and speech-recognition input; TTS initializes lazily |
+| Camera | CameraX preview and still-image capture; captured images can be sent for cloud vision |
+| Focus | Pomodoro sessions (15, 25, 45, 60 minutes), break, interruption reaction and bond experience |
+| Bond | Local progression and study/touch/chat experience |
+| Bedtime | User-configurable daily WorkManager reminder, defaulting to 11:00 PM |
+| Avatar direction | Renderer-neutral Ayaka animation director and Live2D adapter foundation |
 
-5. **Midnight Bedtime Lock & Notifications (WorkManager)**
-   - Background worker scheduled for midnight (12:00 AM local time).
-   - Fires a high-priority heads-up notification with Ayaka demanding you stop looking at your screen and go to bed.
-   - Includes an instant "Bedtime Alert" test button in the chat toolbar.
+## Important limitations (do not overclaim)
 
-6. **Affection & Bond System (Room Database)**
-   - Persistent progression stored locally in SQLite via Room.
-   - Tiers from *Hopeless Slacker* to *Irreplaceable Soulmate* that unlock warmer dialogues and special reactions.
+- The current avatar is **Live2D**, not a finished VRM/3D avatar. The animation director and adapter are a foundation; a final VRM model, renderer, animation assets and full model-driven motion system are not yet complete.
+- The camera feature captures still images. It does **not** provide continuous video understanding, automatic fatigue/stress diagnosis, AR world tracking, depth occlusion, or a finished photo-compositing "Together Mode".
+- Cloud vision depends on the free router having an eligible free model that accepts image input. If none is available or the provider is unavailable, the app must report that honestly and fall back without spending money.
+- WorkManager is not an exact-to-the-minute alarm service. Android battery policies and notification permission affect delivery.
+- CI builds and unit tests do not replace physical-device validation. Camera, microphone, TTS voice availability, WebGL rendering, Room upgrades, notification delivery and frame pacing must still be checked on a Galaxy A31 / Android 12.
+
+## Build
+
+The project uses Kotlin, Jetpack Compose, Android Gradle Plugin 8.9.0, Kotlin 2.1.10, Gradle 8.11.1 and JDK 21.
+
+Run the CI-equivalent tasks from the repository root:
+
+```bash
+gradle testDebugUnitTest assembleDebug
+```
+
+The debug build uses the `.test` application ID suffix so it can be installed side-by-side with the existing production package. It is a separate app with separate local data; it does not inherit the installed app's chat history or memories.
+
+- Production application ID: `com.aistudio.yoruhime.dpxmzt`
+- Debug test application ID: `com.aistudio.yoruhime.dpxmzt.test`
+- Minimum Android version: Android 8.0 (API 26)
+- Target SDK: 36
+- Java/Kotlin target: 21
+
+## Configuration
+
+1. Install the YoruHime Test debug APK.
+2. Open Settings / API setup.
+3. Add an OpenRouter API key supplied by the user.
+4. Save it. The app encrypts the key locally.
+5. Select Cloud when you want to attempt a free-router request. Offline mode remains available.
+
+Creating or storing an API key does not require buying credits. Do not enable paid model fallbacks or automatic top-ups.
+
+## Development status
+
+The active integration work is tracked in [PR #11](https://github.com/towerking2010-hue/Yoruhime-/pull/11) on the `yoruhime/finish-integration` branch. Keep this PR in draft until the current CI run passes and the documented device checklist has been completed.
+
+- [Device test checklist](docs/DEVICE_TEST_CHECKLIST.md)
+- [Ayaka expressive avatar architecture](docs/AYAKA_EXPRESSIVE_AVATAR.md)
+- [Pull requests](https://github.com/towerking2010-hue/Yoruhime-/pulls)
+- [GitHub Actions](https://github.com/towerking2010-hue/Yoruhime-/actions)
+
+**A successful CI build is not a release certification.** Do not describe any feature as device-verified unless it has actually been tested on hardware.
