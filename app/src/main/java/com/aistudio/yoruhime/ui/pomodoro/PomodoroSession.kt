@@ -73,6 +73,7 @@ fun PomodoroSession(
     onSessionCompleted: (Int) -> Unit,
     onAppSwitchedAway: () -> Unit,
     onClose: () -> Unit = {},
+    isVisible: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     var selectedMinutes by remember { mutableIntStateOf(25) }
@@ -182,9 +183,9 @@ fun PomodoroSession(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium
                     )
-                    IconButton(onClick = onClose) {
-                        Icon(Icons.Default.Close, contentDescription = "Close focus session", tint = TextMuted)
-                    }
+                }
+                IconButton(onClick = onClose) {
+                    Icon(Icons.Default.Close, contentDescription = "Close focus session", tint = TextMuted)
                 }
             }
 
@@ -218,16 +219,20 @@ fun PomodoroSession(
 
             // Timer Display Circle with Animated Focus Glow
             val isFocusing = state == PomodoroState.FOCUSING
-            val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "pulse_glow")
-            val pulseScale by infiniteTransition.animateFloat(
-                initialValue = 0.96f,
-                targetValue = 1.06f,
-                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                    animation = androidx.compose.animation.core.tween(1400, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-                ),
-                label = "pulse_scale"
-            )
+            val pulseScale = if (isVisible && isFocusing) {
+                val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "pulse_glow")
+                infiniteTransition.animateFloat(
+                    initialValue = 0.96f,
+                    targetValue = 1.06f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(1400, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                    ),
+                    label = "pulse_scale"
+                ).value
+            } else {
+                1f
+            }
             val pulseAlpha by infiniteTransition.animateFloat(
                 initialValue = 0.2f,
                 targetValue = 0.55f,
