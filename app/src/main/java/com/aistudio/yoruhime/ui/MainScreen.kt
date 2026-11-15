@@ -789,8 +789,6 @@ fun MainScreen(
                         onTestBedtime = { viewModel.triggerTestMidnightAlert(context) },
                         currentEmotion = currentEmotion,
                         onSetEmotion = { viewModel.setEmotion(it) },
-                        onStudyCompleted = { viewModel.onStudyCompleted(it) },
-                        onStudyInterrupted = { viewModel.onAppSwitchedAwayDuringStudy() },
                         modifier = Modifier.statusBarsPadding().padding(bottom = 12.dp)
                     )
                 }
