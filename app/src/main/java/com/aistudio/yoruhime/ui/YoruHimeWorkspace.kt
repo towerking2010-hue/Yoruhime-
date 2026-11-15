@@ -34,27 +34,41 @@ enum class WorkspaceDestination(val label: String) {
 
 @Composable
 fun YoruHimeBottomBar(selected: WorkspaceDestination, onSelect: (WorkspaceDestination) -> Unit) {
-    NavigationBar(containerColor = MidnightNavy, tonalElevation = 0.dp) {
-        val destinations = listOf(
-            WorkspaceDestination.COMPANION to Icons.Default.Home,
-            WorkspaceDestination.MEMORIES to Icons.AutoMirrored.Filled.MenuBook,
-            WorkspaceDestination.CARE to Icons.Default.Favorite,
-            WorkspaceDestination.SETTINGS to Icons.Default.Settings
-        )
-        destinations.forEach { (destination, icon) ->
-            NavigationBarItem(
-                selected = selected == destination,
-                onClick = { onSelect(destination) },
-                icon = { Icon(icon, contentDescription = destination.label) },
-                label = { Text(destination.label, fontSize = 10.sp) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = TextWhite,
-                    selectedTextColor = LavenderPrimary,
-                    indicatorColor = VioletAccent.copy(alpha = 0.32f),
-                    unselectedIconColor = TextMuted,
-                    unselectedTextColor = TextMuted
-                )
-            )
+    val destinations = listOf(
+        Triple(WorkspaceDestination.COMPANION, Icons.Default.Home, "Home"),
+        Triple(WorkspaceDestination.MEMORIES, Icons.AutoMirrored.Filled.MenuBook, "Memories"),
+        Triple(WorkspaceDestination.CARE, Icons.Default.Favorite, "Care"),
+        Triple(WorkspaceDestination.SETTINGS, Icons.Default.Settings, "Settings")
+    )
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 7.dp),
+        shape = RoundedCornerShape(24.dp),
+        color = GlassDark.copy(alpha = 0.96f),
+        border = BorderStroke(1.dp, GlassBorder),
+        shadowElevation = 12.dp
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            destinations.forEach { (destination, icon, label) ->
+                val active = selected == destination
+                Surface(
+                    modifier = Modifier.weight(1f).clickable { onSelect(destination) },
+                    shape = RoundedCornerShape(17.dp),
+                    color = if (active) VioletAccent.copy(alpha = 0.34f) else Color.Transparent
+                ) {
+                    Column(
+                        modifier = Modifier.padding(vertical = 7.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Icon(icon, contentDescription = label, tint = if (active) TextWhite else TextMuted, modifier = Modifier.size(19.dp))
+                        Text(label, color = if (active) LavenderPrimary else TextMuted, fontSize = 9.sp, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal)
+                    }
+                }
+            }
         }
     }
 }
