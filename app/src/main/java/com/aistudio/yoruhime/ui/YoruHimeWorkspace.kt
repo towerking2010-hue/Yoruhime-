@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aistudio.yoruhime.data.local.MemoryNoteEntity
 import com.aistudio.yoruhime.data.local.UserBondEntity
-import com.aistudio.yoruhime.ui.pomodoro.PomodoroSession
 import com.aistudio.yoruhime.ui.theme.*
 
 enum class WorkspaceDestination(val label: String) {
@@ -151,10 +150,17 @@ fun YoruHimeWorkspacePage(
                         Spacer(Modifier.width(8.dp))
                         Text("Focus session", color = TextWhite, fontWeight = FontWeight.SemiBold)
                     }
-                    Text("Work in a focused block, then take a real break.", color = TextMuted, fontSize = 12.sp)
+                    Text(
+                        if (isPomodoroVisible) "Your focus timer is active. It stays running when you visit another tab."
+                        else "Work in a focused block, then take a real break.",
+                        color = TextMuted,
+                        fontSize = 12.sp
+                    )
                     Spacer(Modifier.height(8.dp))
-                    if (isPomodoroVisible) PomodoroSession(onSessionCompleted = onStudyCompleted, onAppSwitchedAway = onStudyInterrupted)
-                    else AccentAction("Start a focus session", onTogglePomodoro)
+                    AccentAction(
+                        if (isPomodoroVisible) "Return to active focus session" else "Start a focus session",
+                        onTogglePomodoro
+                    )
                 }
                 Spacer(Modifier.height(12.dp))
                 WorkspaceCard {
