@@ -1,65 +1,61 @@
 # Ayaka Expressive Avatar
 
-## Goal
+## Current implementation
 
-Make expressive behaviour part of Ayaka's identity. The AI chooses *what she
-wants to express*; a deterministic animation director turns that intent into
-bounded animation-layer commands; the renderer performs the commands.
+YoruHime currently renders the bundled Tsubaki Live2D model through a Pixi/WebGL page inside Android WebView. The semantic animation director is now connected to that renderer; it is no longer only an isolated contract.
 
-This is inspired by the public architectural ideas in Project Riko, but does
-not copy its paid/private implementation or depend on its code.
+### Conversation-to-avatar pipeline
 
-## Current baseline
+1. `AyakaConversationCueClassifier` classifies the latest user message into a bounded cue: greeting, question, compliment, achievement, distress, playful challenge, or none.
+2. Distress has priority over playful cues. Compliments and playful challenges briefly select the Riko-inspired tsundere persona; Ayaka's core caring identity remains the default.
+3. `AyakaAnimationDirector` creates deterministic renderer-neutral commands for face, gaze, head, body, and gesture layers.
+4. `AyakaLive2DPerformanceAdapter` maps supported semantic commands to actual Tsubaki model controls.
+5. `Live2DController` queues performance and speech commands until the WebView reports that the model is ready.
 
-The current YoruHime character stage is a Pixi/Live2D WebView. It already has
-procedural breathing, blinking, gaze movement, tap reactions, named expressions
-and a single named-motion call. It does not yet provide a general layered
-animation system or autonomous AI-directed performances.
+### What the current Live2D rig actually supports
+
+- Six registered expressions: normal, smile, blush, happy, sad, angry.
+- Existing idle motion clip.
+- Procedural breathing, blinking, gentle organic sway, pointer gaze, and touch bounce.
+- Semantic expression mapping (e.g. embarrassed blush, warm smile, concern, pride).
+- Semantic gaze targets and smoothly blended head/body offsets.
+- A subtle mouth-open animation driven by Android TTS start/end state. This is utterance-level movement, not phoneme-accurate lip-sync.
+- One restrained idle gaze/head adjustment after 45 seconds of quiet on the Companion tab.
+- WebView animation pauses when the Companion tab is hidden or the app loses foreground focus, then resumes when visible.
+
+### Deliberate limitations
+
+The current Tsubaki model only ships with an `Idle` motion. The director can produce semantic cues such as `small_wave`, `gentle_celebration`, and `playful_point`, but the current Live2D adapter does not pretend those arm/hand gestures exist. There is no real wave, walk, sit, or full-body gesture animation in this model.
+
+The director's `AyakaSpeechDelivery` output is not yet connected to the TTS pitch/rate system; TTS currently uses the response emotion tag. The current performance mapping is intentionally small and deterministic. It does not yet implement a full priority/cooldown/interruption governor.
 
 ## Architecture
 
-1. **Conversation understanding** produces structured cues and emotion.
-2. **Persona state** supplies Ayaka's current delivery mode:
-   - Mommy-Tsundere (default)
-   - Riko-style Tsundere (playful)
-   - Caring / serious
-   - Quiet companion
-3. **AyakaAnimationDirector** produces renderer-neutral commands for:
-   - base idle
-   - face
-   - gaze
-   - head
-   - upper body
-   - gesture
-4. **Renderer adapter** maps semantic clip keys to actual model expressions,
-   bones, morph targets and animation clips.
-5. **Performance governor** (next stage) arbitrates priorities, cooldowns,
-   interruption, lifecycle pause/resume and device frame budget.
+- `AvatarPerformance.kt`: renderer-neutral enums, context, layer commands, and performance contract.
+- `AyakaAnimationDirector.kt`: deterministic decision engine for face/gaze/head/body/gesture intent.
+- `AyakaConversationCueClassifier.kt`: conservative message-to-cue classification and persona selection.
+- `AyakaLive2DPerformanceAdapter.kt`: supported semantic cues to concrete Tsubaki controls.
+- `Live2DStage.kt`: WebView bridge, command queuing, lifecycle pause/resume, and speech state.
+- `app/src/main/assets/live2d/index.html`: Pixi/Live2D procedural movement, gaze/head/body targets, TTS mouth movement, and low-cost rendering loop.
+- Unit tests cover director decisions, cue priority/persona selection, and Live2D mapping.
 
-## Rules
+## VRM direction
 
-- Emotional safety and conversational context outrank playful teasing.
-- Only one command per animation layer may be active at once.
-- A gesture must not cancel breathing, blinking, gaze or facial expression.
-- Long idle behaviour is subtle and sparse; avoid constant movement.
-- Renderer commands are allow-listed semantic keys, never arbitrary code.
-- The director is deterministic and unit-testable.
-- The existing Live2D model remains the fallback until a replacement model and
-  renderer pass APK and Galaxy A31 device testing.
+A future VRM renderer may provide richer humanoid gestures and animation clips:
 
-## Staged implementation
+- VRM 1.0 model loading with Three.js and `@pixiv/three-vrm`.
+- VRMA animation support where model and clip compatibility is verified.
+- Model-specific expression/blendshape and humanoid-bone mapping.
+- A renderer adapter that preserves the same `AvatarPerformance` contract.
+- Performance governor for layer priority, interruption, cooldown, lifecycle, and frame budget.
 
-1. Add the renderer-neutral performance contract and deterministic director.
-2. Build and test a VRM renderer prototype in an isolated feature path.
-3. Inspect candidate models for facial expressions, humanoid rig, spring bones,
-   animation compatibility and redistribution rights.
-4. Add a renderer adapter and animation blending / interruption manager.
-5. Connect conversation cues, voice timing and autonomous idle scheduling.
-6. Benchmark thermal load, memory and frame pacing on the Galaxy A31.
-7. Only then make VRM the default; preserve Live2D fallback.
+No final Ayaka VRM model has been selected or bundled. The target is a mature, elegant, anime-styled woman with silver hair, violet eyes, natural proportions, and a dark purple/black/silver outfit. A model must be free to download **and** legally redistributable inside the APK, with modification and attribution conditions understood. Free personal-use permission is not enough.
 
-## VRM interoperability
+## Next work
 
-Prefer standard VRM expression and humanoid animation interfaces. VRM Animation
-(VRMA) supports portable humanoid motion, expression animation and gaze data.
-The renderer adapter should use those standards where supported.
+1. Find or create a model whose visual style fits Ayaka and whose VRM license explicitly permits the intended redistribution.
+2. Inspect facial expressions, blink/lip-sync morphs, humanoid rig, spring bones, triangle count, texture sizes, and VRM/VRMA version.
+3. Prototype the VRM renderer on a separate branch while keeping Live2D as fallback.
+4. Test loading, idle, expression blending, speech mouth movement, gaze, and several real clips on the Galaxy A31.
+5. Only promote VRM to default after APK, lifecycle, thermal, memory, and visual tests pass.
+6. Implement Together Mode only after the renderer is stable: camera preview, draggable/resizable transparent avatar, and a real composite photo export. The existing camera background is not spatial AR.
