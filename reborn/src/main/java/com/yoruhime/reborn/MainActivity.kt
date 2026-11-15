@@ -124,8 +124,24 @@ private fun YoruHimeApp() {
                             bitmap = photo!!.asImageBitmap(), contentDescription = "Camera capture",
                             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
                         )
-                        Text("Photo preview is local. Cloud vision will be added with explicit opt-in.", color = Muted, fontSize = 12.sp)
-                        Button(onClick = { showPhoto = false }, modifier = Modifier.fillMaxWidth()) { Text("Close") }
+                        Text("Nothing is uploaded unless you tap Ask Ayaka. The image is resized before sending.", color = Muted, fontSize = 12.sp)
+                        Button(onClick = {
+                            val image = photo
+                            if (image != null && !sending) {
+                                val question = "Please describe what you notice in this photo."
+                                messages = messages + question
+                                store.addMessage("user", question)
+                                showPhoto = false
+                                sending = true
+                                scope.launch {
+                                    val answer = engine.replyAboutImage(question, image)
+                                    store.addMessage("assistant", answer)
+                                    messages = messages + answer
+                                    sending = false
+                                }
+                            }
+                        }, modifier = Modifier.fillMaxWidth(), enabled = !sending) { Text("Ask Ayaka about this photo") }
+                        OutlinedButton(onClick = { showPhoto = false }, modifier = Modifier.fillMaxWidth()) { Text("Close") }
                     }
                 }
             }
