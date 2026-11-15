@@ -292,16 +292,16 @@
       const h = window.innerHeight;
       app.renderer.resize(w, h);
 
-      // Fit the full model inside the actual Compose stage; the old 1.38
-      // multiplier enlarged it beyond the viewport and clipped the head/legs.
-      const scaleX = (w * 0.94) / Math.max(modelBaseWidth, 1);
-      const scaleY = (h * 0.94) / Math.max(modelBaseHeight, 1);
-      const fitScale = Math.min(scaleX, scaleY);
+      // Portrait-first framing: use most of the stage width and let the lower body
+      // fall behind the chat sheet, matching the companion-first design.
+      const scaleX = (w * 0.90) / Math.max(modelBaseWidth, 1);
+      const scaleY = (h * 1.24) / Math.max(modelBaseHeight, 1);
+      const displayScale = Math.min(scaleX, scaleY);
 
-      currentModel.scale.set(fitScale);
+      currentModel.scale.set(displayScale);
       currentModel.anchor.set(0.5, 0.5);
       currentModel.x = w * 0.5;
-      currentModel.y = h * 0.5;
+      currentModel.y = h * 0.62;
     }
 
     function updateProceduralAnimations(timestamp, elapsed) {
