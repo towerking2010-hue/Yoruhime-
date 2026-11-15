@@ -1,49 +1,60 @@
 # YoruHime Reborn
 
-**A clean-room rebuild of YoruHime.**
+A clean-room Android rebuild of YoruHime, centered on Ayaka Tōjō (東条 絢香). The previous application module is excluded from the new Gradle build; this branch uses a new Compose UI and a separate application ID.
 
-This branch is a new Android application module named `:reborn`. The previous `:app` implementation is not included in the build and is not reused by the new experience. Existing repository history is retained only as a safety reference.
+## Product vision
 
-## Product direction
+Ayaka is mature, elegant, caring, protective, emotionally intelligent, and warmly affectionate. Her default voice is composed, with occasional playful tsundere teasing. When the user is distressed, empathy takes priority over teasing.
 
-YoruHime is an intimate, polished Android companion centered on Ayaka Tōjou: mature, elegant, protective, warm, emotionally intelligent, and playfully tsundere when the moment is right. The app is designed for Android 12+ and tuned for a Samsung Galaxy A31-class device.
+Target device: Samsung Galaxy A31 / Android 12. The app must avoid continuous heavy rendering, background camera use, and unnecessary battery or memory consumption.
 
-## Clean architecture boundary
+## Current clean architecture
 
-- New Gradle application module: `:reborn`
-- New package: `com.yoruhime.reborn`
-- New application ID: `com.yoruhime.reborn`
-- New Compose UI; no legacy screen composables or legacy Live2D WebView are used.
-- The old `:app` module is excluded from `settings.gradle.kts`.
+- New Android module: `:reborn`
+- Package: `com.yoruhime.reborn`
+- Application ID: `com.yoruhime.reborn`
+- Kotlin + Jetpack Compose + Material 3
+- Local SQLite store for chat history and explicitly saved memories
+- Android Keystore AES-GCM encryption for the OpenRouter API key
+- Coroutine-based network requests on IO
+- Dedicated build workflow: `.github/workflows/reborn-build.yml`
 
-## First foundation milestone
+## Implemented in this branch
 
-- New portrait-first Companion screen and distinct navigation destinations.
-- Dedicated Memories, Care, and Settings screens with visible content.
-- Camera action launches Android's camera capture flow only after the user taps it.
-- Layout uses system-safe drawing insets and a single app navigation scaffold.
-- No cloud endpoint is called and no paid service is configured in this foundation milestone.
+- New visual system, launcher icon, four separate destinations: Home, Memories, Care, Settings.
+- Chat UI with separate user/assistant bubbles, history persistence, clear-chat action, and scroll-to-latest.
+- Ayaka chat through the OpenRouter `openrouter/free` route when the user supplies a key.
+- Offline conversational fallback when no key is configured or the network request fails.
+- User-entered OpenRouter key encrypted with Android Keystore; remove-key control.
+- Explicit user-created memories stored locally, editable by deletion, and supplied to AI context only as user-approved notes.
+- Camera capture through Android's camera intent, local preview, and a separate user-confirmed action to send a resized photo to the free vision route.
+- Speech recognition with runtime microphone permission.
+- Android text-to-speech for reading the latest Ayaka reply.
+- Focus timer with 15, 25, 45, and 60-minute presets.
+- Daily mood check-in.
+- Conversation-based bond level indicator.
 
-## Planned engineering sequence
+## Not yet complete / must not be represented as complete
 
-1. Stabilize the clean application shell and verify it on CI.
-2. Add secure free-only OpenRouter connectivity and a useful offline conversation engine.
-3. Add opt-in local memory persistence with explicit remember/forget controls.
-4. Add camera capture, image review, and optional free-route vision.
-5. Add voice input/output with correct lifecycle ownership.
-6. Add a proper expressive full-height Ayaka avatar, sourced or authored with clear redistribution rights.
-7. Add focus, care routines, bond progression, and Together Mode after core reliability.
+- A final full-height expressive Ayaka Live2D or VRM avatar with verified redistribution rights, facial expressions, idle motions, and touch reactions.
+- Reliable device-tested image vision across free models (free model capabilities can vary).
+- Bedtime notification scheduling and notification-permission flow.
+- Persistent mood history and richer bond progression/rewards.
+- Automated unit and UI tests for core flows.
+- Physical-device QA on the Galaxy A31, including rotation, keyboard, permission denial, network failure, low-memory behavior, and background/foreground transitions.
 
 ## Non-negotiable constraints
 
 - No paid AI fallback, subscriptions, credits, hidden charges, or automatic top-ups.
-- API credentials must be encrypted and never committed to Git.
-- Camera must never run in the background.
-- Memory must be transparent, local-first, and user-controlled.
-- Avoid always-on heavy rendering; respect Galaxy A31 thermal, RAM, and battery limits.
-- Never describe a feature as complete until it is implemented and tested.
+- Never commit API credentials.
+- Camera only starts after an explicit user action; no background camera operation.
+- Images are not sent until the user explicitly taps the photo-send action.
+- Memory is user-controlled; never silently save personal details.
+- Keep AI/network work off the main thread.
+- No destructive migration or removal of the legacy project history.
+- A green CI build is not proof of physical-device reliability.
 
-## Build
+## Build and artifact
 
 The dedicated workflow runs:
 
@@ -51,4 +62,4 @@ The dedicated workflow runs:
 gradle :reborn:testDebugUnitTest :reborn:assembleDebug
 ```
 
-The generated debug APK is uploaded as the `yoruhime-reborn-debug-apk` workflow artifact. CI success is not a substitute for testing on a physical Android 12 device.
+On success, it uploads `yoruhime-reborn-debug-apk`. The new application ID means it installs separately from the legacy app. Test on Android 12 before treating it as a release candidate.
