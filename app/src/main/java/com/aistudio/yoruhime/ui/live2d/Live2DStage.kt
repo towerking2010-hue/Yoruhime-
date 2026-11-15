@@ -91,7 +91,7 @@ class Live2DController {
     }
 
     fun applyPerformance(performance: AvatarPerformance) {
-        if (webView == null) {
+        if (webView == null || !isReady) {
             pendingPerformance = performance
             return
         }
