@@ -295,13 +295,13 @@
       // Portrait-first framing: use most of the stage width and let the lower body
       // fall behind the chat sheet, matching the companion-first design.
       const scaleX = (w * 0.90) / Math.max(modelBaseWidth, 1);
-      const scaleY = (h * 1.24) / Math.max(modelBaseHeight, 1);
+      const scaleY = (h * 1.20) / Math.max(modelBaseHeight, 1);
       const displayScale = Math.min(scaleX, scaleY);
 
       currentModel.scale.set(displayScale);
       currentModel.anchor.set(0.5, 0.5);
       currentModel.x = w * 0.5;
-      currentModel.y = h * 0.62;
+      currentModel.y = h * 0.66;
     }
 
     function updateProceduralAnimations(timestamp, elapsed) {
