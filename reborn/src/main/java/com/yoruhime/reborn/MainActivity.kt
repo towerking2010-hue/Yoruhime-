@@ -98,6 +98,7 @@ private fun YoruHimeApp() {
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
     var messages by remember { mutableStateOf(store.messages().ifEmpty { listOf(ChatLine("assistant", "Good evening. You finally came back. Have you eaten yet?")) }) }
     var sending by remember { mutableStateOf(false) }
+    var bondCount by remember { mutableIntStateOf(store.userMessageCount()) }
     var photo by remember { mutableStateOf<Bitmap?>(null) }
     var showPhoto by remember { mutableStateOf(false) }
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { photo = it; showPhoto = it != null }
@@ -116,6 +117,7 @@ private fun YoruHimeApp() {
                 when (destination) {
                     Destination.HOME -> HomeScreen(
                         messages = messages,
+                        bondCount = bondCount,
                         draft = draft,
                         onDraft = { draft = it },
                         sending = sending,
@@ -128,6 +130,7 @@ private fun YoruHimeApp() {
                                 draft = ""
                                 messages = messages + ChatLine("user", value)
                                 store.addMessage("user", value)
+                                bondCount = store.userMessageCount()
                                 sending = true
                                 scope.launch {
                                     val answer = engine.reply(value)
@@ -161,6 +164,7 @@ private fun YoruHimeApp() {
                                 val question = "Please describe what you notice in this photo."
                                 messages = messages + ChatLine("user", question)
                                 store.addMessage("user", question)
+                                bondCount = store.userMessageCount()
                                 showPhoto = false
                                 sending = true
                                 scope.launch {
@@ -205,7 +209,7 @@ private fun TopBar(destination: Destination) {
 
 @Composable
 private fun HomeScreen(
-    messages: List<ChatLine>, draft: String, onDraft: (String) -> Unit,
+    messages: List<ChatLine>, bondCount: Int, draft: String, onDraft: (String) -> Unit,
     sending: Boolean, onSpeak: (String) -> Unit, onVoiceInput: () -> Unit, onClear: () -> Unit, onSend: () -> Unit, onCamera: () -> Unit
 ) {
     val listState = rememberLazyListState()
@@ -229,6 +233,8 @@ private fun HomeScreen(
                 }
                 Text("AYAKA TŌJŌ", color = White, fontSize = 17.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                 Text("I'm right here.", color = Lilac, fontSize = 13.sp)
+                Text("BOND LEVEL ${1 + bondCount / 20}  ·  ${bondCount % 20}/20", color = Lilac, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                LinearProgressIndicator(progress = { (bondCount % 20) / 20f }, modifier = Modifier.width(132.dp).height(4.dp).clip(CircleShape), color = Violet, trackColor = Panel2)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF80D9B2)))
                     Text("Ready to talk", color = Muted, fontSize = 11.sp)
