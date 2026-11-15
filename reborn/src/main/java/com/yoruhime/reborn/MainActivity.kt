@@ -245,7 +245,7 @@ private fun HomeScreen(
             }
             Row(Modifier.align(Alignment.TopEnd).padding(14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MiniAction(Icons.Rounded.CameraAlt, "Camera", onCamera)
-                MiniAction(Icons.Rounded.HeartPulse, "Care", onCare)
+                MiniAction(Icons.Rounded.FavoriteBorder, "Care", onCare)
             }
             Text("CHARACTER STAGE", Modifier.align(Alignment.BottomStart).padding(16.dp), color = Muted, fontSize = 9.sp, letterSpacing = 1.6.sp)
         }
