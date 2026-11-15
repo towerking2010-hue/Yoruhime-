@@ -40,9 +40,10 @@ loader.register(parser => new VRMLoaderPlugin(parser));
 loader.load('./ayaka.vrm', gltf => {
   vrm = gltf.userData.vrm;
   VRMUtils.removeUnnecessaryVertices(gltf.scene);
-  VRMUtils.removeUnnecessaryJoints(gltf.scene);
+  VRMUtils.combineSkeletons(gltf.scene);
+  VRMUtils.combineMorphs(vrm);
   scene.add(vrm.scene);
-  vrm.scene.rotation.y = Math.PI;
+  vrm.scene.traverse(object => { object.frustumCulled = false; });
   const bounds = new THREE.Box3().setFromObject(vrm.scene);
   const height = Math.max(1, bounds.max.y - bounds.min.y);
   const center = bounds.getCenter(new THREE.Vector3());
