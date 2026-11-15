@@ -262,6 +262,10 @@ fun Live2DStage(
             },
             update = { wv ->
                 controller.webView = wv
+                // Android WebView can outlive its Compose parent's alpha layer on some
+                // GPU/OS combinations. Make it truly non-drawing on secondary tabs so
+                // it cannot cover Memories, Care, or Settings.
+                wv.visibility = if (isVisible) android.view.View.VISIBLE else android.view.View.INVISIBLE
             }
         )
     }

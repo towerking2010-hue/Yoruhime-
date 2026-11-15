@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.delay
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MainViewModel(
     context: Context,
@@ -108,6 +109,7 @@ class MainViewModel(
     private val _sendError = MutableStateFlow<String?>(null)
     val sendError: StateFlow<String?> = _sendError.asStateFlow()
     private val sendMutex = Mutex()
+    private val sendInFlight = AtomicBoolean(false)
 
     init {
         // Initial in-character check
@@ -184,9 +186,13 @@ class MainViewModel(
         isFrontCamera: Boolean? = null
     ) {
         if (userText.isBlank() && imageBitmap == null) return
+        // Ignore duplicate taps while a reply is already being generated. Without
+        // this guard, the mutex queues a second identical user/assistant exchange.
+        if (!sendInFlight.compareAndSet(false, true)) {
+            imageBitmap?.let { bitmap -> if (!bitmap.isRecycled) bitmap.recycle() }
+            return
+        }
 
-        // Serialize sends so rapid taps cannot race Room writes, reorder history,
-        // or let an earlier request hide the loading state of a later one.
         viewModelScope.launch {
             try {
                 sendMutex.withLock {
@@ -220,6 +226,7 @@ class MainViewModel(
                     }
                 }
             } finally {
+                sendInFlight.set(false)
                 // Release one-shot attachments even if this coroutine is cancelled while
                 // waiting for the send mutex and never enters the repository.
                 imageBitmap?.let { bitmap ->

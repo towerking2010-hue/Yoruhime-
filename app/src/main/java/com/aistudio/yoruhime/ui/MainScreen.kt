@@ -65,6 +65,7 @@ import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -341,22 +342,19 @@ fun MainScreen(
         // Main workspace: keep the companion view focused and move secondary tools into dedicated destinations.
         // Reserve the system navigation-bar inset for the entire workspace so the bottom
         // navigation never sits underneath Android's gesture/three-button navigation area.
-        Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            alpha = if (selectedDestination == WorkspaceDestination.COMPANION) 1f else 0f
-                        }
-                        .statusBarsPadding()
-                        .imePadding()
-                ) {
+                if (selectedDestination == WorkspaceDestination.COMPANION) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .imePadding()
+                    ) {
             // TOP 60%: Live2D Transparent AR Stage
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.56f)
+                    .weight(0.62f)
                     .testTag("live2d_stage_section")
             ) {
                 // Live2D WebView Canvas directly floating over camera feed
@@ -393,56 +391,65 @@ fun MainScreen(
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
 
-                // Top Header Overlay: Bond Status & Mode Switcher
+                // Companion command rail: keep the most-used tools visible instead of hiding them in Settings.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
                         .padding(horizontal = 14.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Bond Level Badge
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = GlassDark.copy(alpha = 0.75f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, auraColor)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Favorite,
-                                contentDescription = null,
-                                tint = BlushPink,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Text(
-                                text = "Lv.${userBond?.bondLevel ?: 1} • ${userBond?.getTierTitle() ?: "Slacker"}",
-                                color = TextWhite,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                    Surface(shape = RoundedCornerShape(20.dp), color = GlassDark.copy(alpha = 0.82f), border = androidx.compose.foundation.BorderStroke(1.dp, auraColor)) {
+                        Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Favorite, contentDescription = null, tint = BlushPink, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Lv.${userBond?.bondLevel ?: 1} · ${userBond?.getTierTitle() ?: "New Bond"}", color = TextWhite, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
-
-                    // The companion view keeps only its contextual camera control.
-                    IconButton(
-                        onClick = { viewModel.toggleArCamera() },
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(if (isArCameraActive) VioletAccent else GlassDark.copy(alpha = 0.78f))
-                            .border(1.dp, if (isArCameraActive) LavenderPrimary else GlassBorder, CircleShape)
-                            .testTag("toggle_ar_camera_feed_button")
+                    Surface(
+                        modifier = Modifier.clickable { viewModel.togglePomodoro(true) },
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isPomodoroVisible) VioletAccent.copy(alpha = 0.34f) else GlassDark.copy(alpha = 0.82f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isPomodoroVisible) LavenderPrimary else GlassBorder)
                     ) {
-                        Icon(
-                            imageVector = if (isArCameraActive) Icons.Default.Videocam else Icons.Default.VideocamOff,
-                            contentDescription = "Toggle live camera background",
-                            tint = TextWhite,
-                            modifier = Modifier.size(17.dp)
-                        )
+                        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.MenuBook, contentDescription = null, tint = LavenderPrimary, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (isPomodoroVisible) "Study · Active" else "Study", color = TextWhite, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                    Surface(modifier = Modifier.clickable { viewModel.toggleCameraDock(true) }, shape = RoundedCornerShape(20.dp), color = GlassDark.copy(alpha = 0.82f), border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder)) {
+                        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.PhotoCamera, contentDescription = null, tint = LavenderPrimary, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Camera", color = TextWhite, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                    Surface(
+                        modifier = Modifier.clickable {
+                            if (isOnlineMode) viewModel.toggleOnlineMode(false)
+                            else if (apiKey.isBlank()) { tempApiKey = apiKey; connectAfterApiKeySave = true; showApiKeyDialog = true }
+                            else viewModel.toggleOnlineMode(true)
+                        },
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isOnlineMode) VioletAccent.copy(alpha = 0.34f) else GlassDark.copy(alpha = 0.82f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isOnlineMode) LavenderPrimary else GlassBorder)
+                    ) {
+                        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(if (isOnlineMode) Icons.Default.Cloud else Icons.Default.CloudOff, contentDescription = null, tint = LavenderPrimary, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (isOnlineMode) "Free AI · On" else "Free AI · Off", color = TextWhite, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                    IconButton(onClick = { tempApiKey = apiKey; connectAfterApiKeySave = false; showApiKeyDialog = true }, modifier = Modifier.size(36.dp).clip(CircleShape).background(GlassDark.copy(alpha = 0.82f)).border(1.dp, GlassBorder, CircleShape)) {
+                        Icon(Icons.Default.Key, contentDescription = "Configure cloud API key", tint = LavenderPrimary, modifier = Modifier.size(16.dp))
+                    }
+                    IconButton(onClick = { viewModel.toggleAudioMute() }, modifier = Modifier.size(36.dp).clip(CircleShape).background(GlassDark.copy(alpha = 0.82f)).border(1.dp, GlassBorder, CircleShape)) {
+                        Icon(if (isAudioMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp, contentDescription = if (isAudioMuted) "Unmute Ayaka" else "Mute Ayaka", tint = LavenderPrimary, modifier = Modifier.size(16.dp))
+                    }
+                    IconButton(onClick = { viewModel.toggleArCamera() }, modifier = Modifier.size(36.dp).clip(CircleShape).background(if (isArCameraActive) VioletAccent else GlassDark.copy(alpha = 0.82f)).border(1.dp, if (isArCameraActive) LavenderPrimary else GlassBorder, CircleShape)) {
+                        Icon(if (isArCameraActive) Icons.Default.Videocam else Icons.Default.VideocamOff, contentDescription = "Toggle AR camera background", tint = TextWhite, modifier = Modifier.size(16.dp))
                     }
                 }
 
@@ -468,7 +475,7 @@ fun MainScreen(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.44f)
+                    .weight(0.38f)
                     .testTag("chat_section_surface"),
                 shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
                 color = GlassDark.copy(alpha = 0.60f), // Frosted semi-transparent overlay
@@ -803,8 +810,7 @@ fun MainScreen(
                         }
                     }
                 }
-                }
-                if (selectedDestination != WorkspaceDestination.COMPANION) {
+                } else {
                     YoruHimeWorkspacePage(
                         destination = selectedDestination,
                         memories = memories,
@@ -844,7 +850,7 @@ fun MainScreen(
                         onTestBedtime = { viewModel.triggerTestMidnightAlert(context) },
                         currentEmotion = currentEmotion,
                         onSetEmotion = { viewModel.setEmotion(it); avatarPerformance = null },
-                        modifier = Modifier.statusBarsPadding().padding(bottom = 12.dp)
+                        modifier = Modifier.padding(bottom = 12.dp)
                     )
                 }
             }
