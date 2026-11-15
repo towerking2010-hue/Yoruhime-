@@ -340,6 +340,7 @@ fun MainScreen(
                 Live2DStage(
                     currentEmotion = currentEmotion,
                     performance = avatarPerformance,
+                    isSpeaking = isSpeaking,
                     isVisible = selectedDestination == WorkspaceDestination.COMPANION,
                     controller = live2DController,
                     onModelTapped = { zone ->
