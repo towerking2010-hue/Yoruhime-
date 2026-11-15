@@ -3,11 +3,16 @@ package com.yoruhime.reborn
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
+import android.speech.SpeechRecognizer
+import android.speech.RecognizerIntent
+import android.speech.RecognitionListener
+import android.content.Intent
 import java.util.Locale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -65,6 +70,27 @@ private fun YoruHimeApp() {
     val scope = rememberCoroutineScope()
     var voiceEnabled by rememberSaveable { mutableStateOf(true) }
     val tts = remember { TextToSpeech(context) { } }
+    val recognizer = remember { if (SpeechRecognizer.isRecognitionAvailable(context)) SpeechRecognizer.createSpeechRecognizer(context) else null }
+    val micPermission = rememberLauncherForActivityResult(RequestPermission()) { granted ->
+        if (granted) recognizer?.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+        })
+    }
+    DisposableEffect(recognizer) {
+        recognizer?.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) = Unit
+            override fun onBeginningOfSpeech() = Unit
+            override fun onRmsChanged(rmsdB: Float) = Unit
+            override fun onBufferReceived(buffer: ByteArray?) = Unit
+            override fun onEndOfSpeech() = Unit
+            override fun onError(error: Int) = Unit
+            override fun onResults(results: Bundle?) { draft = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty() }
+            override fun onPartialResults(partialResults: Bundle?) = Unit
+            override fun onEvent(eventType: Int, params: Bundle?) = Unit
+        })
+        onDispose { recognizer?.destroy() }
+    }
     DisposableEffect(tts) { onDispose { tts.stop(); tts.shutdown() } }
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
     var draft by rememberSaveable { mutableStateOf("") }
@@ -92,6 +118,7 @@ private fun YoruHimeApp() {
                         onDraft = { draft = it },
                         sending = sending,
                         onSpeak = { text -> if (voiceEnabled) { tts.language = Locale.US; tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ayaka-reply") } },
+                        onVoiceInput = { micPermission.launch(android.Manifest.permission.RECORD_AUDIO) },
                         onSend = {
                             val value = draft.trim()
                             if (value.isNotEmpty() && !sending) {
@@ -176,7 +203,7 @@ private fun TopBar(destination: Destination) {
 @Composable
 private fun HomeScreen(
     messages: List<String>, draft: String, onDraft: (String) -> Unit,
-    sending: Boolean, onSpeak: (String) -> Unit, onSend: () -> Unit, onCamera: () -> Unit
+    sending: Boolean, onSpeak: (String) -> Unit, onVoiceInput: () -> Unit, onSend: () -> Unit, onCamera: () -> Unit
 ) {
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Character stage: intentionally a new component boundary; no legacy Live2D/WebView is reused.
@@ -229,6 +256,9 @@ private fun HomeScreen(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 IconButton(onClick = onCamera, modifier = Modifier.size(44.dp).background(Panel2, CircleShape)) {
                     Icon(Icons.Rounded.PhotoCamera, "Open camera", tint = Lilac)
+                }
+                IconButton(onClick = onVoiceInput, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Rounded.Mic, "Speak to Ayaka", tint = Lilac)
                 }
                 OutlinedTextField(
                     value = draft, onValueChange = onDraft, modifier = Modifier.weight(1f),
