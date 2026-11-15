@@ -410,6 +410,18 @@ fun MainScreen(
                             Text("Lv.${userBond?.bondLevel ?: 1} · ${userBond?.getTierTitle() ?: "New Bond"}", color = TextWhite, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
+                    Surface(
+                        modifier = Modifier.clickable { viewModel.togglePomodoro(true) },
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isPomodoroVisible) VioletAccent.copy(alpha = 0.34f) else GlassDark.copy(alpha = 0.82f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isPomodoroVisible) LavenderPrimary else GlassBorder)
+                    ) {
+                        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.MenuBook, contentDescription = null, tint = LavenderPrimary, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (isPomodoroVisible) "Study · Active" else "Study", color = TextWhite, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
                     Surface(modifier = Modifier.clickable { viewModel.toggleCameraDock(true) }, shape = RoundedCornerShape(20.dp), color = GlassDark.copy(alpha = 0.82f), border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder)) {
                         Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.PhotoCamera, contentDescription = null, tint = LavenderPrimary, modifier = Modifier.size(15.dp))
