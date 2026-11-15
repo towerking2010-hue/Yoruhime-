@@ -272,16 +272,72 @@ private fun MemoriesScreen() {
 
 @Composable
 private fun CareScreen() {
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    var minutes by rememberSaveable { mutableIntStateOf(25) }
+    var secondsLeft by rememberSaveable { mutableIntStateOf(25 * 60) }
+    var running by rememberSaveable { mutableStateOf(false) }
+    var checkInOpen by remember { mutableStateOf(false) }
+    var selectedMood by rememberSaveable { mutableStateOf("Okay") }
+    LaunchedEffect(running) {
+        while (running && secondsLeft > 0) {
+            kotlinx.coroutines.delay(1000)
+            secondsLeft -= 1
+            if (secondsLeft <= 0) running = false
+        }
+    }
+    val time = "%02d:%02d".format(secondsLeft / 60, secondsLeft % 60)
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("YOUR ROUTINE", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
         Text("Care & connection", color = White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        CareCard(Icons.Rounded.Favorite, "Bond", "A relationship that grows through real conversations.", "Getting started")
-        CareCard(Icons.Rounded.Timer, "Focus together", "A gentle focus session with breaks built in.", "Start a session")
-        CareCard(Icons.Rounded.Nightlight, "Wind down", "Create a bedtime reminder that suits your routine.", "Set reminder")
-        CareCard(Icons.Rounded.SelfImprovement, "Daily check-in", "A small moment to notice how you're doing.", "Check in")
+        Surface(color = Panel, shape = RoundedCornerShape(24.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF51456F))) {
+            Column(Modifier.fillMaxWidth().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("FOCUS TOGETHER", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                Text(time, color = White, fontSize = 48.sp, fontWeight = FontWeight.Light)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(15, 25, 45, 60).forEach { value ->
+                        FilterChip(selected = minutes == value, onClick = { minutes = value; secondsLeft = value * 60; running = false }, label = { Text("${value}m") })
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(onClick = { if (secondsLeft == 0) secondsLeft = minutes * 60; running = !running }) {
+                        Icon(if (running) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null)
+                        Spacer(Modifier.width(6.dp)); Text(if (running) "Pause" else "Start")
+                    }
+                    OutlinedButton(onClick = { running = false; secondsLeft = minutes * 60 }) { Text("Reset") }
+                }
+                Text(if (secondsLeft == 0) "Session complete. Well done." else "A gentle timer. No pressure, just progress.", color = Muted, fontSize = 12.sp)
+            }
+        }
+        CareCard(Icons.Rounded.Favorite, "Bond", "A relationship that grows through real conversations.", "Keep talking")
+        Surface(onClick = { checkInOpen = true }, color = Panel, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF34334E))) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.SelfImprovement, null, tint = Violet)
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                    Text("Daily check-in", color = White, fontWeight = FontWeight.SemiBold)
+                    Text("How are you feeling today? Current: $selectedMood", color = Muted, fontSize = 11.sp)
+                }
+                Icon(Icons.Rounded.ChevronRight, null, tint = Muted)
+            }
+        }
+        CareCard(Icons.Rounded.Nightlight, "Wind down", "Bedtime reminders are not yet enabled in this foundation build.", "Coming soon")
+    }
+    if (checkInOpen) {
+        AlertDialog(
+            onDismissRequest = { checkInOpen = false },
+            title = { Text("How are you feeling?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("Great", "Good", "Okay", "Tired", "Stressed", "Sad").forEach { mood ->
+                        Row(Modifier.fillMaxWidth().clickable { selectedMood = mood; checkInOpen = false }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = selectedMood == mood, onClick = { selectedMood = mood; checkInOpen = false })
+                            Text(mood, color = White)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { checkInOpen = false }) { Text("Close") } }
+        )
     }
 }
-
 @Composable
 private fun CareCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, detail: String, action: String) {
     Surface(color = Panel, shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF34334E))) {
