@@ -124,6 +124,7 @@ import com.aistudio.yoruhime.ui.theme.TextSilver
 import com.aistudio.yoruhime.ui.theme.TextWhite
 import com.aistudio.yoruhime.ui.theme.VioletAccent
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -285,6 +286,28 @@ fun MainScreen(
                 // Performance owns the expression; the speech bubble must not reset it.
                 live2DController.showSpeech(latest.text)
             }
+        }
+    }
+
+    // After a quiet stretch, let Ayaka make one small, low-cost idle movement.
+    // The effect is cancelled by new messages, speech, or leaving the Companion tab.
+    LaunchedEffect(messages.lastOrNull()?.timestamp, isSpeaking, selectedDestination) {
+        val latest = messages.lastOrNull() ?: return@LaunchedEffect
+        if (latest.isFromUser || isSpeaking || selectedDestination != WorkspaceDestination.COMPANION) {
+            return@LaunchedEffect
+        }
+        delay(AyakaAnimationDirector.IDLE_RESTLESS_AFTER_MS)
+        if (messages.lastOrNull() == latest && !isSpeaking &&
+            selectedDestination == WorkspaceDestination.COMPANION
+        ) {
+            avatarPerformance = animationDirector.decide(
+                AvatarContext(
+                    persona = com.aistudio.yoruhime.ui.avatar.AyakaPersona.MOMMY_TSUNDERE,
+                    emotion = com.aistudio.yoruhime.ui.avatar.AyakaEmotion.NEUTRAL,
+                    cue = com.aistudio.yoruhime.ui.avatar.AvatarCue.NONE,
+                    idleDurationMs = AyakaAnimationDirector.IDLE_RESTLESS_AFTER_MS
+                )
+            )
         }
     }
 
