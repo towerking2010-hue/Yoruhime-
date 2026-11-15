@@ -120,6 +120,7 @@ private fun YoruHimeApp() {
                         sending = sending,
                         onSpeak = { messages.lastOrNull { it.role == "assistant" }?.content?.let { text -> if (voiceEnabled) { tts.language = Locale.US; tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ayaka-reply") } } },
                         onVoiceInput = { micPermission.launch(android.Manifest.permission.RECORD_AUDIO) },
+                        onClear = { store.clearMessages(); messages = emptyList() },
                         onSend = {
                             val value = draft.trim()
                             if (value.isNotEmpty() && !sending) {
@@ -204,8 +205,10 @@ private fun TopBar(destination: Destination) {
 @Composable
 private fun HomeScreen(
     messages: List<ChatLine>, draft: String, onDraft: (String) -> Unit,
-    sending: Boolean, onSpeak: (String) -> Unit, onVoiceInput: () -> Unit, onSend: () -> Unit, onCamera: () -> Unit
+    sending: Boolean, onSpeak: (String) -> Unit, onVoiceInput: () -> Unit, onClear: () -> Unit, onSend: () -> Unit, onCamera: () -> Unit
 ) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(messages.size) { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Character stage: intentionally a new component boundary; no legacy Live2D/WebView is reused.
         Box(
@@ -247,7 +250,7 @@ private fun HomeScreen(
                 }
                 IconButton(onClick = { messages.lastOrNull()?.let(onSpeak) }, enabled = messages.isNotEmpty()) { Icon(Icons.Rounded.VolumeUp, "Speak latest message", tint = Muted) }
             }
-            LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 items(messages) { message ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (message.role == "user") Arrangement.End else Arrangement.Start) {
                         Surface(
