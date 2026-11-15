@@ -14,6 +14,11 @@ class AyakaConversationCueClassifierTest {
     }
 
     @Test
+    fun tiredOrLonelyMessagesSelectSupportiveCues() {
+        assertEquals(AvatarCue.USER_DISTRESSED, AyakaConversationCueClassifier.classify("I'm tired and lonely"))
+    }
+
+    @Test
     fun complimentSelectsRikoInspiredTsundereMode() {
         val cue = AyakaConversationCueClassifier.classify("Ayaka, you're beautiful")
         assertEquals(AvatarCue.COMPLIMENT, cue)
