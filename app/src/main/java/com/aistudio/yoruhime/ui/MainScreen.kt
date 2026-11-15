@@ -100,6 +100,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aistudio.yoruhime.data.local.ChatMessageEntity
+import com.aistudio.yoruhime.ui.avatar.AvatarContext
+import com.aistudio.yoruhime.ui.avatar.AyakaAnimationDirector
+import com.aistudio.yoruhime.ui.avatar.AyakaConversationCueClassifier
+import com.aistudio.yoruhime.ui.avatar.AvatarPerformance
 import com.aistudio.yoruhime.ui.camera.ARCameraBackground
 import com.aistudio.yoruhime.ui.camera.CameraPreviewDock
 import com.aistudio.yoruhime.ui.live2d.Live2DController
@@ -163,6 +167,8 @@ fun MainScreen(
     var selectedMinute by remember { mutableStateOf(userBond?.bedtimeMinute ?: 0) }
 
     val live2DController = remember { Live2DController() }
+    val animationDirector = remember { AyakaAnimationDirector() }
+    var avatarPerformance by remember { mutableStateOf<AvatarPerformance?>(null) }
     val listState = rememberLazyListState()
     val uiScope = rememberCoroutineScope()
     var selectedDestination by remember { mutableStateOf(WorkspaceDestination.COMPANION) }
@@ -248,13 +254,36 @@ fun MainScreen(
         }
     }
 
-    // Scroll to bottom on new message and trigger Live2D speech bubble
+    // Drive the avatar from actual conversation cues. Serious distress always wins;
+    // compliments and playful challenges temporarily bring out Ayaka's Riko-inspired
+    // tsundere side without changing her underlying caring identity.
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
             val latest = messages.last()
+            val userText = if (latest.isFromUser) {
+                latest.text
+            } else {
+                messages.lastOrNull { it.isFromUser }?.text.orEmpty()
+            }
+            val cue = AyakaConversationCueClassifier.classify(userText)
+            val persona = AyakaConversationCueClassifier.personaFor(cue)
+            val emotion = if (latest.isFromUser) {
+                com.aistudio.yoruhime.ui.avatar.AyakaEmotion.NEUTRAL
+            } else {
+                AyakaConversationCueClassifier.emotionFor(latest.emotionTag)
+            }
+            avatarPerformance = animationDirector.decide(
+                AvatarContext(
+                    persona = persona,
+                    emotion = emotion,
+                    cue = cue,
+                    isListening = latest.isFromUser
+                )
+            )
             if (!latest.isFromUser) {
-                live2DController.showSpeech(latest.text, latest.emotionTag)
+                // Performance owns the expression; the speech bubble must not reset it.
+                live2DController.showSpeech(latest.text)
             }
         }
     }
@@ -310,6 +339,7 @@ fun MainScreen(
                 // Live2D WebView Canvas directly floating over camera feed
                 Live2DStage(
                     currentEmotion = currentEmotion,
+                    performance = avatarPerformance,
                     isVisible = selectedDestination == WorkspaceDestination.COMPANION,
                     controller = live2DController,
                     onModelTapped = { zone ->
@@ -788,7 +818,7 @@ fun MainScreen(
                         },
                         onTestBedtime = { viewModel.triggerTestMidnightAlert(context) },
                         currentEmotion = currentEmotion,
-                        onSetEmotion = { viewModel.setEmotion(it) },
+                        onSetEmotion = { viewModel.setEmotion(it); avatarPerformance = null },
                         modifier = Modifier.statusBarsPadding().padding(bottom = 12.dp)
                     )
                 }
