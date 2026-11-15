@@ -179,7 +179,7 @@ class MainViewModel(
     fun sendMessage(
         userText: String,
         imageBitmap: Bitmap? = null,
-        isFrontCamera: Boolean = false
+        isFrontCamera: Boolean? = null
     ) {
         if (userText.isBlank() && imageBitmap == null) return
 
