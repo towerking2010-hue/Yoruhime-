@@ -41,6 +41,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.window.Dialog
 
 private val Ink = Color(0xFF090B16)
@@ -424,15 +426,18 @@ private fun CareCard(icon: androidx.compose.ui.graphics.vector.ImageVector, titl
 @Composable
 private fun SettingsScreen(vault: ApiKeyVault, voiceEnabled: Boolean, onVoiceEnabled: (Boolean) -> Unit) {
     var apiKey by rememberSaveable { mutableStateOf("") }
+    var revealKey by rememberSaveable { mutableStateOf(false) }
     var configured by remember { mutableStateOf(vault.read() != null) }
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("PERSONAL SPACE", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
         Text("Settings", color = White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Text("FREE AI CONNECTION", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         OutlinedTextField(
             value = apiKey, onValueChange = { apiKey = it }, modifier = Modifier.fillMaxWidth(),
             label = { Text("OpenRouter API key") }, placeholder = { Text("sk-or-…") },
-            singleLine = true, shape = RoundedCornerShape(16.dp)
+            singleLine = true, shape = RoundedCornerShape(16.dp),
+            visualTransformation = if (revealKey) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = { IconButton(onClick = { revealKey = !revealKey }) { Icon(if (revealKey) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, "Toggle API key visibility") } }
         )
         Button(onClick = { if (apiKey.isNotBlank()) { vault.save(apiKey); apiKey = ""; configured = true } }, modifier = Modifier.fillMaxWidth()) { Text("Save encrypted API key") }
         Text(if (configured) "API key saved securely on this device." else "Offline mode · add your free OpenRouter key to enable cloud chat.", color = Muted, fontSize = 12.sp)
@@ -444,7 +449,7 @@ private fun SettingsScreen(vault: ApiKeyVault, voiceEnabled: Boolean, onVoiceEna
                 Text("Memory stays under your control. Camera capture starts only when you tap Camera.", color = Muted, fontSize = 12.sp)
             }
         }
-        Text("YoruHime Reborn · Foundation build", color = Muted, fontSize = 11.sp)
+        Text("YoruHime Reborn · Preview build", color = Muted, fontSize = 11.sp)
     }
 }
 
