@@ -7,6 +7,7 @@ import android.speech.SpeechRecognizer
 import android.speech.RecognizerIntent
 import android.speech.RecognitionListener
 import android.content.Intent
+import android.app.TimePickerDialog
 import java.util.Locale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -346,6 +347,13 @@ private fun CareScreen() {
     var running by rememberSaveable { mutableStateOf(false) }
     var checkInOpen by remember { mutableStateOf(false) }
     var selectedMood by rememberSaveable { mutableStateOf("Okay") }
+    val context = LocalContext.current
+    var bedtimeLabel by remember { mutableStateOf(BedtimeScheduler.timeLabel(context)) }
+    var pendingBedtime by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    val notificationPermission = rememberLauncherForActivityResult(RequestPermission()) { granted ->
+        if (granted) pendingBedtime?.let { BedtimeScheduler.schedule(context, it.first, it.second); bedtimeLabel = BedtimeScheduler.timeLabel(context) }
+        pendingBedtime = null
+    }
     LaunchedEffect(running) {
         while (running && secondsLeft > 0) {
             kotlinx.coroutines.delay(1000)
@@ -387,7 +395,32 @@ private fun CareScreen() {
                 Icon(Icons.Rounded.ChevronRight, null, tint = Muted)
             }
         }
-        CareCard(Icons.Rounded.Nightlight, "Wind down", "Bedtime reminders are not yet enabled in this foundation build.", "Coming soon")
+        Surface(color = Panel, shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF34334E))) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Nightlight, null, tint = Violet)
+                    Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                        Text("Bedtime reminder", color = White, fontWeight = FontWeight.SemiBold)
+                        Text(if (bedtimeLabel == "Not set") "No reminder scheduled" else "Every day at $bedtimeLabel", color = Muted, fontSize = 11.sp)
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = {
+                        TimePickerDialog(context, { _, hour, minute ->
+                            if (BedtimeScheduler.needsNotificationPermission(context)) {
+                                pendingBedtime = hour to minute
+                                notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                BedtimeScheduler.schedule(context, hour, minute)
+                                bedtimeLabel = BedtimeScheduler.timeLabel(context)
+                            }
+                        }, 23, 0, true).show()
+                    }) { Text(if (bedtimeLabel == "Not set") "Set reminder" else "Change time") }
+                    if (bedtimeLabel != "Not set") OutlinedButton(onClick = { BedtimeScheduler.cancel(context); bedtimeLabel = "Not set" }) { Text("Cancel") }
+                }
+                Text("Uses an inexact daily alarm to save battery. Android may delay delivery in power-saving modes.", color = Muted, fontSize = 10.sp)
+            }
+        }
     }
     if (checkInOpen) {
         AlertDialog(
