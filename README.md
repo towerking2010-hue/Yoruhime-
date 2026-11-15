@@ -22,6 +22,8 @@ Target device: Samsung Galaxy A31 / Android 12. The app must avoid continuous he
 ## Implemented in this branch
 
 - New visual system, launcher icon, four separate destinations: Home, Memories, Care, Settings.
+- Bundled offline VRM character stage using pixiv/VRoid AvatarSample_B (VRM 1.0), loaded locally through AndroidX WebViewAssetLoader and Three.js / @pixiv/three-vrm.
+- Lightweight 30 FPS character rendering, subtle idle sway/breathing motion, automatic blinking, and tap-triggered happy expression. The current model is a licensed sample placeholder, not the final custom Ayaka design.
 - Chat UI with separate user/assistant bubbles, history persistence, clear-chat action, and scroll-to-latest.
 - Ayaka chat through the OpenRouter `openrouter/free` route when the user supplies a key.
 - Offline conversational fallback when no key is configured or the network request fails.
@@ -36,12 +38,12 @@ Target device: Samsung Galaxy A31 / Android 12. The app must avoid continuous he
 
 ## Not yet complete / must not be represented as complete
 
-- A final full-height expressive Ayaka Live2D or VRM avatar with verified redistribution rights, facial expressions, idle motions, and touch reactions.
+- Replace the licensed VRoid sample with a distinctive custom Ayaka model and validate the final appearance, model scale, expression mapping, and touch reactions on a physical Galaxy A31.
 - Reliable device-tested image vision across free models (free model capabilities can vary).
 - Bedtime notification scheduling and notification-permission flow.
 - Persistent mood history and richer bond progression/rewards.
 - Automated unit and UI tests for core flows.
-- Physical-device QA on the Galaxy A31, including rotation, keyboard, permission denial, network failure, low-memory behavior, and background/foreground transitions.
+- Physical-device QA on the Galaxy A31, including avatar rendering/performance, rotation, keyboard, permission denial, network failure, low-memory behavior, and background/foreground transitions.
 
 ## Non-negotiable constraints
 
