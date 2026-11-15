@@ -237,6 +237,9 @@ fun MainScreen(
                             } ?: throw IllegalStateException("Image stream unavailable")
                         }
                     }
+                    attachedBitmap?.let { previous ->
+                        if (previous !== bitmap && !previous.isRecycled) previous.recycle()
+                    }
                     attachedBitmap = bitmap
                 } catch (e: Exception) {
                     Toast.makeText(context, "Couldn't load that image: ${e.localizedMessage ?: "unknown error"}", Toast.LENGTH_SHORT).show()
@@ -572,7 +575,12 @@ fun MainScreen(
                                         modifier = Modifier.weight(1f)
                                     )
                                     IconButton(
-                                        onClick = { attachedBitmap = null },
+                                        onClick = {
+                                            attachedBitmap?.let { bitmap ->
+                                                if (!bitmap.isRecycled) bitmap.recycle()
+                                            }
+                                            attachedBitmap = null
+                                        },
                                         modifier = Modifier.size(24.dp)
                                     ) {
                                         Icon(
