@@ -79,8 +79,6 @@ fun YoruHimeWorkspacePage(
     onTestBedtime: () -> Unit,
     currentEmotion: String,
     onSetEmotion: (String) -> Unit,
-    onStudyCompleted: (Int) -> Unit,
-    onStudyInterrupted: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var editingMemoryId by remember { mutableStateOf<Long?>(null) }
