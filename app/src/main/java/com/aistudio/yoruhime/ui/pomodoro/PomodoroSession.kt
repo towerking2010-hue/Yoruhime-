@@ -219,29 +219,10 @@ fun PomodoroSession(
 
             // Timer Display Circle with Animated Focus Glow
             val isFocusing = state == PomodoroState.FOCUSING
-            val pulseScale = if (isVisible && isFocusing) {
-                val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "pulse_glow")
-                infiniteTransition.animateFloat(
-                    initialValue = 0.96f,
-                    targetValue = 1.06f,
-                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                        animation = androidx.compose.animation.core.tween(1400, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-                    ),
-                    label = "pulse_scale"
-                ).value
-            } else {
-                1f
-            }
-            val pulseAlpha by infiniteTransition.animateFloat(
-                initialValue = 0.2f,
-                targetValue = 0.55f,
-                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                    animation = androidx.compose.animation.core.tween(1400, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-                ),
-                label = "pulse_alpha"
-            )
+            // Keep the focus indicator static on mid-range devices; a perpetual
+            // animation here wastes GPU time while the timer is already active.
+            val pulseScale = if (isVisible && isFocusing) 1.02f else 1f
+            val pulseAlpha = if (isVisible && isFocusing) 0.32f else 0.2f
 
             Box(
                 contentAlignment = Alignment.Center,
