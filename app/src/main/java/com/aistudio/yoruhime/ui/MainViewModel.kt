@@ -188,39 +188,42 @@ class MainViewModel(
         // Serialize sends so rapid taps cannot race Room writes, reorder history,
         // or let an earlier request hide the loading state of a later one.
         viewModelScope.launch {
-            sendMutex.withLock {
-                _isLoading.value = true
-                _sendError.value = null
-                try {
-                    val response = repository.sendUserMessage(
-                        userText = userText,
-                        isOnlineMode = _isOnlineMode.value,
-                        apiKey = _apiKey.value,
-                        imageBitmap = imageBitmap,
-                        isFrontCamera = isFrontCamera
-                    )
-                    // A failed Cloud request is returned as a local response. Switch the mode
-                    // control back to Offline so subsequent messages do not keep retrying a
-                    // slow/unavailable free endpoint until the user explicitly re-enables Cloud.
-                    if (_isOnlineMode.value && !response.isOnline) {
-                        _isOnlineMode.value = false
-                        // Re-enter automatic selection after a real connectivity loss;
-                        // do not loop-retry a reachable but temporarily failing provider.
-                        if (!hasValidatedInternet()) automaticCloudSelection = true
+            try {
+                sendMutex.withLock {
+                    _isLoading.value = true
+                    _sendError.value = null
+                    try {
+                        val response = repository.sendUserMessage(
+                            userText = userText,
+                            isOnlineMode = _isOnlineMode.value,
+                            apiKey = _apiKey.value,
+                            imageBitmap = imageBitmap,
+                            isFrontCamera = isFrontCamera
+                        )
+                        // A failed Cloud request is returned as a local response. Switch the mode
+                        // control back to Offline so subsequent messages do not keep retrying a
+                        // slow/unavailable free endpoint until the user explicitly re-enables Cloud.
+                        if (_isOnlineMode.value && !response.isOnline) {
+                            _isOnlineMode.value = false
+                            // Re-enter automatic selection after a real connectivity loss;
+                            // do not loop-retry a reachable but temporarily failing provider.
+                            if (!hasValidatedInternet()) automaticCloudSelection = true
+                        }
+                        updateMood(response.emotion)
+                        ttsManager.speak(response.text, response.emotion, isCritical = false)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        _sendError.value = "That message couldn't be completed. Please try again."
+                    } finally {
+                        _isLoading.value = false
                     }
-                    updateMood(response.emotion)
-                    ttsManager.speak(response.text, response.emotion, isCritical = false)
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (error: Exception) {
-                    _sendError.value = "That message couldn't be completed. Please try again."
-                } finally {
-                    // The repository has finished encoding/using this one-shot attachment.
-                    // Release its native pixel buffer even when the request fails or is cancelled.
-                    imageBitmap?.let { bitmap ->
-                        if (!bitmap.isRecycled) bitmap.recycle()
-                    }
-                    _isLoading.value = false
+                }
+            } finally {
+                // Release one-shot attachments even if this coroutine is cancelled while
+                // waiting for the send mutex and never enters the repository.
+                imageBitmap?.let { bitmap ->
+                    if (!bitmap.isRecycled) bitmap.recycle()
                 }
             }
         }
