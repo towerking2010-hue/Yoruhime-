@@ -144,11 +144,11 @@ class AyakaAnimationDirector {
         context.cue == AvatarCue.USER_DISTRESSED ||
             context.emotion == AyakaEmotion.SAD ||
             context.emotion == AyakaEmotion.CONCERNED -> AyakaSpeechDelivery.REASSURING
+        context.emotion == AyakaEmotion.FRUSTRATED -> AyakaSpeechDelivery.FIRM
         context.cue == AvatarCue.PLAYFUL_CHALLENGE ||
             context.persona == AyakaPersona.RIKO_TSUNDERE -> AyakaSpeechDelivery.PLAYFUL
         context.persona == AyakaPersona.MOMMY_TSUNDERE ||
             context.emotion == AyakaEmotion.AFFECTIONATE -> AyakaSpeechDelivery.WARM
-        context.emotion == AyakaEmotion.FRUSTRATED -> AyakaSpeechDelivery.FIRM
         else -> AyakaSpeechDelivery.NATURAL
     }
 
