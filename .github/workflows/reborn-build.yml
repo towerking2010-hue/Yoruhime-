@@ -23,6 +23,20 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Set up Node for the offline avatar bundle
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download licensed VRoid sample and verify checksum
+        working-directory: avatar-web
+        run: |
+          mkdir -p public
+          curl --fail --location --retry 3 \
+            https://raw.githubusercontent.com/pixiv/ChatVRM/b542aa00e19dccf9fc48ba340cf7eee011d2329a/public/AvatarSample_B.vrm \
+            --output public/ayaka.vrm
+          echo "ffbd8c92a9e67c0a948f69c7a2eec91e5c282c9ae70e9184309fc164d74cbc27  public/ayaka.vrm" | sha256sum --check
+          npm install --no-audit --no-fund
+          npm run build
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
