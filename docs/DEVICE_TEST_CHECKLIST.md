@@ -1,4 +1,4 @@
-# YoruHime 2.0 — Galaxy A31 device test checklist
+# YoruHime 2.0.1 — Galaxy A31 device test checklist
 
 Use this after installing the debug APK on the Samsung Galaxy A31 (Android 12). The debug variant uses the separate package ID suffix `.test`, so it installs alongside the production app and has a separate database. It cannot directly verify migration of production app data.
 
