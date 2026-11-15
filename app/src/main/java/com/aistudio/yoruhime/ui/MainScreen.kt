@@ -291,7 +291,7 @@ fun MainScreen(
 
     // After a quiet stretch, let Ayaka make one small, low-cost idle movement.
     // The effect is cancelled by new messages, speech, or leaving the Companion tab.
-    LaunchedEffect(messages.lastOrNull()?.timestamp, isSpeaking, selectedDestination) {
+    LaunchedEffect(messages.size, isSpeaking, selectedDestination) {
         val latest = messages.lastOrNull() ?: return@LaunchedEffect
         if (latest.isFromUser || isSpeaking || selectedDestination != WorkspaceDestination.COMPANION) {
             return@LaunchedEffect
