@@ -11,7 +11,9 @@ object AyakaConversationCueClassifier {
         if (text.isBlank()) return AvatarCue.NONE
 
         return when {
-            containsAny(text, "overwhelmed", "burnt out", "burned out", "exhausted",
+            containsAny(text, "overwhelmed", "burnt out", "burned out", "burn out",
+                "exhausted", "tired", "sleepy", "stressed", "stressful", "lonely", "alone",
+                "scared", "afraid", "worried", "can't cope", "cannot cope", "can't handle",
                 "panic", "panicking", "anxious", "anxiety", "depressed", "heartbroken",
                 "having a rough day", "feeling down", "i feel sad", "i am sad", "i'm sad",
                 "i feel awful", "i feel terrible") -> AvatarCue.USER_DISTRESSED
