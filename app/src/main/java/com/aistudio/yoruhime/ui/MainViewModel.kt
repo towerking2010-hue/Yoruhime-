@@ -120,7 +120,6 @@ class MainViewModel(
         runCatching {
             connectivityManager.registerDefaultNetworkCallback(networkCallback)
         }.onFailure { it.printStackTrace() }
-        }
         // Gentle mood decay keeps expressions from remaining stuck indefinitely.
         viewModelScope.launch {
             while (true) {
