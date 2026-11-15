@@ -392,18 +392,20 @@ fun MainScreen(
                     }
                 }
 
-                // Pomodoro Session Floating Dock Overlaid on top of stage if active
-                if (isPomodoroVisible && selectedDestination == WorkspaceDestination.COMPANION) {
-                    Box(modifier = Modifier.align(Alignment.BottomCenter)) {
-                        PomodoroSession(
-                            onSessionCompleted = { mins ->
-                                viewModel.onStudyCompleted(mins)
-                            },
-                            onAppSwitchedAway = {
-                                viewModel.onAppSwitchedAwayDuringStudy()
-                            }
-                        )
-                    }
+                // Keep a single Pomodoro instance composed across workspace navigation.
+                // Hiding it at zero size preserves the active timer when the user opens Memories,
+                // Care or Settings; it is never recreated as a second independent timer.
+                Box(modifier = Modifier.align(Alignment.BottomCenter)) {
+                    PomodoroSession(
+                        onSessionCompleted = { mins -> viewModel.onStudyCompleted(mins) },
+                        onAppSwitchedAway = { viewModel.onAppSwitchedAwayDuringStudy() },
+                        onClose = { viewModel.togglePomodoro(false) },
+                        modifier = if (isPomodoroVisible && selectedDestination == WorkspaceDestination.COMPANION) {
+                            Modifier
+                        } else {
+                            Modifier.size(0.dp)
+                        }
+                    )
                 }
             }
 
@@ -776,7 +778,7 @@ fun MainScreen(
                             showApiKeyDialog = true
                         },
                         onToggleAudio = { viewModel.toggleAudioMute() },
-                        onTogglePomodoro = { viewModel.togglePomodoro(!isPomodoroVisible) },
+                        onTogglePomodoro = { viewModel.togglePomodoro(true); selectedDestination = WorkspaceDestination.COMPANION },
                         onConfigureBedtime = {
                             tempBedtimePhrase = userBond?.customBedtimePhrase
                                 ?: "It's 11:00 PM curfew! Put your phone down right now and take a rest, you hopeless slacker!"
