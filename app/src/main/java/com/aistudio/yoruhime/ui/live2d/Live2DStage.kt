@@ -35,6 +35,7 @@ class Live2DController {
     private var pendingEmotion: String? = null
     private var pendingPerformance: AvatarPerformance? = null
     private var pendingSpeech: Pair<String, String?>? = null
+    private var speakingEnabled = false
     private var renderingEnabled = true
 
     fun setRenderingEnabled(enabled: Boolean) {
@@ -85,6 +86,13 @@ class Live2DController {
         wv.post { wv.evaluateJavascript(script, null) }
     }
 
+    fun setSpeaking(speaking: Boolean) {
+        speakingEnabled = speaking
+        if (!isReady) return
+        val script = "window.setSpeaking && window.setSpeaking($speaking);"
+        webView?.let { wv -> wv.post { wv.evaluateJavascript(script, null) } }
+    }
+
     fun setHeadTilt(degrees: Float) {
         val safe = degrees.takeIf { it.isFinite() }?.coerceIn(-8f, 8f) ?: 0f
         val script = "window.setHeadTilt && window.setHeadTilt($safe);"
@@ -123,6 +131,7 @@ class Live2DController {
             pendingSpeech = null
             showSpeech(text, emotion)
         }
+        setSpeaking(speakingEnabled)
         setRenderingEnabled(renderingEnabled)
     }
 }
@@ -149,6 +158,7 @@ class AndroidBridge(
 fun Live2DStage(
     currentEmotion: String,
     performance: AvatarPerformance? = null,
+    isSpeaking: Boolean = false,
     isVisible: Boolean = true,
     controller: Live2DController = remember { Live2DController() },
     onModelTapped: (String) -> Unit = {},
@@ -165,6 +175,10 @@ fun Live2DStage(
     LaunchedEffect(currentEmotion, performance) {
         if (performance != null) controller.applyPerformance(performance)
         else controller.setEmotion(currentEmotion)
+    }
+
+    LaunchedEffect(isSpeaking) {
+        controller.setSpeaking(isSpeaking)
     }
 
     DisposableEffect(lifecycleOwner) {
