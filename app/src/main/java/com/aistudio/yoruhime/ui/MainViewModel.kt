@@ -178,6 +178,11 @@ class MainViewModel(
                 } catch (error: Exception) {
                     _sendError.value = "That message couldn't be completed. Please try again."
                 } finally {
+                    // The repository has finished encoding/using this one-shot attachment.
+                    // Release its native pixel buffer even when the request fails or is cancelled.
+                    imageBitmap?.let { bitmap ->
+                        if (!bitmap.isRecycled) bitmap.recycle()
+                    }
                     _isLoading.value = false
                 }
             }
