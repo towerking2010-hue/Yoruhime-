@@ -95,6 +95,8 @@ class AyakaEngine(private val store: RebornStore, private val vault: ApiKeyVault
             val history = store.messages(21).dropLast(1)
             val messages = JSONArray()
             messages.put(JSONObject().put("role", "system").put("content", SYSTEM_PROMPT))
+            val savedMemories = store.memories().take(30).joinToString("; ") { it.second }
+            if (savedMemories.isNotBlank()) messages.put(JSONObject().put("role", "system").put("content", "User-approved memories, use only when relevant: " + savedMemories))
             history.forEach { messages.put(JSONObject().put("role", it.role).put("content", it.content)) }
             messages.put(JSONObject().put("role", "user").put("content", userText))
             val body = JSONObject().put("model", "openrouter/free").put("messages", messages)
@@ -121,7 +123,7 @@ class AyakaEngine(private val store: RebornStore, private val vault: ApiKeyVault
                 JSONObject(response).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content").trim()
             } finally { connection.disconnect() }
         } catch (e: Exception) {
-            "I couldn't reach the free AI service just now. " + (e.message?.take(140) ?: "Please check your connection and API key.") + " I'm still here, though. We can keep talking offline."
+            offlineReply(userText) + " (I'm using an offline response because the free AI connection failed: " + (e.message?.take(100) ?: "connection unavailable") + ".)"
         }
     }
     suspend fun replyAboutImage(userText: String, bitmap: Bitmap): String = withContext(Dispatchers.IO) {
@@ -135,6 +137,8 @@ class AyakaEngine(private val store: RebornStore, private val vault: ApiKeyVault
             val encoded = Base64.encodeToString(bytes.toByteArray(), Base64.NO_WRAP)
             val messages = JSONArray()
             messages.put(JSONObject().put("role", "system").put("content", SYSTEM_PROMPT))
+            val savedMemories = store.memories().take(30).joinToString("; ") { it.second }
+            if (savedMemories.isNotBlank()) messages.put(JSONObject().put("role", "system").put("content", "User-approved memories, use only when relevant: " + savedMemories))
             store.messages(16).dropLast(1).forEach { messages.put(JSONObject().put("role", it.role).put("content", it.content)) }
             val content = JSONArray()
                 .put(JSONObject().put("type", "text").put("text", userText))
