@@ -166,7 +166,7 @@ fun Live2DStage(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    var appInForeground by remember {
+    val appInForeground = remember {
         androidx.compose.runtime.mutableStateOf(
             lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
         )
@@ -184,8 +184,8 @@ fun Live2DStage(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_RESUME -> appInForeground = true
-                Lifecycle.Event.ON_PAUSE -> appInForeground = false
+                Lifecycle.Event.ON_RESUME -> appInForeground.value = true
+                Lifecycle.Event.ON_PAUSE -> appInForeground.value = false
                 else -> Unit
             }
         }
@@ -193,8 +193,8 @@ fun Live2DStage(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(isVisible, appInForeground) {
-        controller.setRenderingEnabled(isVisible && appInForeground)
+    LaunchedEffect(isVisible, appInForeground.value) {
+        controller.setRenderingEnabled(isVisible && appInForeground.value)
     }
 
     val assetLoader = remember {
