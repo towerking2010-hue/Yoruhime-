@@ -105,7 +105,10 @@ fun YoruHimeWorkspacePage(
                         Text(memories.size.toString() + " saved note(s)", color = TextSilver, fontSize = 12.sp)
                         TextButton(onClick = { confirmClearAll = true }) { Text("Clear all", color = BlushPink) }
                     }
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(9.dp)
+                    ) {
                         items(memories, key = { it.id }) { memory ->
                             WorkspaceCard {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
