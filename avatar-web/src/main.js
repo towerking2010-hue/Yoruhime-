@@ -32,6 +32,7 @@ let blinkAt = 2.5;
 let blinkUntil = 0;
 let expressionUntil = 0;
 let tapped = false;
+let modelBaseY = 0;
 const clock = new THREE.Clock();
 
 const loader = new GLTFLoader();
@@ -46,6 +47,7 @@ loader.load('./ayaka.vrm', gltf => {
   const height = Math.max(1, bounds.max.y - bounds.min.y);
   const center = bounds.getCenter(new THREE.Vector3());
   vrm.scene.position.y -= bounds.min.y;
+  modelBaseY = vrm.scene.position.y;
   camera.position.set(0, height * 0.59, height * 2.55);
   camera.lookAt(0, height * 0.52, 0);
   camera.near = height / 100;
@@ -79,7 +81,7 @@ function frame(now) {
   const delta = Math.min(clock.getDelta(), 0.05);
   if (vrm) {
     const t = clock.elapsedTime;
-    vrm.scene.position.y += Math.sin(t * 1.1) * 0.0007;
+    vrm.scene.position.y = modelBaseY + Math.sin(t * 1.1) * 0.004;
     vrm.scene.rotation.z = Math.sin(t * 0.55) * 0.012;
     if (vrm.expressionManager) {
       if (t > blinkAt) {
@@ -99,9 +101,3 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) renderer.setAnimationLoop(null);
-  else renderer.setAnimationLoop(() => {
-    if (vrm) { vrm.update(Math.min(clock.getDelta(), 0.05)); renderer.render(scene, camera); }
-  });
-});
