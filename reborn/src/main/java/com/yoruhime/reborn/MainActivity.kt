@@ -70,6 +70,7 @@ private fun YoruHimeApp() {
     val engine = remember { AyakaEngine(store, vault) }
     val scope = rememberCoroutineScope()
     var voiceEnabled by rememberSaveable { mutableStateOf(true) }
+    var draft by rememberSaveable { mutableStateOf("") }
     val tts = remember { TextToSpeech(context) { } }
     val recognizer = remember { if (SpeechRecognizer.isRecognitionAvailable(context)) SpeechRecognizer.createSpeechRecognizer(context) else null }
     val micPermission = rememberLauncherForActivityResult(RequestPermission()) { granted ->
@@ -94,7 +95,6 @@ private fun YoruHimeApp() {
     }
     DisposableEffect(tts) { onDispose { tts.stop(); tts.shutdown() } }
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
-    var draft by rememberSaveable { mutableStateOf("") }
     var messages by remember { mutableStateOf(store.messages().map { it.content }.ifEmpty { listOf("Good evening. You finally came back. Have you eaten yet?") }) }
     var sending by remember { mutableStateOf(false) }
     var photo by remember { mutableStateOf<Bitmap?>(null) }
