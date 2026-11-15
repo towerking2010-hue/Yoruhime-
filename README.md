@@ -1,35 +1,54 @@
-# YoruHime (夜姫)
+# YoruHime Reborn
 
-An interactive native Android companion application built with Kotlin and Jetpack Compose featuring **Ayaka Tōjou** (東条 絢香), your strict, maternal "mommy-tsundere" senior student council vice-president.
+**A clean-room rebuild of YoruHime.**
 
-## Features
+This branch is a new Android application module named `:reborn`. The previous `:app` implementation is not included in the build and is not reused by the new experience. Existing repository history is retained only as a safety reference.
 
-1. **Live2D Rendering Stage (Top 60% of Screen)**
-   - High-performance WebGL stage running in an optimized Android WebView with `WebViewAssetLoader`.
-   - Renders the Live2D model with expressions (`smile`, `blush`, `happy`, `sad`, `angry`, `normal`) and motions.
-   - Enforces a strict 30 FPS rendering cap to guarantee smooth frame pacing and low thermal/battery consumption on mid-range devices (like the Galaxy A31).
-   - Interactive touch and gaze tracking reacting to touches on her head, face, or chest with flustered in-character dialogue.
+## Product direction
 
-2. **Chat & Personality Interface (Bottom 40% of Screen)**
-   - Dark translucent glassmorphism interface styled in deep midnight indigos (`#0B0F19`), slate grays, and soft lavender accents.
-   - **Ayaka Tōjou's Mommy-Tsundere AI**: Demanding and high-standard, complaining that taking care of you is an exhausting chore, but fiercely protective, maternal, and prone to flustered blushing panics when caught showing affection.
-   - **Infinite Chat Guarantee**: Connected to the Gemini API for online cloud inference with an automatic seamless offline fallback to a rich local in-character response engine and Room database. You will never be cut off or blocked by quota limits.
+YoruHime is an intimate, polished Android companion centered on Ayaka Tōjou: mature, elegant, protective, warm, emotionally intelligent, and playfully tsundere when the moment is right. The app is designed for Android 12+ and tuned for a Samsung Galaxy A31-class device.
 
-3. **Multimodal Vision & Camera Integration (CameraX)**
-   - Floating Picture-in-Picture camera dock with front/back camera toggling.
-   - **Front Camera**: Real-time facial expression and stress/fatigue analysis that triggers Ayaka's maternal care or scolding.
-   - **Back Camera**: Visual workspace and late-night meal inspection allowing Ayaka to inspect your desk or snacks and roast/advise you in character.
+## Clean architecture boundary
 
-4. **"Ayaka's Strict Study Session" (Pomodoro Timer)**
-   - Focus intervals (15, 25, 45, 60 mins) and break intervals.
-   - Lifecycle state detection: if you switch apps away while the timer is running, Ayaka immediately fires an in-character scolding when you return!
-   - Awards Bond EXP upon completion.
+- New Gradle application module: `:reborn`
+- New package: `com.yoruhime.reborn`
+- New application ID: `com.yoruhime.reborn`
+- New Compose UI; no legacy screen composables or legacy Live2D WebView are used.
+- The old `:app` module is excluded from `settings.gradle.kts`.
 
-5. **Midnight Bedtime Lock & Notifications (WorkManager)**
-   - Background worker scheduled for midnight (12:00 AM local time).
-   - Fires a high-priority heads-up notification with Ayaka demanding you stop looking at your screen and go to bed.
-   - Includes an instant "Bedtime Alert" test button in the chat toolbar.
+## First foundation milestone
 
-6. **Affection & Bond System (Room Database)**
-   - Persistent progression stored locally in SQLite via Room.
-   - Tiers from *Hopeless Slacker* to *Irreplaceable Soulmate* that unlock warmer dialogues and special reactions.
+- New portrait-first Companion screen and distinct navigation destinations.
+- Dedicated Memories, Care, and Settings screens with visible content.
+- Camera action launches Android's camera capture flow only after the user taps it.
+- Layout uses system-safe drawing insets and a single app navigation scaffold.
+- No cloud endpoint is called and no paid service is configured in this foundation milestone.
+
+## Planned engineering sequence
+
+1. Stabilize the clean application shell and verify it on CI.
+2. Add secure free-only OpenRouter connectivity and a useful offline conversation engine.
+3. Add opt-in local memory persistence with explicit remember/forget controls.
+4. Add camera capture, image review, and optional free-route vision.
+5. Add voice input/output with correct lifecycle ownership.
+6. Add a proper expressive full-height Ayaka avatar, sourced or authored with clear redistribution rights.
+7. Add focus, care routines, bond progression, and Together Mode after core reliability.
+
+## Non-negotiable constraints
+
+- No paid AI fallback, subscriptions, credits, hidden charges, or automatic top-ups.
+- API credentials must be encrypted and never committed to Git.
+- Camera must never run in the background.
+- Memory must be transparent, local-first, and user-controlled.
+- Avoid always-on heavy rendering; respect Galaxy A31 thermal, RAM, and battery limits.
+- Never describe a feature as complete until it is implemented and tested.
+
+## Build
+
+The dedicated workflow runs:
+
+```bash
+gradle :reborn:testDebugUnitTest :reborn:assembleDebug
+```
+
+The generated debug APK is uploaded as the `yoruhime-reborn-debug-apk` workflow artifact. CI success is not a substitute for testing on a physical Android 12 device.
