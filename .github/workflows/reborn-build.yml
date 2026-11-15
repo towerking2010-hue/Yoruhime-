@@ -3,9 +3,11 @@ name: YoruHime Reborn Android Build
 on:
   push:
     branches: [yoruhime/reborn]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: reborn-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
