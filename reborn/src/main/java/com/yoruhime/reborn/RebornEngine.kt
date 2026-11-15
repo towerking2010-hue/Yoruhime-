@@ -51,6 +51,11 @@ class RebornStore(context: Context) : SQLiteOpenHelper(context, "yoruhime_reborn
     }
     @Synchronized fun deleteMemory(id: Long) { writableDatabase.delete("memories", "id=?", arrayOf(id.toString())) }
     @Synchronized fun clearMessages() { writableDatabase.delete("messages", null, null) }
+    @Synchronized fun userMessageCount(): Int {
+        readableDatabase.rawQuery("SELECT COUNT(*) FROM messages WHERE role='user'", null).use { c ->
+            return if (c.moveToFirst()) c.getInt(0) else 0
+        }
+    }
 }
 
 class ApiKeyVault(context: Context) {
