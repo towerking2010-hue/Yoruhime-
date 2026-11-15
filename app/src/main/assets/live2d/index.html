@@ -148,6 +148,7 @@
 
     // Active Emotion State
     let activeEmotion = 'normal';
+    let isSpeechActive = false;
     // Particle FX Canvas
     const pCanvas = document.getElementById('particles-canvas');
     const pCtx = pCanvas.getContext('2d');
@@ -324,6 +325,13 @@
       const breathVal = (Math.sin(timestamp * 0.0022) + 1) * 0.5;
       core.setParameterValueById('ParamBreath', breathVal);
 
+      // Lightweight TTS-driven mouth movement. This follows utterance start/end,
+      // not phoneme timing, so it remains subtle rather than pretending to be true lip-sync.
+      const speechMouthOpen = isSpeechActive
+        ? 0.12 + Math.abs(Math.sin(timestamp * 0.026)) * 0.38
+        : 0;
+      core.setParameterValueById('ParamMouthOpenY', speechMouthOpen);
+
       // 3. Subtle Organic Head & Body Sway
       reactiveVelocityZ += (0 - reactiveAngleZ) * 0.15;
       reactiveVelocityZ *= 0.85;
@@ -439,6 +447,10 @@
 
     window.setBodyLean = function(degrees) {
       targetBodyLean = Number.isFinite(degrees) ? Math.max(-4, Math.min(4, degrees)) : 0;
+    };
+
+    window.setSpeaking = function(speaking) {
+      isSpeechActive = Boolean(speaking);
     };
 
     window.playMotion = function(motionName) {
