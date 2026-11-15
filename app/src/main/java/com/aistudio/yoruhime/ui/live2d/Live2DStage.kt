@@ -19,11 +19,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebViewAssetLoader
 import com.aistudio.yoruhime.ui.avatar.AvatarPerformance
 import com.aistudio.yoruhime.ui.avatar.AyakaLive2DPerformanceAdapter
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.aistudio.yoruhime.ui.theme.MidnightBlack
 
 class Live2DController {
@@ -37,8 +40,12 @@ class Live2DController {
     fun setRenderingEnabled(enabled: Boolean) {
         renderingEnabled = enabled
         if (!isReady) return
-        val script = if (enabled) "window.resumeLive2D && window.resumeLive2D();" else "window.pauseLive2D && window.pauseLive2D();"
-        webView?.post { webView?.evaluateJavascript(script, null) }
+        val wv = webView ?: return
+        wv.post {
+            if (enabled) wv.onResume() else wv.onPause()
+            val script = if (enabled) "window.resumeLive2D && window.resumeLive2D();" else "window.pauseLive2D && window.pauseLive2D();"
+            wv.evaluateJavascript(script, null)
+        }
     }
 
     fun setEmotion(emotion: String) {
@@ -148,14 +155,32 @@ fun Live2DStage(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var appInForeground by remember {
+        androidx.compose.runtime.mutableStateOf(
+            lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        )
+    }
 
     LaunchedEffect(currentEmotion, performance) {
         if (performance != null) controller.applyPerformance(performance)
         else controller.setEmotion(currentEmotion)
     }
 
-    LaunchedEffect(isVisible) {
-        controller.setRenderingEnabled(isVisible)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> appInForeground = true
+                Lifecycle.Event.ON_PAUSE -> appInForeground = false
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(isVisible, appInForeground) {
+        controller.setRenderingEnabled(isVisible && appInForeground)
     }
 
     val assetLoader = remember {
