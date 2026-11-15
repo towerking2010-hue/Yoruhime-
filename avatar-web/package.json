@@ -1,0 +1,12 @@
+{
+  "name": "yoruhime-avatar-stage",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": { "build": "vite build" },
+  "dependencies": {
+    "@pixiv/three-vrm": "3.5.5",
+    "three": "0.180.0"
+  },
+  "devDependencies": { "vite": "6.2.2" }
+}
