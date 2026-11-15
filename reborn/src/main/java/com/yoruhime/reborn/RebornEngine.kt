@@ -90,7 +90,7 @@ class AyakaEngine(private val store: RebornStore, private val vault: ApiKeyVault
         val apiKey = vault.read()
         if (apiKey.isNullOrBlank()) return@withContext offlineReply(userText)
         try {
-            val history = store.messages(20)
+            val history = store.messages(21).dropLast(1)
             val messages = JSONArray()
             messages.put(JSONObject().put("role", "system").put("content", SYSTEM_PROMPT))
             history.forEach { messages.put(JSONObject().put("role", it.role).put("content", it.content)) }
