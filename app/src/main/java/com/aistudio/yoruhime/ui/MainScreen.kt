@@ -342,17 +342,14 @@ fun MainScreen(
         // Main workspace: keep the companion view focused and move secondary tools into dedicated destinations.
         // Reserve the system navigation-bar inset for the entire workspace so the bottom
         // navigation never sits underneath Android's gesture/three-button navigation area.
-        Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            alpha = if (selectedDestination == WorkspaceDestination.COMPANION) 1f else 0f
-                        }
-                        .statusBarsPadding()
-                        .imePadding()
-                ) {
+                if (selectedDestination == WorkspaceDestination.COMPANION) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .imePadding()
+                    ) {
             // TOP 60%: Live2D Transparent AR Stage
             Box(
                 modifier = Modifier
@@ -813,8 +810,7 @@ fun MainScreen(
                         }
                     }
                 }
-                }
-                if (selectedDestination != WorkspaceDestination.COMPANION) {
+                } else {
                     YoruHimeWorkspacePage(
                         destination = selectedDestination,
                         memories = memories,
@@ -854,7 +850,7 @@ fun MainScreen(
                         onTestBedtime = { viewModel.triggerTestMidnightAlert(context) },
                         currentEmotion = currentEmotion,
                         onSetEmotion = { viewModel.setEmotion(it); avatarPerformance = null },
-                        modifier = Modifier.statusBarsPadding().padding(bottom = 12.dp)
+                        modifier = Modifier.padding(bottom = 12.dp)
                     )
                 }
             }
