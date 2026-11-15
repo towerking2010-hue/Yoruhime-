@@ -61,6 +61,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -121,9 +122,11 @@ fun CameraPreviewDock(
     }
 
     var cameraProviderInstance by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+    var bindRequestGeneration by remember { mutableIntStateOf(0) }
 
     // Bind Camera lifecycle when isVisible, permission, or lens facing toggles
     LaunchedEffect(isVisible, hasCameraPermission, isFrontCamera, previewView) {
+        val requestGeneration = ++bindRequestGeneration
         if (!isVisible || !hasCameraPermission || previewView == null) {
             cameraReady = false
             imageCapture = null
@@ -139,6 +142,7 @@ fun CameraPreviewDock(
         cameraProviderFuture.addListener({
             try {
                 val activePreviewView = previewView ?: return@addListener
+                if (requestGeneration != bindRequestGeneration || !isVisible || !hasCameraPermission) return@addListener
                 val cameraProvider = cameraProviderFuture.get()
                 cameraProviderInstance = cameraProvider
 
@@ -179,6 +183,7 @@ fun CameraPreviewDock(
 
     DisposableEffect(isVisible) {
         onDispose {
+            bindRequestGeneration++
             try {
                 cameraProviderInstance?.unbindAll()
             } catch (e: Exception) {

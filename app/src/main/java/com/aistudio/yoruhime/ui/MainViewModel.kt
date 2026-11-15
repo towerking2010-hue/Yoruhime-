@@ -1,6 +1,9 @@
 package com.aistudio.yoruhime.ui
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -12,6 +15,7 @@ import com.aistudio.yoruhime.data.repository.ChatRepository
 import com.aistudio.yoruhime.data.local.SecureApiKeyStore
 import com.aistudio.yoruhime.service.BedtimeWorker
 import com.aistudio.yoruhime.ui.audio.AyakaTtsManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,9 +24,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.delay
 
 class MainViewModel(
+    context: Context,
     private val repository: ChatRepository,
     private val ttsManager: AyakaTtsManager,
     private val apiKeyStore: SecureApiKeyStore
@@ -50,7 +57,31 @@ class MainViewModel(
         } ?: "normal"
     }
 
-    private val _isOnlineMode = MutableStateFlow(true)
+    // Cloud is selected automatically when the user has configured a key and Android
+    // reports validated internet. Explicit manual mode selection is respected.
+    private val _isOnlineMode = MutableStateFlow(false)
+    private var automaticCloudSelection = true
+    private val connectivityManager = context.applicationContext
+        .getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+    private fun hasValidatedInternet(): Boolean {
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
+
+    private fun refreshAutomaticCloudMode() {
+        if (!automaticCloudSelection) return
+        _isOnlineMode.value = _apiKey.value.isNotBlank() && hasValidatedInternet()
+    }
+
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) = refreshAutomaticCloudMode()
+        override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) =
+            refreshAutomaticCloudMode()
+        override fun onLost(network: Network) = refreshAutomaticCloudMode()
+    }
     val isOnlineMode: StateFlow<Boolean> = _isOnlineMode.asStateFlow()
 
     private val _apiKey = MutableStateFlow("")
@@ -74,13 +105,21 @@ class MainViewModel(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _sendError = MutableStateFlow<String?>(null)
+    val sendError: StateFlow<String?> = _sendError.asStateFlow()
+    private val sendMutex = Mutex()
+
     init {
         // Initial in-character check
         viewModelScope.launch {
             repository.getBond()
             val savedKey = withContext(Dispatchers.IO) { apiKeyStore.readApiKey() }
             _apiKey.value = savedKey
+            refreshAutomaticCloudMode()
         }
+        runCatching {
+            connectivityManager.registerDefaultNetworkCallback(networkCallback)
+        }.onFailure { it.printStackTrace() }
         // Gentle mood decay keeps expressions from remaining stuck indefinitely.
         viewModelScope.launch {
             while (true) {
@@ -108,11 +147,13 @@ class MainViewModel(
     }
 
     fun toggleOnlineMode(enabled: Boolean) {
+        automaticCloudSelection = false
         _isOnlineMode.value = enabled
     }
 
     fun updateApiKey(key: String) {
         _apiKey.value = key
+        refreshAutomaticCloudMode()
         viewModelScope.launch(Dispatchers.IO) {
             runCatching { apiKeyStore.saveApiKey(key) }
                 .onFailure { it.printStackTrace() }
@@ -142,30 +183,43 @@ class MainViewModel(
     ) {
         if (userText.isBlank() && imageBitmap == null) return
 
+        // Serialize sends so rapid taps cannot race Room writes, reorder history,
+        // or let an earlier request hide the loading state of a later one.
         viewModelScope.launch {
-            _isLoading.value = true
-            try {
-                val response = repository.sendUserMessage(
-                    userText = userText,
-                    isOnlineMode = _isOnlineMode.value,
-                    apiKey = _apiKey.value,
-                    imageBitmap = imageBitmap,
-                    isFrontCamera = isFrontCamera
-                )
-                // A failed Cloud request is returned as a local response. Switch the mode
-                // control back to Offline so subsequent messages do not keep retrying a
-                // slow/unavailable free endpoint until the user explicitly re-enables Cloud.
-                if (_isOnlineMode.value && !response.isOnline) {
-                    _isOnlineMode.value = false
+            sendMutex.withLock {
+                _isLoading.value = true
+                _sendError.value = null
+                try {
+                    val response = repository.sendUserMessage(
+                        userText = userText,
+                        isOnlineMode = _isOnlineMode.value,
+                        apiKey = _apiKey.value,
+                        imageBitmap = imageBitmap,
+                        isFrontCamera = isFrontCamera
+                    )
+                    // A failed Cloud request is returned as a local response. Switch the mode
+                    // control back to Offline so subsequent messages do not keep retrying a
+                    // slow/unavailable free endpoint until the user explicitly re-enables Cloud.
+                    if (_isOnlineMode.value && !response.isOnline) {
+                        _isOnlineMode.value = false
+                        // Re-enter automatic selection after a real connectivity loss;
+                        // do not loop-retry a reachable but temporarily failing provider.
+                        if (!hasValidatedInternet()) automaticCloudSelection = true
+                    }
+                    updateMood(response.emotion)
+                    ttsManager.speak(response.text, response.emotion, isCritical = false)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    _sendError.value = "That message couldn't be completed. Please try again."
+                } finally {
+                    // The repository has finished encoding/using this one-shot attachment.
+                    // Release its native pixel buffer even when the request fails or is cancelled.
+                    imageBitmap?.let { bitmap ->
+                        if (!bitmap.isRecycled) bitmap.recycle()
+                    }
+                    _isLoading.value = false
                 }
-                updateMood(response.emotion)
-
-                // Speak every assistant reply; the existing mute control remains the user's override.
-                ttsManager.speak(response.text, response.emotion, isCritical = false)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                _isLoading.value = false
             }
         }
     }
@@ -244,19 +298,28 @@ class MainViewModel(
         }
     }
 
+    fun editMemory(id: Long, content: String) {
+        viewModelScope.launch {
+            repository.editMemory(id, content)
+        }
+    }
+
     override fun onCleared() {
+        runCatching { connectivityManager.unregisterNetworkCallback(networkCallback) }
         super.onCleared()
-        ttsManager.stop()
+        // Release the lazily-created Android TTS engine when this ViewModel is permanently cleared.
+        ttsManager.release()
     }
 
     class Factory(
+        private val context: Context,
         private val repository: ChatRepository,
         private val ttsManager: AyakaTtsManager,
         private val apiKeyStore: SecureApiKeyStore
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return MainViewModel(repository, ttsManager, apiKeyStore) as T
+            return MainViewModel(context, repository, ttsManager, apiKeyStore) as T
         }
     }
 }
