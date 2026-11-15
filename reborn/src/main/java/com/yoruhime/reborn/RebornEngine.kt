@@ -1,6 +1,8 @@
 package com.yoruhime.reborn
 
 import android.content.Context
+import android.graphics.Bitmap
+import java.io.ByteArrayOutputStream
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.security.keystore.KeyGenParameterSpec
@@ -122,6 +124,43 @@ class AyakaEngine(private val store: RebornStore, private val vault: ApiKeyVault
             "I couldn't reach the free AI service just now. " + (e.message?.take(140) ?: "Please check your connection and API key.") + " I'm still here, though. We can keep talking offline."
         }
     }
+    suspend fun replyAboutImage(userText: String, bitmap: Bitmap): String = withContext(Dispatchers.IO) {
+        val apiKey = vault.read()
+        if (apiKey.isNullOrBlank()) return@withContext "I can see that you want to share a photo, but image understanding needs your free OpenRouter key. Add it in Settings and try again."
+        try {
+            val scaled = Bitmap.createScaledBitmap(bitmap, minOf(bitmap.width, 768), (bitmap.height * (minOf(bitmap.width, 768).toFloat() / bitmap.width)).toInt().coerceAtLeast(1), true)
+            val bytes = ByteArrayOutputStream()
+            scaled.compress(Bitmap.CompressFormat.JPEG, 72, bytes)
+            if (scaled !== bitmap) scaled.recycle()
+            val encoded = Base64.encodeToString(bytes.toByteArray(), Base64.NO_WRAP)
+            val messages = JSONArray()
+            messages.put(JSONObject().put("role", "system").put("content", SYSTEM_PROMPT))
+            store.messages(16).dropLast(1).forEach { messages.put(JSONObject().put("role", it.role).put("content", it.content)) }
+            val content = JSONArray()
+                .put(JSONObject().put("type", "text").put("text", userText))
+                .put(JSONObject().put("type", "image_url").put("image_url", JSONObject().put("url", "data:image/jpeg;base64," + encoded)))
+            messages.put(JSONObject().put("role", "user").put("content", content))
+            val body = JSONObject().put("model", "openrouter/free").put("messages", messages).put("max_tokens", 700)
+            val connection = (URL("https://openrouter.ai/api/v1/chat/completions").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"; connectTimeout = 20000; readTimeout = 45000; doOutput = true
+                setRequestProperty("Authorization", "Bearer " + apiKey)
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("HTTP-Referer", "https://github.com/towerking2010-hue/Yoruhime-")
+                setRequestProperty("X-Title", "YoruHime Reborn")
+            }
+            try {
+                connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                val code = connection.responseCode
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (code !in 200..299) throw IllegalStateException("Image request failed (HTTP " + code + ")")
+                JSONObject(response).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content").trim()
+            } finally { connection.disconnect() }
+        } catch (e: Exception) {
+            "I couldn't process that photo just now. " + (e.message?.take(120) ?: "Please try again.") + " Your image stays on this device unless you choose to send it."
+        }
+    }
+
     private fun offlineReply(input: String): String {
         val text = input.lowercase()
         return when {
