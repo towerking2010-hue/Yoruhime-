@@ -18,6 +18,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,9 +56,15 @@ private enum class Destination(val label: String) {
 
 @Composable
 private fun YoruHimeApp() {
+    val context = LocalContext.current
+    val store = remember { RebornStore(context) }
+    val vault = remember { ApiKeyVault(context) }
+    val engine = remember { AyakaEngine(store, vault) }
+    val scope = rememberCoroutineScope()
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
     var draft by rememberSaveable { mutableStateOf("") }
-    var messages by remember { mutableStateOf(listOf("Good evening. You finally came back. Have you eaten yet?")) }
+    var messages by remember { mutableStateOf(store.messages().map { it.content }.ifEmpty { listOf("Good evening. You finally came back. Have you eaten yet?") }) }
+    var sending by remember { mutableStateOf(false) }
     var photo by remember { mutableStateOf<Bitmap?>(null) }
     var showPhoto by remember { mutableStateOf(false) }
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { photo = it; showPhoto = it != null }
@@ -77,18 +85,27 @@ private fun YoruHimeApp() {
                         messages = messages,
                         draft = draft,
                         onDraft = { draft = it },
+                        sending = sending,
                         onSend = {
                             val value = draft.trim()
-                            if (value.isNotEmpty()) {
-                                messages = messages + value
+                            if (value.isNotEmpty() && !sending) {
                                 draft = ""
+                                messages = messages + value
+                                store.addMessage("user", value)
+                                sending = true
+                                scope.launch {
+                                    val answer = engine.reply(value)
+                                    store.addMessage("assistant", answer)
+                                    messages = messages + answer
+                                    sending = false
+                                }
                             }
                         },
                         onCamera = { camera.launch(null) }
                     )
                     Destination.MEMORIES -> MemoriesScreen()
                     Destination.CARE -> CareScreen()
-                    Destination.SETTINGS -> SettingsScreen()
+                    Destination.SETTINGS -> SettingsScreen(vault)
                 }
             }
         }
@@ -137,7 +154,7 @@ private fun TopBar(destination: Destination) {
 @Composable
 private fun HomeScreen(
     messages: List<String>, draft: String, onDraft: (String) -> Unit,
-    onSend: () -> Unit, onCamera: () -> Unit
+    sending: Boolean, onSend: () -> Unit, onCamera: () -> Unit
 ) {
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Character stage: intentionally a new component boundary; no legacy Live2D/WebView is reused.
@@ -200,8 +217,9 @@ private fun HomeScreen(
                         focusedTextColor = White, unfocusedTextColor = White, cursorColor = Violet
                     )
                 )
-                IconButton(onClick = onSend, modifier = Modifier.size(46.dp).background(Violet, CircleShape)) {
-                    Icon(Icons.Rounded.Send, "Send", tint = Ink)
+                IconButton(onClick = onSend, enabled = !sending, modifier = Modifier.size(46.dp).background(Violet, CircleShape)) {
+                    if (sending) CircularProgressIndicator(Modifier.size(19.dp), color = Ink, strokeWidth = 2.dp)
+                    else Icon(Icons.Rounded.Send, "Send", tint = Ink)
                 }
             }
         }
