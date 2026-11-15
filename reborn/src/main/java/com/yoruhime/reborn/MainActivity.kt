@@ -2,6 +2,8 @@ package com.yoruhime.reborn
 
 import android.graphics.Bitmap
 import android.os.Bundle
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -61,6 +63,9 @@ private fun YoruHimeApp() {
     val vault = remember { ApiKeyVault(context) }
     val engine = remember { AyakaEngine(store, vault) }
     val scope = rememberCoroutineScope()
+    var voiceEnabled by rememberSaveable { mutableStateOf(true) }
+    val tts = remember { TextToSpeech(context) { } }
+    DisposableEffect(tts) { onDispose { tts.stop(); tts.shutdown() } }
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
     var draft by rememberSaveable { mutableStateOf("") }
     var messages by remember { mutableStateOf(store.messages().map { it.content }.ifEmpty { listOf("Good evening. You finally came back. Have you eaten yet?") }) }
@@ -86,6 +91,7 @@ private fun YoruHimeApp() {
                         draft = draft,
                         onDraft = { draft = it },
                         sending = sending,
+                        onSpeak = { text -> if (voiceEnabled) { tts.language = Locale.US; tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ayaka-reply") } },
                         onSend = {
                             val value = draft.trim()
                             if (value.isNotEmpty() && !sending) {
@@ -105,7 +111,7 @@ private fun YoruHimeApp() {
                     )
                     Destination.MEMORIES -> MemoriesScreen()
                     Destination.CARE -> CareScreen()
-                    Destination.SETTINGS -> SettingsScreen(vault)
+                    Destination.SETTINGS -> SettingsScreen(vault, voiceEnabled) { voiceEnabled = it }
                 }
             }
         }
@@ -154,7 +160,7 @@ private fun TopBar(destination: Destination) {
 @Composable
 private fun HomeScreen(
     messages: List<String>, draft: String, onDraft: (String) -> Unit,
-    sending: Boolean, onSend: () -> Unit, onCamera: () -> Unit
+    sending: Boolean, onSpeak: (String) -> Unit, onSend: () -> Unit, onCamera: () -> Unit
 ) {
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Character stage: intentionally a new component boundary; no legacy Live2D/WebView is reused.
@@ -195,7 +201,7 @@ private fun HomeScreen(
                     Text("YOUR CONVERSATION", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
                     Text("Talk with Ayaka", color = White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
-                IconButton(onClick = { }) { Icon(Icons.Rounded.MoreHoriz, null, tint = Muted) }
+                IconButton(onClick = { messages.lastOrNull()?.let(onSpeak) }, enabled = messages.isNotEmpty()) { Icon(Icons.Rounded.VolumeUp, "Speak latest message", tint = Muted) }
             }
             LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 items(messages) { message ->
@@ -293,10 +299,9 @@ private fun CareCard(icon: androidx.compose.ui.graphics.vector.ImageVector, titl
 }
 
 @Composable
-private fun SettingsScreen(vault: ApiKeyVault) {
+private fun SettingsScreen(vault: ApiKeyVault, voiceEnabled: Boolean, onVoiceEnabled: (Boolean) -> Unit) {
     var apiKey by rememberSaveable { mutableStateOf("") }
     var configured by remember { mutableStateOf(vault.read() != null) }
-    var voice by rememberSaveable { mutableStateOf(true) }
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("PERSONAL SPACE", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
         Text("Settings", color = White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
@@ -309,7 +314,7 @@ private fun SettingsScreen(vault: ApiKeyVault) {
         Button(onClick = { if (apiKey.isNotBlank()) { vault.save(apiKey); apiKey = ""; configured = true } }, modifier = Modifier.fillMaxWidth()) { Text("Save encrypted API key") }
         Text(if (configured) "API key saved securely on this device." else "Offline mode · add your free OpenRouter key to enable cloud chat.", color = Muted, fontSize = 12.sp)
         TextButton(onClick = { vault.clear(); configured = false; apiKey = "" }) { Text("Remove API key") }
-        SettingToggle("Voice replies", "Voice playback controls will be connected in a later milestone.", voice) { voice = it }
+        SettingToggle("Voice replies", "Allow Ayaka to read the latest reply aloud.", voiceEnabled, onVoiceEnabled)
         Surface(color = Panel, shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.padding(16.dp)) {
                 Text("Privacy first", color = White, fontWeight = FontWeight.SemiBold)
