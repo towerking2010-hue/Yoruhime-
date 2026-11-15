@@ -238,23 +238,25 @@ private fun MiniAction(icon: androidx.compose.ui.graphics.vector.ImageVector, la
 
 @Composable
 private fun MemoriesScreen() {
+    val context = LocalContext.current
+    val store = remember { RebornStore(context) }
     var note by rememberSaveable { mutableStateOf("") }
-    var notes by remember { mutableStateOf(listOf("Ayaka's promise: I'll remind you to take breaks.", "You prefer quiet company after a tiring day.")) }
+    var notes by remember { mutableStateOf(store.memories()) }
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("YOUR SHARED STORY", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
         Text("Memories", color = White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Text("Only keep what you choose to remember. You stay in control.", color = Muted, fontSize = 13.sp)
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(note, { note = it }, Modifier.weight(1f), placeholder = { Text("Add a memory…") }, shape = RoundedCornerShape(18.dp))
-            IconButton(onClick = { if (note.isNotBlank()) { notes = listOf(note.trim()) + notes; note = "" } }) { Icon(Icons.Rounded.AddCircle, null, tint = Violet) }
+            IconButton(onClick = { if (note.isNotBlank()) { store.addMemory(note.trim()); notes = store.memories(); note = "" } }) { Icon(Icons.Rounded.AddCircle, null, tint = Violet) }
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(notes) { item ->
+            items(notes, key = { it.first }) { item ->
                 Surface(color = Panel, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF34334E))) {
                     Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.BookmarkBorder, null, tint = Violet)
-                        Text(item, Modifier.weight(1f).padding(horizontal = 10.dp), color = White, fontSize = 13.sp)
-                        IconButton(onClick = { notes = notes - item }) { Icon(Icons.Rounded.DeleteOutline, null, tint = Muted) }
+                        Text(item.second, Modifier.weight(1f).padding(horizontal = 10.dp), color = White, fontSize = 13.sp)
+                        IconButton(onClick = { store.deleteMemory(item.first); notes = store.memories() }) { Icon(Icons.Rounded.DeleteOutline, null, tint = Muted) }
                     }
                 }
             }
