@@ -157,7 +157,7 @@ private fun YoruHimeApp() {
                             val image = photo
                             if (image != null && !sending) {
                                 val question = "Please describe what you notice in this photo."
-                                messages = messages + question
+                                messages = messages + ChatLine("user", question)
                                 store.addMessage("user", question)
                                 showPhoto = false
                                 sending = true
