@@ -31,7 +31,7 @@ class ChatRepository(
         isOnlineMode: Boolean,
         apiKey: String,
         imageBitmap: Bitmap? = null,
-        isFrontCamera: Boolean = false
+        isFrontCamera: Boolean? = null
     ): AyakaResponse {
         // Persist only facts the user explicitly asks YoruHime to remember.
         updateExplicitMemory(userText)
@@ -88,12 +88,16 @@ class ChatRepository(
 
         // 3. Explain Cloud failures; never silently disguise them as successful replies.
         if (response == null) {
-            val cameraLabel = if (isFrontCamera) "front-camera" else "rear-camera"
+            val imageSourceLabel = when (isFrontCamera) {
+                true -> "front-camera snapshot"
+                false -> "rear-camera snapshot"
+                null -> "attached image"
+            }
             val fallbackText = when {
                 imageBitmap != null && !isOnlineMode ->
-                    "I received your $cameraLabel snapshot, but Offline mode cannot inspect images. Open Settings, choose Try cloud, and retry."
+                    "I received your $imageSourceLabel, but Offline mode cannot inspect images. Open Settings, choose Try cloud, and retry."
                 imageBitmap != null ->
-                    "I couldn't inspect that snapshot because Cloud vision failed. $cloudFailure"
+                    "I couldn't inspect your $imageSourceLabel because Cloud vision failed. $cloudFailure"
                 isOnlineMode ->
                     "I couldn't reach Cloud, so I haven't passed this off as a successful reply. $cloudFailure"
                 else -> null
