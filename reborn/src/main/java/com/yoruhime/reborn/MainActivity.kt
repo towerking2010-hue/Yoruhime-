@@ -123,9 +123,10 @@ private fun YoruHimeApp() {
                         draft = draft,
                         onDraft = { draft = it },
                         sending = sending,
-                        onSpeak = { messages.lastOrNull { it.role == "assistant" }?.content?.let { text -> if (voiceEnabled) { tts.language = Locale.US; tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ayaka-reply") } } },
+                        onSpeak = { text -> if (voiceEnabled) { tts.language = Locale.US; tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ayaka-reply") } },
                         onVoiceInput = { micPermission.launch(android.Manifest.permission.RECORD_AUDIO) },
                         onClear = { store.clearMessages(); messages = emptyList() },
+                        onCare = { destination = Destination.CARE },
                         onSend = {
                             val value = draft.trim()
                             if (value.isNotEmpty() && !sending) {
@@ -172,7 +173,7 @@ private fun YoruHimeApp() {
                                 scope.launch {
                                     val answer = engine.replyAboutImage(question, image)
                                     store.addMessage("assistant", answer)
-                                    messages = messages + answer
+                                    messages = messages + ChatLine("assistant", answer)
                                     sending = false
                                 }
                             }
@@ -212,7 +213,7 @@ private fun TopBar(destination: Destination) {
 @Composable
 private fun HomeScreen(
     messages: List<ChatLine>, bondCount: Int, draft: String, onDraft: (String) -> Unit,
-    sending: Boolean, onSpeak: (String) -> Unit, onVoiceInput: () -> Unit, onClear: () -> Unit, onSend: () -> Unit, onCamera: () -> Unit
+    sending: Boolean, onSpeak: (String) -> Unit, onVoiceInput: () -> Unit, onClear: () -> Unit, onCare: () -> Unit, onSend: () -> Unit, onCamera: () -> Unit
 ) {
     val listState = rememberLazyListState()
     LaunchedEffect(messages.size) { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex) }
@@ -244,7 +245,7 @@ private fun HomeScreen(
             }
             Row(Modifier.align(Alignment.TopEnd).padding(14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MiniAction(Icons.Rounded.CameraAlt, "Camera", onCamera)
-                MiniAction(Icons.Rounded.Tune, "Mood") { }
+                MiniAction(Icons.Rounded.HeartPulse, "Care", onCare)
             }
             Text("CHARACTER STAGE", Modifier.align(Alignment.BottomStart).padding(16.dp), color = Muted, fontSize = 9.sp, letterSpacing = 1.6.sp)
         }
@@ -257,7 +258,8 @@ private fun HomeScreen(
                     Text("YOUR CONVERSATION", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
                     Text("Talk with Ayaka", color = White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
-                IconButton(onClick = { messages.lastOrNull()?.let(onSpeak) }, enabled = messages.isNotEmpty()) { Icon(Icons.Rounded.VolumeUp, "Speak latest message", tint = Muted) }
+                IconButton(onClick = { messages.lastOrNull { it.role == "assistant" }?.content?.let(onSpeak) }, enabled = messages.any { it.role == "assistant" }) { Icon(Icons.Rounded.VolumeUp, "Speak latest message", tint = Muted) }
+                IconButton(onClick = onClear) { Icon(Icons.Rounded.DeleteOutline, "Clear conversation", tint = Muted) }
             }
             LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 items(messages) { message ->
