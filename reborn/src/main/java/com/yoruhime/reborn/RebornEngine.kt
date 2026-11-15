@@ -23,6 +23,7 @@ import javax.crypto.spec.GCMParameterSpec
 data class ChatLine(val role: String, val content: String)
 
 class RebornStore(context: Context) : SQLiteOpenHelper(context, "yoruhime_reborn.db", null, 1) {
+    private val bondPrefs = context.getSharedPreferences("yoruhime_bond", Context.MODE_PRIVATE)
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE messages(id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT NOT NULL, content TEXT NOT NULL, created_at INTEGER NOT NULL)")
         db.execSQL("CREATE TABLE memories(id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT NOT NULL, created_at INTEGER NOT NULL)")
@@ -51,10 +52,9 @@ class RebornStore(context: Context) : SQLiteOpenHelper(context, "yoruhime_reborn
     }
     @Synchronized fun deleteMemory(id: Long) { writableDatabase.delete("memories", "id=?", arrayOf(id.toString())) }
     @Synchronized fun clearMessages() { writableDatabase.delete("messages", null, null) }
-    @Synchronized fun userMessageCount(): Int {
-        readableDatabase.rawQuery("SELECT COUNT(*) FROM messages WHERE role='user'", null).use { c ->
-            return if (c.moveToFirst()) c.getInt(0) else 0
-        }
+    fun bondCount(): Int = bondPrefs.getInt("conversation_points", 0)
+    fun addBondPoint() {
+        bondPrefs.edit().putInt("conversation_points", bondCount() + 1).apply()
     }
 }
 
