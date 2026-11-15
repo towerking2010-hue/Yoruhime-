@@ -102,7 +102,7 @@ private fun YoruHimeApp() {
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
     var messages by remember { mutableStateOf(store.messages().ifEmpty { listOf(ChatLine("assistant", "Good evening. You finally came back. Have you eaten yet?")) }) }
     var sending by remember { mutableStateOf(false) }
-    var bondCount by remember { mutableIntStateOf(store.userMessageCount()) }
+    var bondCount by remember { mutableIntStateOf(store.bondCount()) }
     var photo by remember { mutableStateOf<Bitmap?>(null) }
     var showPhoto by remember { mutableStateOf(false) }
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { photo = it; showPhoto = it != null }
