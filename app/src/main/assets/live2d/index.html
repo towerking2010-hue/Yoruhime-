@@ -142,6 +142,10 @@
     let reactiveAngleZ = 0;
     let reactiveVelocityZ = 0;
 
+    // Semantic performance targets supplied by Ayaka's Kotlin animation director.
+    let currentHeadTilt = 0, targetHeadTilt = 0;
+    let currentBodyLean = 0, targetBodyLean = 0;
+
     // Active Emotion State
     let activeEmotion = 'normal';
     // Particle FX Canvas
@@ -312,6 +316,10 @@
       currentFocusY += (targetFocusY - currentFocusY) * 0.08;
       currentModel.focus(currentFocusX * (window.innerWidth * 0.4), currentFocusY * (window.innerHeight * 0.3));
 
+      // Blend semantic head/body cues smoothly instead of snapping the rig.
+      currentHeadTilt += (targetHeadTilt - currentHeadTilt) * 0.08;
+      currentBodyLean += (targetBodyLean - currentBodyLean) * 0.08;
+
       // 2. Procedural Breathing (ParamBreath)
       const breathVal = (Math.sin(timestamp * 0.0022) + 1) * 0.5;
       core.setParameterValueById('ParamBreath', breathVal);
@@ -321,8 +329,8 @@
       reactiveVelocityZ *= 0.85;
       reactiveAngleZ += reactiveVelocityZ;
 
-      const swayZ = Math.sin(timestamp * 0.001) * 2.2 + reactiveAngleZ;
-      const swayBody = Math.cos(timestamp * 0.0007) * 1.4;
+      const swayZ = Math.sin(timestamp * 0.001) * 2.2 + reactiveAngleZ + currentHeadTilt;
+      const swayBody = Math.cos(timestamp * 0.0007) * 1.4 + currentBodyLean;
       core.setParameterValueById('ParamAngleZ', swayZ);
       core.setParameterValueById('ParamBodyAngleZ', swayBody);
 
@@ -415,6 +423,22 @@
       } catch (e) {
         console.warn("Live2D expression unavailable:", activeEmotion, e);
       }
+    };
+
+    // Kotlin's renderer adapter uses normalized gaze coordinates and gentle
+    // rig offsets. Pointer tracking and semantic cues share the same damped targets.
+    window.lookAt = function(x, y) {
+      targetFocusX = Number.isFinite(x) ? Math.max(-1, Math.min(1, x)) : 0;
+      targetFocusY = Number.isFinite(y) ? Math.max(-1, Math.min(1, y)) : 0;
+      lastInteractionTime = performance.now();
+    };
+
+    window.setHeadTilt = function(degrees) {
+      targetHeadTilt = Number.isFinite(degrees) ? Math.max(-8, Math.min(8, degrees)) : 0;
+    };
+
+    window.setBodyLean = function(degrees) {
+      targetBodyLean = Number.isFinite(degrees) ? Math.max(-4, Math.min(4, degrees)) : 0;
     };
 
     window.playMotion = function(motionName) {
