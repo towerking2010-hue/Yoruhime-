@@ -74,7 +74,7 @@ internal fun AyakaAvatar(modifier: Modifier = Modifier) {
 
                     webChromeClient = object : WebChromeClient() {
                         override fun onConsoleMessage(message: ConsoleMessage): Boolean {
-                            val line = "\${message.message()} (\${message.sourceId()}:\${message.lineNumber()})"
+                            val line = "${message.message()} (${message.sourceId()}:${message.lineNumber()})"
                             if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
                                 Log.e("AyakaAvatar", line)
                             } else {
@@ -106,7 +106,7 @@ internal fun AyakaAvatar(modifier: Modifier = Modifier) {
                             error: android.webkit.WebResourceError
                         ) {
                             if (request.isForMainFrame) {
-                                status = "Avatar page failed: \${error.description}"
+                                status = "Avatar page failed: ${error.description}"
                                 Log.e("AyakaAvatar", status)
                             }
                         }
