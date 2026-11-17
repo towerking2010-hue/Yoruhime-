@@ -1,67 +1,97 @@
 # YoruHime Reborn
 
-A clean-room Android rebuild of YoruHime, centered on Ayaka Tōjō (東条 絢香). The previous application module is excluded from the new Gradle build; this branch uses a new Compose UI and a separate application ID.
+A clean-room Android companion app centered on Ayaka Tōjō (東条 絢香). The legacy application is preserved separately; Reborn uses its own \`:reborn\` module and application ID (\`com.yoruhime.reborn\`).
 
-## Product vision
+## Product direction
 
-Ayaka is mature, elegant, caring, protective, emotionally intelligent, and warmly affectionate. Her default voice is composed, with occasional playful tsundere teasing. When the user is distressed, empathy takes priority over teasing.
+**Ayaka is the interface.** The Home destination is an immersive, full-screen character stage. Chat is a temporary bottom sheet that appears only when requested; the text keyboard appears only when the user focuses the composer. There is no permanently visible half-screen chat panel.
 
-Target device: Samsung Galaxy A31 / Android 12. The app must avoid continuous heavy rendering, background camera use, and unnecessary battery or memory consumption.
+Ayaka's personality remains mature, elegant, caring, protective, emotionally perceptive and warmly affectionate. Her default voice is composed, with occasional playful tsundere teasing. When the user is distressed, empathy takes priority over teasing.
 
-## Current clean architecture
+Target device: Samsung Galaxy A31 / Android 12. Keep rendering light, avoid background camera use, and minimize battery, memory and thermal load.
 
-- New Android module: `:reborn`
-- Package: `com.yoruhime.reborn`
-- Application ID: `com.yoruhime.reborn`
-- Kotlin + Jetpack Compose + Material 3
-- Local SQLite store for chat history and explicitly saved memories
-- Android Keystore AES-GCM encryption for the OpenRouter API key
-- Coroutine-based network requests on IO
-- Dedicated build workflow: `.github/workflows/reborn-build.yml`
+## Architecture
+
+- Native Android shell: Kotlin, Jetpack Compose and Material 3.
+- Immersive Home surface: full-size local WebView avatar stage with native Compose controls and on-demand conversation sheet.
+- Avatar runtime: Vite-built Three.js + \`@pixiv/three-vrm\`, bundled locally and served through AndroidX WebViewAssetLoader.
+- Avatar diagnostics: JavaScript-to-native status bridge, visible loading/error state, WebView render-process recovery and retry.
+- Conversation: coroutine-based OpenRouter \`openrouter/free\` requests; network work runs off the UI thread.
+- Local data: SQLite chat history and explicitly saved memories.
+- Secret storage: OpenRouter key encrypted with Android Keystore AES-GCM.
+- Voice input/output: Android SpeechRecognizer and Android TextToSpeech.
+- Camera: user-initiated Android camera capture; local preview and a separate explicit confirmation before any image upload.
+- Care tools: focus timer, mood check-in, bond counter and user-scheduled bedtime reminder.
+
+## Current avatar status
+
+The bundled VRM is pixiv's \`AvatarSample_B\`, a temporary licensed sample—not a custom Ayaka model. The runtime currently provides basic idle motion, blinking and a tap-triggered happy expression. It does not yet provide Ayaka's final character design, a rich motion library, expressive dialogue-to-body action selection or a custom voice.
+
+The avatar stage is now full-screen. The WebView reports startup and failure status to the native layer rather than silently leaving an empty stage. This diagnostic feedback is intended to make the next Galaxy A31 test actionable; it is not a claim that the model has been verified on that phone.
+
+## Reference projects and what we adapt
+
+### Project Riko
+Repository: https://github.com/rayenfeng/riko_project (MIT)
+
+Useful ideas: separate speech / brain / voice / avatar responsibilities; one clear conversational turn pipeline; configurable character personality; VRM camera framing based on the avatar's actual head/body bounds; lip-sync as a distinct presentation concern.
+
+We adapt the architecture, not Riko's character identity or voice. The public repository is a PC-oriented Python project, so its desktop audio dependencies are not copied into the Android app.
+
+### OpenSakura
+Repository: https://github.com/zeekk0/OpenSakura (MIT harness)
+
+Useful ideas: emotion state as structured data rather than a single mood label; emotion decay over time; per-user memory notes with explicit ownership; a separate action controller that maps a reply's tone to a small set of named motions; a clean boundary between the companion brain and avatar presentation.
+
+We adapt those patterns to Ayaka and Android. Sakura's character design, name, likeness, voice model and voice assets are not included or reused. Its GPU-heavy Windows voice stack is not suitable for the Galaxy A31 target.
+
+### Original YoruHime identity
+Riko and OpenSakura are technical/personality references, not templates to copy. Ayaka keeps her own identity, boundaries, dialogue style and visual design.
 
 ## Implemented in this branch
 
-- New visual system, launcher icon, four separate destinations: Home, Memories, Care, Settings.
-- Bundled offline VRM character stage using pixiv/VRoid AvatarSample_B (VRM 1.0), loaded locally through AndroidX WebViewAssetLoader and Three.js / @pixiv/three-vrm.
-- Lightweight 30 FPS character rendering, subtle idle sway/breathing motion, automatic blinking, and tap-triggered happy expression. The current model is a licensed sample placeholder, not the final custom Ayaka design.
-- Chat UI with separate user/assistant bubbles, history persistence, clear-chat action, and scroll-to-latest.
-- Ayaka chat through the OpenRouter `openrouter/free` route when the user supplies a key.
-- Offline conversational fallback when no key is configured or the network request fails.
-- User-entered OpenRouter key encrypted with Android Keystore; remove-key control.
-- Explicit user-created memories stored locally, editable by deletion, and supplied to AI context only as user-approved notes.
-- Camera capture through Android's camera intent, local preview, and a separate user-confirmed action to send a resized photo to the free vision route.
-- Speech recognition with runtime microphone permission.
-- Android text-to-speech for reading the latest Ayaka reply.
-- Focus timer with 15, 25, 45, and 60-minute presets.
-- Daily mood check-in.
-- Conversation-based bond level indicator.
+- New Compose design system and separate Home / Memories / Care / Settings destinations.
+- Full-screen avatar-first Home experience; conversation opens as an on-demand bottom sheet.
+- Persistent local chat history, separate user/assistant bubbles, clear-chat control and scroll-to-latest.
+- OpenRouter \`openrouter/free\` route only when the user supplies a key.
+- Lightweight offline conversational fallback when no key is configured or a cloud request fails. This is not a full local language model.
+- User-entered API key encrypted with Android Keystore; remove-key control.
+- Explicit user-created memories, deletion and approved-memory context injection.
+- Camera capture, local preview and explicit confirmation before image upload.
+- Runtime-permission-gated speech recognition and Android TTS.
+- 15/25/45/60-minute focus timer, daily mood check-in and conversation-based bond counter.
+- Daily bedtime notification scheduling with inexact alarms, notification permission handling, cancellation and reboot restoration.
+- Dedicated GitHub Actions workflow for unit-test task and debug APK assembly.
 
-## Not yet complete / must not be represented as complete
+## Not yet release-ready
 
-- Replace the licensed VRoid sample with a distinctive custom Ayaka model and validate the final appearance, model scale, expression mapping, and touch reactions on a physical Galaxy A31.
-- Reliable device-tested image vision across free models (free model capabilities can vary).
-- Bedtime notification scheduling and notification-permission flow.
-- Persistent mood history and richer bond progression/rewards.
-- Automated unit and UI tests for core flows.
-- Physical-device QA on the Galaxy A31, including avatar rendering/performance, rotation, keyboard, permission denial, network failure, low-memory behavior, and background/foreground transitions.
+- Distinctive custom Ayaka VRM with verified redistribution rights.
+- More facial expressions, idle variations, touch reactions, emotion-to-expression mapping and dialogue-to-motion action selection.
+- A consistent Ayaka voice that is free to use and licensed for redistribution.
+- Verified vision support across whichever free model OpenRouter routes to.
+- Persistent mood history and a more meaningful, user-controlled relationship progression.
+- Automated unit/UI tests and physical Galaxy A31 QA.
+- Device validation of WebGL rendering, model scale/framing, keyboard and bottom-sheet behavior, rotation, permissions, low-memory recovery, background/foreground transitions and battery use.
 
 ## Non-negotiable constraints
 
-- No paid AI fallback, subscriptions, credits, hidden charges, or automatic top-ups.
+- No paid AI fallback, subscriptions, credits, hidden charges or automatic top-ups.
 - Never commit API credentials.
-- Camera only starts after an explicit user action; no background camera operation.
-- Images are not sent until the user explicitly taps the photo-send action.
-- Memory is user-controlled; never silently save personal details.
-- Keep AI/network work off the main thread.
-- No destructive migration or removal of the legacy project history.
-- A green CI build is not proof of physical-device reliability.
+- No background camera operation; camera starts only after explicit user action.
+- Never send a photo until the user confirms.
+- Never silently save personal details; memories remain user-controlled.
+- Keep network work off the main thread.
+- Preserve the legacy project and its data; do not force a destructive migration.
+- A successful CI build is not proof of physical-device reliability.
 
-## Build and artifact
+## Build
 
-The dedicated workflow runs:
+The workflow runs:
 
-```bash
+\`\`\`bash
 gradle :reborn:testDebugUnitTest :reborn:assembleDebug
-```
+\`\`\`
 
-On success, it uploads `yoruhime-reborn-debug-apk`. The new application ID means it installs separately from the legacy app. Test on Android 12 before treating it as a release candidate.
+The resulting debug APK is uploaded as the \`yoruhime-reborn-debug-apk\` workflow artifact. The application ID is \`com.yoruhime.reborn\`, so it installs separately from the legacy app. Test on Android 12 before treating it as a release candidate.
+
+See [AYAKA_ARCHITECTURE.md](AYAKA_ARCHITECTURE.md) for the detailed interaction and component design.
