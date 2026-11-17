@@ -8,6 +8,7 @@ import android.speech.RecognizerIntent
 import android.speech.RecognitionListener
 import android.content.Intent
 import android.app.TimePickerDialog
+import android.view.WindowManager
 import java.util.Locale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -61,6 +62,7 @@ class MainActivity : ComponentActivity() {
         window.statusBarColor = android.graphics.Color.rgb(9, 11, 22)
         window.navigationBarColor = android.graphics.Color.rgb(9, 11, 22)
         window.decorView.systemUiVisibility = 0
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         setContent { YoruHimeApp() }
     }
 }
@@ -116,10 +118,10 @@ private fun YoruHimeApp() {
         Scaffold(
             containerColor = Ink,
             contentWindowInsets = WindowInsets.safeDrawing,
-            bottomBar = { NavigationDock(destination) { destination = it } }
+            bottomBar = { if (destination != Destination.HOME) NavigationDock(destination) { destination = it } }
         ) { padding ->
             Column(Modifier.fillMaxSize().padding(padding)) {
-                TopBar(destination)
+                if (destination != Destination.HOME) TopBar(destination)
                 when (destination) {
                     Destination.HOME -> HomeScreen(
                         messages = messages,
@@ -131,6 +133,8 @@ private fun YoruHimeApp() {
                         onVoiceInput = { micPermission.launch(android.Manifest.permission.RECORD_AUDIO) },
                         onClear = { store.clearMessages(); messages = emptyList() },
                         onCare = { destination = Destination.CARE },
+                        onMemories = { destination = Destination.MEMORIES },
+                        onSettings = { destination = Destination.SETTINGS },
                         onSend = {
                             val value = draft.trim()
                             if (value.isNotEmpty() && !sending) {
@@ -217,85 +221,210 @@ private fun TopBar(destination: Destination) {
 @Composable
 private fun HomeScreen(
     messages: List<ChatLine>, bondCount: Int, draft: String, onDraft: (String) -> Unit,
-    sending: Boolean, onSpeak: (String) -> Unit, onVoiceInput: () -> Unit, onClear: () -> Unit, onCare: () -> Unit, onSend: () -> Unit, onCamera: () -> Unit
+    sending: Boolean, onSpeak: (String) -> Unit, onVoiceInput: () -> Unit,
+    onClear: () -> Unit, onCare: () -> Unit, onMemories: () -> Unit,
+    onSettings: () -> Unit, onSend: () -> Unit, onCamera: () -> Unit
 ) {
-    val listState = rememberLazyListState()
-    LaunchedEffect(messages.size) { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex) }
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Character stage: intentionally a new component boundary; no legacy Live2D/WebView is reused.
+    var chatOpen by rememberSaveable { mutableStateOf(false) }
+
+    Box(
+        Modifier.fillMaxSize()
+            .background(Brush.verticalGradient(listOf(Color(0xFF171329), Color(0xFF090B16), Color(0xFF090B16))))
+    ) {
+        // Ayaka owns the entire home surface. Conversation is a temporary layer,
+        // never a permanently allocated half-screen panel.
+        AyakaAvatar(Modifier.fillMaxSize())
+
         Box(
-            Modifier.fillMaxWidth().weight(0.46f).clip(RoundedCornerShape(30.dp))
-                .background(Brush.verticalGradient(listOf(Color(0xFF282343), Color(0xFF171A2D), Ink)))
-                .border(1.dp, Color(0xFF51456F), RoundedCornerShape(30.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-                AyakaAvatar(Modifier.weight(1f).fillMaxWidth())
-                Text("AYAKA TŌJŌ", color = White, fontSize = 17.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                Text("Tap to say hello", color = Lilac, fontSize = 11.sp, modifier = Modifier.padding(bottom = 28.dp, top = 3.dp))
-            }
-            Row(Modifier.align(Alignment.TopEnd).padding(14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MiniAction(Icons.Rounded.CameraAlt, "Camera", onCamera)
-                MiniAction(Icons.Rounded.FavoriteBorder, "Care", onCare)
-            }
-            Text("CHARACTER STAGE", Modifier.align(Alignment.BottomStart).padding(16.dp), color = Muted, fontSize = 9.sp, letterSpacing = 1.6.sp)
-        }
-        Column(
-            Modifier.weight(0.54f).fillMaxWidth().clip(RoundedCornerShape(28.dp))
-                .background(Panel).border(1.dp, Color(0xFF34334E), RoundedCornerShape(28.dp)).padding(14.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("YOUR CONVERSATION", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
-                    Text("Talk with Ayaka", color = White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                }
-                IconButton(onClick = { messages.lastOrNull { it.role == "assistant" }?.content?.let(onSpeak) }, enabled = messages.any { it.role == "assistant" }) { Icon(Icons.Rounded.VolumeUp, "Speak latest message", tint = Muted) }
-                IconButton(onClick = onClear) { Icon(Icons.Rounded.DeleteOutline, "Clear conversation", tint = Muted) }
-            }
-            LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                items(messages) { message ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (message.role == "user") Arrangement.End else Arrangement.Start) {
-                        Surface(
-                            color = if (message.role == "user") Color(0xFF46366D) else Panel2,
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.widthIn(max = 290.dp)
-                        ) {
-                            Text(message.content, Modifier.padding(12.dp), color = White, fontSize = 13.sp)
-                        }
-                    }
-                }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                IconButton(onClick = onCamera, modifier = Modifier.size(44.dp).background(Panel2, CircleShape)) {
-                    Icon(Icons.Rounded.PhotoCamera, "Open camera", tint = Lilac)
-                }
-                IconButton(onClick = onVoiceInput, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Rounded.Mic, "Speak to Ayaka", tint = Lilac)
-                }
-                OutlinedTextField(
-                    value = draft, onValueChange = onDraft, modifier = Modifier.weight(1f),
-                    placeholder = { Text("Say something to Ayaka…", color = Muted, fontSize = 12.sp) },
-                    singleLine = true, shape = RoundedCornerShape(18.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Violet, unfocusedBorderColor = Color(0xFF393750),
-                        focusedTextColor = White, unfocusedTextColor = White, cursorColor = Violet
-                    )
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    0f to Color(0xA6090B16),
+                    0.22f to Color.Transparent,
+                    0.62f to Color.Transparent,
+                    1f to Color(0xE6090B16)
                 )
-                IconButton(onClick = onSend, enabled = !sending, modifier = Modifier.size(46.dp).background(Violet, CircleShape)) {
-                    if (sending) CircularProgressIndicator(Modifier.size(19.dp), color = Ink, strokeWidth = 2.dp)
-                    else Icon(Icons.Rounded.Send, "Send", tint = Ink)
+            )
+        )
+
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Y O R U H I M E", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                    Text("A quiet place to return to.", color = Lilac, fontSize = 12.sp)
+                }
+                IconButton(
+                    onClick = onMemories,
+                    modifier = Modifier.size(42.dp).clip(CircleShape).background(Panel.copy(alpha = 0.72f))
+                ) { Icon(Icons.Rounded.Bookmarks, "Memories", tint = Lilac) }
+                Spacer(Modifier.width(8.dp))
+                IconButton(
+                    onClick = onSettings,
+                    modifier = Modifier.size(42.dp).clip(CircleShape).background(Panel.copy(alpha = 0.72f))
+                ) { Icon(Icons.Rounded.Settings, "Settings", tint = Lilac) }
+            }
+
+            Spacer(Modifier.weight(1f))
+
+            Column(
+                Modifier.fillMaxWidth().padding(bottom = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "AYAKA TŌJŌ",
+                    color = White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 3.sp
+                )
+                Text("I'm right here.", color = Lilac, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                Text(
+                    "BOND  ·  $bondCount",
+                    color = Muted,
+                    fontSize = 9.sp,
+                    letterSpacing = 1.8.sp,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            Surface(
+                color = Panel.copy(alpha = 0.88f),
+                shape = RoundedCornerShape(30.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x665E527D)),
+                shadowElevation = 12.dp
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    IconButton(
+                        onClick = onCamera,
+                        modifier = Modifier.size(46.dp).clip(CircleShape).background(Panel2)
+                    ) { Icon(Icons.Rounded.PhotoCamera, "Camera", tint = Lilac) }
+                    IconButton(
+                        onClick = { chatOpen = true; onVoiceInput() },
+                        modifier = Modifier.size(46.dp).clip(CircleShape).background(Panel2)
+                    ) { Icon(Icons.Rounded.Mic, "Speak to Ayaka", tint = Lilac) }
+                    Button(
+                        onClick = { chatOpen = true },
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Violet, contentColor = Ink)
+                    ) {
+                        Icon(Icons.Rounded.Forum, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Talk to Ayaka", fontWeight = FontWeight.SemiBold)
+                    }
+                    IconButton(
+                        onClick = onCare,
+                        modifier = Modifier.size(46.dp).clip(CircleShape).background(Panel2)
+                    ) { Icon(Icons.Rounded.FavoriteBorder, "Care", tint = Lilac) }
                 }
             }
         }
     }
-}
 
-@Composable
-private fun MiniAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
-    Surface(onClick = onClick, color = Color(0xAA111426), shape = RoundedCornerShape(14.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x665E527D))) {
-        Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            Icon(icon, null, tint = Lilac, modifier = Modifier.size(15.dp))
-            Text(label, color = White, fontSize = 10.sp)
+    if (chatOpen) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val listState = rememberLazyListState()
+        LaunchedEffect(messages.size) {
+            if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
+        }
+        ModalBottomSheet(
+            onDismissRequest = { chatOpen = false },
+            sheetState = sheetState,
+            containerColor = Panel,
+            contentColor = White,
+            dragHandle = { BottomSheetDefaults.DragHandle(color = Muted) }
+        ) {
+            Column(
+                Modifier.fillMaxWidth().fillMaxHeight(0.82f).imePadding()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 10.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("A LITTLE TIME TOGETHER", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                        Text("Talk with Ayaka", color = White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                    }
+                    IconButton(
+                        onClick = { messages.lastOrNull { it.role == "assistant" }?.content?.let(onSpeak) },
+                        enabled = messages.any { it.role == "assistant" }
+                    ) { Icon(Icons.Rounded.VolumeUp, "Read latest reply aloud", tint = Lilac) }
+                    IconButton(onClick = onClear) { Icon(Icons.Rounded.DeleteOutline, "Clear conversation", tint = Muted) }
+                }
+
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 12.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(messages) { message ->
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = if (message.role == "user") Arrangement.End else Arrangement.Start
+                        ) {
+                            Surface(
+                                color = if (message.role == "user") Color(0xFF49366F) else Panel2,
+                                shape = RoundedCornerShape(
+                                    topStart = 20.dp, topEnd = 20.dp,
+                                    bottomEnd = if (message.role == "user") 7.dp else 20.dp,
+                                    bottomStart = if (message.role == "user") 20.dp else 7.dp
+                                ),
+                                modifier = Modifier.widthIn(max = 320.dp)
+                            ) {
+                                Text(message.content, Modifier.padding(horizontal = 15.dp, vertical = 12.dp), color = White, fontSize = 14.sp, lineHeight = 21.sp)
+                            }
+                        }
+                    }
+                    if (sending) {
+                        item {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                CircularProgressIndicator(Modifier.size(14.dp), color = Violet, strokeWidth = 2.dp)
+                                Text("Ayaka is thinking…", color = Muted, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    IconButton(
+                        onClick = onVoiceInput,
+                        modifier = Modifier.size(44.dp).clip(CircleShape).background(Panel2)
+                    ) { Icon(Icons.Rounded.Mic, "Voice input", tint = Lilac) }
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = onDraft,
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Say something to Ayaka…", color = Muted, fontSize = 13.sp) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(22.dp),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Send
+                        ),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { if (!sending) onSend() }),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Violet, unfocusedBorderColor = Color(0xFF393750),
+                            focusedTextColor = White, unfocusedTextColor = White, cursorColor = Violet
+                        )
+                    )
+                    IconButton(
+                        onClick = onSend,
+                        enabled = !sending && draft.isNotBlank(),
+                        modifier = Modifier.size(48.dp).clip(CircleShape).background(Violet)
+                    ) {
+                        if (sending) CircularProgressIndicator(Modifier.size(18.dp), color = Ink, strokeWidth = 2.dp)
+                        else Icon(Icons.Rounded.Send, "Send message", tint = Ink)
+                    }
+                }
+            }
         }
     }
 }
