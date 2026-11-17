@@ -30,13 +30,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.viewinterop.AndroidView
 
-private class AyakaStatusBridge(
+internal class AyakaStatusBridge(
     private val webView: WebView,
-    private val onStatus: (String) -> Unit
+    private val statusCallback: (String) -> Unit
 ) {
     @JavascriptInterface
     fun onStatus(message: String) {
-        webView.post { onStatus(message.take(140)) }
+        webView.post { statusCallback(message.take(140)) }
     }
 }
 
@@ -89,7 +89,7 @@ internal fun AyakaAvatar(modifier: Modifier = Modifier) {
                         }
 
                         override fun onPageFinished(view: WebView, url: String) {
-                            if (!status.contains("ready", true) && !failed) {
+                            if (status == "Opening Ayaka's 3D stage…") {
                                 status = "3D stage loaded · preparing her model…"
                             }
                         }
