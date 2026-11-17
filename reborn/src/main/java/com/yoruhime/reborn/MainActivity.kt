@@ -218,6 +218,7 @@ private fun TopBar(destination: Destination) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeScreen(
     messages: List<ChatLine>, bondCount: Int, draft: String, onDraft: (String) -> Unit,
