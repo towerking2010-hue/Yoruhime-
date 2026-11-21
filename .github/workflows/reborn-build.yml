@@ -1,0 +1,52 @@
+name: YoruHime Reborn Android Build
+
+on:
+  push:
+    branches: [yoruhime/reborn]
+  workflow_dispatch:
+
+concurrency:
+  group: reborn-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Node for the offline avatar bundle
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download licensed VRoid sample and verify checksum
+        working-directory: avatar-web
+        run: |
+          mkdir -p public
+          curl --fail --location --retry 3 \
+            https://raw.githubusercontent.com/pixiv/ChatVRM/b542aa00e19dccf9fc48ba340cf7eee011d2329a/public/AvatarSample_B.vrm \
+            --output public/ayaka.vrm
+          echo "ffbd8c92a9e67c0a948f69c7a2eec91e5c282c9ae70e9184309fc164d74cbc27  public/ayaka.vrm" | sha256sum --check
+          npm install --no-audit --no-fund
+          npm run build
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Run unit tests and assemble clean app
+        run: gradle :reborn:testDebugUnitTest :reborn:assembleDebug
+      - name: Upload Reborn APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: yoruhime-reborn-debug-apk
+          path: reborn/build/outputs/apk/debug/reborn-debug.apk
+          if-no-files-found: error
+          retention-days: 30
