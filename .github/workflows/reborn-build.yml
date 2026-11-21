@@ -2,7 +2,7 @@ name: YoruHime Reborn Android Build
 
 on:
   push:
-    branches: [yoruhime/reborn]
+    branches: [yoruhime/reborn, yoruhime/installable-ayaka-fix]
   workflow_dispatch:
 
 concurrency:
@@ -27,14 +27,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Download licensed VRoid sample and verify checksum
+      - name: Verify the bundled Ayaka model (never substitute a sample)
         working-directory: avatar-web
+        shell: bash
         run: |
-          mkdir -p public
-          curl --fail --location --retry 3 \
-            https://raw.githubusercontent.com/pixiv/ChatVRM/b542aa00e19dccf9fc48ba340cf7eee011d2329a/public/AvatarSample_B.vrm \
-            --output public/ayaka.vrm
-          echo "ffbd8c92a9e67c0a948f69c7a2eec91e5c282c9ae70e9184309fc164d74cbc27  public/ayaka.vrm" | sha256sum --check
+          set -euo pipefail
+          if [ ! -s public/ayaka.vrm ]; then
+            echo "::error::Ayaka model is missing. Add the creator-authorized file at avatar-web/public/ayaka.vrm before building. The workflow will not silently download a placeholder avatar."
+            exit 1
+          fi
+          echo "66b0944b3be41da8efe78909340bb64b31afa7262776b07679ce0b2fd1d2a601  public/ayaka.vrm" | sha256sum --check
           npm install --no-audit --no-fund
           npm run build
       - name: Set up Gradle
@@ -43,6 +45,14 @@ jobs:
           gradle-version: '8.11.1'
       - name: Run unit tests and assemble clean app
         run: gradle :reborn:testDebugUnitTest :reborn:assembleDebug
+      - name: Verify APK alignment and Android signature schemes
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="reborn/build/outputs/apk/debug/reborn-debug.apk"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)"
+          "$BUILD_TOOLS/zipalign" -c -v 4 "$APK"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
       - name: Upload Reborn APK
         uses: actions/upload-artifact@v4
         with:
