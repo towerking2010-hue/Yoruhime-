@@ -1,164 +1,108 @@
 package com.yoruhime.reborn
 
-import android.graphics.Color as AndroidColor
+import android.content.Context
+import android.graphics.Color
+import android.util.AttributeSet
 import android.util.Log
-import android.view.View
-import android.webkit.ConsoleMessage
-import android.webkit.JavascriptInterface
-import android.webkit.WebChromeClient
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import androidx.webkit.WebViewAssetLoader
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import android.view.Choreographer
+import android.view.SurfaceView
+import android.widget.FrameLayout
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.viewinterop.AndroidView
-
-internal class AyakaStatusBridge(
-    private val webView: WebView,
-    private val statusCallback: (String) -> Unit
-) {
-    @JavascriptInterface
-    fun onStatus(message: String) {
-        webView.post { statusCallback(message.take(140)) }
-    }
-}
+import com.google.android.filament.View as FilamentView
+import com.google.android.filament.android.ChoreographerHelper
+import com.google.android.filament.utils.ModelViewer
+import com.google.android.filament.utils.Utils
+import java.nio.ByteBuffer
 
 @Composable
 internal fun AyakaAvatar(modifier: Modifier = Modifier) {
-    var status by remember { mutableStateOf("Waking Ayaka…") }
-    var avatarView by remember { mutableStateOf<WebView?>(null) }
-    val failed = status.contains("failed", true) ||
-        status.contains("could not", true) ||
-        status.contains("stopped", true) ||
-        status.contains("error", true) ||
-        status.contains("unavailable", true)
+    AndroidView(
+        modifier = modifier,
+        factory = { context -> FilamentAyakaView(context) },
+        update = { },
+        onRelease = { it.release() }
+    )
+}
 
-    Box(modifier) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { context ->
-                val assetLoader = WebViewAssetLoader.Builder()
-                    .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context))
-                    .build()
-                WebView(context).apply {
-                    avatarView = this
-                    setBackgroundColor(AndroidColor.rgb(9, 11, 22))
-                    overScrollMode = View.OVER_SCROLL_NEVER
-                    isVerticalScrollBarEnabled = false
-                    isHorizontalScrollBarEnabled = false
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.loadsImagesAutomatically = true
-                    settings.allowFileAccess = false
-                    settings.allowContentAccess = false
-                    settings.loadsImagesAutomatically = true
-                    settings.mediaPlaybackRequiresUserGesture = true
-                    settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                    addJavascriptInterface(AyakaStatusBridge(this) { status = it }, "YoruHimeBridge")
+/** Native Filament avatar surface; rendering no longer depends on Android WebView/WebGL. */
+private class FilamentAyakaView @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null
+) : FrameLayout(context, attrs) {
+    companion object {
+        private const val TAG = "AyakaFilament"
+        init { Utils.init() }
+    }
 
-                    webChromeClient = object : WebChromeClient() {
-                        override fun onConsoleMessage(message: ConsoleMessage): Boolean {
-                            val line = "${message.message()} (${message.sourceId()}:${message.lineNumber()})"
-                            if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
-                                Log.e("AyakaAvatar", line)
-                            } else {
-                                Log.d("AyakaAvatar", line)
-                            }
-                            return true
-                        }
-                    }
-                    webViewClient = object : WebViewClient() {
-                        override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
-                            status = "Opening Ayaka's 3D stage…"
-                        }
-
-                        override fun onPageFinished(view: WebView, url: String) {
-                            Log.i("AyakaAvatar", "Avatar page finished: $url")
-                            status = "Stage opened · checking 3D graphics…"
-                            // Inspect support without creating a WebGL context here. The renderer
-                            // must be the first code to request the canvas context and its attributes.
-                            view.evaluateJavascript(
-                                "(function(){var c=document.getElementById('avatar');return 'page='+document.readyState+', canvas='+(!!c)+', size='+(c?c.width+'x'+c.height:'none')+', webgl2-api='+(typeof WebGL2RenderingContext!=='undefined');})()"
-                            ) { result ->
-                                Log.i("AyakaAvatar", "WebView startup diagnostic: $result")
-                                if (!status.contains("ready", true) && !status.contains("failed", true)) {
-                                    status = "Stage opened · $result"
-                                }
-                            }
-                        }
-
-                        override fun shouldInterceptRequest(
-                            view: WebView,
-                            request: android.webkit.WebResourceRequest
-                        ): android.webkit.WebResourceResponse? =
-                            assetLoader.shouldInterceptRequest(request.url)
-
-                        override fun onReceivedError(
-                            view: WebView,
-                            request: android.webkit.WebResourceRequest,
-                            error: android.webkit.WebResourceError
-                        ) {
-                            if (request.isForMainFrame) {
-                                status = "Avatar page failed: ${error.description}"
-                                Log.e("AyakaAvatar", status)
-                            }
-                        }
-
-                        override fun onRenderProcessGone(
-                            view: WebView,
-                            detail: android.webkit.RenderProcessGoneDetail
-                        ): Boolean {
-                            status = "Android stopped the 3D renderer. Tap retry to wake her again."
-                            Log.e("AyakaAvatar", status)
-                            return true
-                        }
-                    }
-                    loadUrl("https://appassets.androidplatform.net/assets/avatar/index.html")
-                }
-            },
-            update = { }
-        )
-
-        // Keep diagnostics visible below the home header. Previously they were only
-        // shown on selected failure strings and could sit underneath the native header.
-        Surface(
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 76.dp),
-                color = Color(0xD914182A),
-                shape = RoundedCornerShape(18.dp),
-                shadowElevation = 4.dp
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(status, color = Color(0xFFE0D4FF), fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                    if (failed || status.contains("Stage opened", true) || status.contains("checking", true) || status.contains("Retrying", true)) {
-                        Button(
-                            onClick = {
-                                status = "Retrying Ayaka's 3D stage…"
-                                avatarView?.reload()
-                            },
-                            modifier = Modifier.padding(start = 8.dp)
-                        ) { Text("Retry", fontSize = 11.sp) }
-                    }
-                }
+    private val surface = SurfaceView(context).apply {
+        setBackgroundColor(Color.rgb(9, 11, 22))
+        holder.setFormat(android.graphics.PixelFormat.OPAQUE)
+    }
+    private var viewer: ModelViewer? = null
+    private var released = false
+    private val frameLoop = object : ChoreographerHelper() {
+        override fun onFrame(frameTimeNanos: Long, frameData: Any?) {
+            val current = viewer ?: return
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= 33 && frameData is Choreographer.FrameData) {
+                    current.render(frameData)
+                } else current.render(frameTimeNanos)
+            } catch (error: Exception) {
+                Log.e(TAG, "Filament frame failed", error)
             }
         }
     }
+
+    init {
+        addView(surface, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        surface.setOnTouchListener { _, event -> viewer?.onTouchEvent(event); true }
+        createViewer()
+    }
+
+    private fun createViewer() {
+        if (released || viewer != null) return
+        try {
+            val modelViewer = ModelViewer(surface)
+            viewer = modelViewer
+            modelViewer.view.renderQuality = modelViewer.view.renderQuality.apply {
+                hdrColorBuffer = FilamentView.QualityLevel.MEDIUM
+            }
+            modelViewer.view.dynamicResolutionOptions = modelViewer.view.dynamicResolutionOptions.apply {
+                enabled = true
+                quality = FilamentView.QualityLevel.MEDIUM
+            }
+            modelViewer.view.antiAliasing = FilamentView.AntiAliasing.FXAA
+            val bytes = context.assets.open("ayaka.glb").use { it.readBytes() }
+            check(bytes.isNotEmpty()) { "Bundled Ayaka GLB is empty." }
+            modelViewer.loadModelGlb(ByteBuffer.wrap(bytes))
+            check(modelViewer.asset != null) { "Filament could not create Ayaka's glTF asset." }
+            modelViewer.transformToUnitCube()
+            Log.i(TAG, "Ayaka GLB loaded (" + bytes.size + " bytes).")
+        } catch (error: Throwable) {
+            Log.e(TAG, "Unable to initialize native Ayaka renderer", error)
+            viewer?.let { runCatching { it.destroy() } }
+            viewer = null
+        }
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        if (!released && viewer == null) createViewer()
+        frameLoop.post()
+    }
+
+    override fun onDetachedFromWindow() {
+        frameLoop.remove()
+        super.onDetachedFromWindow()
+    }
+
+    fun release() {
+        if (released) return
+        released = true
+        frameLoop.remove()
+        viewer?.let { runCatching { it.destroy() } }
+        viewer = null
+    }
+}
