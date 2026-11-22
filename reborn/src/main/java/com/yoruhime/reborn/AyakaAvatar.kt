@@ -59,8 +59,10 @@ private class FilamentAyakaView @JvmOverloads constructor(
     }
 
     private val surface = TextureView(context).apply {
-        setBackgroundColor(AndroidColor.rgb(9, 11, 22))
-        isOpaque = true
+        // TextureView is composited inside the Compose window; it does not support
+        // View backgrounds. Let Filament draw the stage and keep it transparent
+        // so the Compose controls can layer above the live avatar.
+        isOpaque = false
     }
     private var viewer: ModelViewer? = null
     private var released = false
