@@ -4,7 +4,7 @@ import android.content.Context
 import android.graphics.Color as AndroidColor
 import android.util.AttributeSet
 import android.util.Log
-import android.view.SurfaceView
+import android.view.TextureView
 import android.widget.FrameLayout
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
@@ -48,7 +48,7 @@ internal fun AyakaAvatar(modifier: Modifier = Modifier) {
     }
 }
 
-/** Native Filament avatar surface; rendering no longer depends on Android WebView/WebGL. */
+/** Native Filament avatar surface using TextureView so Compose can composite its UI above the live 3D scene. */
 private class FilamentAyakaView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -58,9 +58,9 @@ private class FilamentAyakaView @JvmOverloads constructor(
         private const val TAG = "AyakaFilament"
     }
 
-    private val surface = SurfaceView(context).apply {
+    private val surface = TextureView(context).apply {
         setBackgroundColor(AndroidColor.rgb(9, 11, 22))
-        holder.setFormat(android.graphics.PixelFormat.OPAQUE)
+        isOpaque = true
     }
     private var viewer: ModelViewer? = null
     private var released = false
@@ -145,7 +145,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
     init {
         addView(surface, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         surface.setOnTouchListener { _, event -> viewer?.onTouchEvent(event); true }
-        // Wait until Android has attached the SurfaceView before creating Filament.
+        // Wait until Android has attached the TextureView before creating Filament.
     }
 
     private fun createViewer() {
@@ -211,7 +211,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         if (!released && viewer == null && !rendererCreationAttempted) {
-            // Posting lets the child SurfaceView finish its own attach dispatch first.
+            // Posting lets the child TextureView finish its own attach dispatch first.
             // Let Compose draw the companion stage before loading the 20 MB model.
             // This prevents native setup and GLB parsing from delaying Activity startup.
             surface.postDelayed({
