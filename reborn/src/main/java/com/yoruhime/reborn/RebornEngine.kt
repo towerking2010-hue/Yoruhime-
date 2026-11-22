@@ -41,7 +41,7 @@ class RebornStore(context: Context) : SQLiteOpenHelper(context, "yoruhime_reborn
     @Synchronized fun saveMood(mood: String) {
         writableDatabase.execSQL(
             "INSERT OR REPLACE INTO moods(day,mood,updated_at) VALUES(?,?,?)",
-            arrayOf(todayKey(), mood, System.currentTimeMillis())
+            arrayOf<Any>(todayKey(), mood, System.currentTimeMillis())
         )
     }
     @Synchronized fun moodForToday(): String? {
@@ -50,7 +50,7 @@ class RebornStore(context: Context) : SQLiteOpenHelper(context, "yoruhime_reborn
         }
     }
     @Synchronized fun addMessage(role: String, content: String) {
-        writableDatabase.execSQL("INSERT INTO messages(role,content,created_at) VALUES(?,?,?)", arrayOf(role, content, System.currentTimeMillis()))
+        writableDatabase.execSQL("INSERT INTO messages(role,content,created_at) VALUES(?,?,?)", arrayOf<Any>(role, content, System.currentTimeMillis()))
         writableDatabase.execSQL("DELETE FROM messages WHERE id NOT IN (SELECT id FROM messages ORDER BY id DESC LIMIT 80)")
     }
     @Synchronized fun messages(limit: Int = 40): List<ChatLine> {
@@ -61,7 +61,7 @@ class RebornStore(context: Context) : SQLiteOpenHelper(context, "yoruhime_reborn
         return result.reversed()
     }
     @Synchronized fun addMemory(value: String) {
-        writableDatabase.execSQL("INSERT INTO memories(content,created_at) VALUES(?,?)", arrayOf(value, System.currentTimeMillis()))
+        writableDatabase.execSQL("INSERT INTO memories(content,created_at) VALUES(?,?)", arrayOf<Any>(value, System.currentTimeMillis()))
     }
     @Synchronized fun memories(): List<Pair<Long,String>> {
         val result = mutableListOf<Pair<Long,String>>()

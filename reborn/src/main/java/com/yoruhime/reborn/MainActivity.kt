@@ -28,6 +28,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -379,7 +381,7 @@ private fun HomeScreen(
                     IconButton(
                         onClick = { messages.lastOrNull { it.role == "assistant" }?.content?.let(onSpeak) },
                         enabled = messages.any { it.role == "assistant" }
-                    ) { Icon(Icons.Rounded.VolumeUp, "Read latest reply aloud", tint = Lilac) }
+                    ) { Icon(Icons.AutoMirrored.Rounded.VolumeUp, "Read latest reply aloud", tint = Lilac) }
                     IconButton(onClick = onClear) { Icon(Icons.Rounded.DeleteOutline, "Clear conversation", tint = Muted) }
                 }
 
@@ -446,7 +448,7 @@ private fun HomeScreen(
                         modifier = Modifier.size(48.dp).clip(CircleShape).background(Violet)
                     ) {
                         if (sending) CircularProgressIndicator(Modifier.size(18.dp), color = Ink, strokeWidth = 2.dp)
-                        else Icon(Icons.Rounded.Send, "Send message", tint = Ink)
+                        else Icon(Icons.AutoMirrored.Rounded.Send, "Send message", tint = Ink)
                     }
                 }
             }
@@ -633,6 +635,7 @@ private fun SettingsScreen(vault: ApiKeyVault, voiceEnabled: Boolean, onVoiceEna
             }
         }
         Text("Ayaka model credit: epic_noobster · Original VRM creator, license, expression, humanoid and physics metadata is bundled for future native support.", color = Muted, fontSize = 11.sp)
+        Text("Model terms: author-only use · personal/non-profit only · credit required. Redistribution and modification are permitted by the embedded VRM metadata.", color = Muted, fontSize = 11.sp)
         Text("YoruHime Reborn · Preview build", color = Muted, fontSize = 11.sp)
     }
 }
