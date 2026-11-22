@@ -32,11 +32,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ ! -s public/ayaka.vrm ]; then
-            echo "::error::Ayaka model is missing. Add the creator-authorized file at avatar-web/public/ayaka.vrm before building. The workflow will not silently download a placeholder avatar."
+          SOURCE_MODEL="public/Ayaka_Tojou 2.vrm"
+          if [ ! -s "$SOURCE_MODEL" ]; then
+            echo "::error::Uploaded Ayaka model is missing at avatar-web/public/Ayaka_Tojou 2.vrm."
             exit 1
           fi
-          echo "66b0944b3be41da8efe78909340bb64b31afa7262776b07679ce0b2fd1d2a601  public/ayaka.vrm" | sha256sum --check
+          echo "66b0944b3be41da8efe78909340bb64b31afa7262776b07679ce0b2fd1d2a601  $SOURCE_MODEL" | sha256sum --check
+          cp "$SOURCE_MODEL" public/ayaka.vrm
           npm install --no-audit --no-fund
           npm run build
       - name: Set up Gradle
