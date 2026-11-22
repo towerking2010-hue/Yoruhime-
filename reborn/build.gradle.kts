@@ -10,7 +10,7 @@ android {
         applicationId = "com.yoruhime.reborn"
         minSdk = 26
         targetSdk = 35
-        ndk { abiFilters += listOf("arm64-v8a") }
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
         versionCode = 1
         versionName = "1.0.0-reborn"
     }
