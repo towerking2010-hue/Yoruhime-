@@ -173,6 +173,16 @@ private class FilamentAyakaView @JvmOverloads constructor(
             check(bytes.isNotEmpty()) { "Bundled Ayaka GLB is empty." }
             modelViewer.loadModelGlb(ByteBuffer.wrap(bytes))
             val asset = checkNotNull(modelViewer.asset) { "Filament could not create Ayaka's glTF asset." }
+            // Ayaka is a skinned VRM with no embedded glTF animation clips.
+            // Explicitly upload the bind/rest-pose bone matrices so the avatar
+            // is valid before an idle-animation system is introduced.
+            modelViewer.animator?.updateBoneMatrices()
+            Log.i(
+                TAG,
+                "Ayaka skeleton initialized: skins=${asset.instance.skinCount}, " +
+                    "animations=${modelViewer.animator?.animationCount ?: 0}, " +
+                    "joints=${(0 until asset.instance.skinCount).sumOf { asset.instance.getJointCountAt(it) }}"
+            )
             val halfExtent = asset.boundingBox.halfExtent
             val maxExtent = halfExtent.maxOrNull() ?: 0f
             check(halfExtent.size >= 3 && halfExtent.all { it.isFinite() } && maxExtent.isFinite() && maxExtent > 0f) {
