@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Color as AndroidColor
 import android.util.AttributeSet
 import android.util.Log
-import android.view.Choreographer
 import android.view.SurfaceView
 import android.widget.FrameLayout
 import androidx.compose.runtime.Composable
@@ -69,19 +68,19 @@ private class FilamentAyakaView @JvmOverloads constructor(
     private var firstFrameReported = false
     private var noRenderableReported = false
     private val frameLoop = object : ChoreographerHelper() {
-        override fun onFrame(frameTimeNanos: Long, frameData: Any?) {
+        override fun onFrame(frameTimeNanos: Long) {
             val current = viewer ?: return
             try {
-                val rendered = if (android.os.Build.VERSION.SDK_INT >= 33 && frameData is Choreographer.FrameData) {
-                    current.render(frameData)
-                } else current.render(frameTimeNanos)
-                val progress = current.progress
-                val renderableCount = current.asset?.renderableEntities?.size ?: 0
+                // Use the timestamp overload on every Android version. This keeps the
+                // renderer free of API-33 FrameData references on the Android 12 target.
+                val rendered = current.render(frameTimeNanos)
+                val progress: Float = current.progress
+                val renderableCount: Int = current.asset?.renderableEntities?.size ?: 0
                 if (progress >= 1f && renderableCount == 0 && !noRenderableReported) {
                     noRenderableReported = true
                     report("Ayaka's GLB loaded, but Filament found no renderable meshes.")
                     Log.e(TAG, "Ayaka GLB completed loading with zero renderable entities.")
-                    frameLoop.remove()
+                    this.remove()
                 } else if (rendered && progress >= 1f && renderableCount > 0 && !firstFrameReported) {
                     firstFrameReported = true
                     report("Ayaka mesh rendered · $renderableCount mesh entities")
