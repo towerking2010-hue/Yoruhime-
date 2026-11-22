@@ -9,6 +9,7 @@ import android.speech.RecognitionListener
 import android.content.Intent
 import android.app.TimePickerDialog
 import android.view.WindowManager
+import android.widget.Toast
 import java.util.Locale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -78,15 +79,20 @@ private fun YoruHimeApp() {
     val vault = remember { ApiKeyVault(context) }
     val engine = remember { AyakaEngine(store, vault) }
     val scope = rememberCoroutineScope()
-    var voiceEnabled by rememberSaveable { mutableStateOf(true) }
+    val preferences = remember { context.getSharedPreferences("yoruhime_settings", android.content.Context.MODE_PRIVATE) }
+    var voiceEnabled by rememberSaveable { mutableStateOf(preferences.getBoolean("voice_replies_enabled", true)) }
     var draft by rememberSaveable { mutableStateOf("") }
     val tts = remember { TextToSpeech(context) { } }
     val recognizer = remember { if (SpeechRecognizer.isRecognitionAvailable(context)) SpeechRecognizer.createSpeechRecognizer(context) else null }
     val micPermission = rememberLauncherForActivityResult(RequestPermission()) { granted ->
-        if (granted) recognizer?.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-        })
+        if (granted && recognizer != null) {
+            recognizer.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            })
+        } else {
+            Toast.makeText(context, if (granted) "Voice recognition is unavailable on this device." else "Microphone permission is needed for voice input.", Toast.LENGTH_SHORT).show()
+        }
     }
     DisposableEffect(recognizer) {
         recognizer?.setRecognitionListener(object : RecognitionListener {
@@ -95,7 +101,14 @@ private fun YoruHimeApp() {
             override fun onRmsChanged(rmsdB: Float) = Unit
             override fun onBufferReceived(buffer: ByteArray?) = Unit
             override fun onEndOfSpeech() = Unit
-            override fun onError(error: Int) = Unit
+            override fun onError(error: Int) {
+                val message = when (error) {
+                    SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "I didn't catch that. Please try again."
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission is needed for voice input."
+                    else -> "Voice input didn't work. Please try again."
+                }
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            }
             override fun onResults(results: Bundle?) { draft = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty() }
             override fun onPartialResults(partialResults: Bundle?) = Unit
             override fun onEvent(eventType: Int, params: Bundle?) = Unit
@@ -130,7 +143,10 @@ private fun YoruHimeApp() {
                         onDraft = { draft = it },
                         sending = sending,
                         onSpeak = { text -> if (voiceEnabled) { tts.language = Locale.US; tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ayaka-reply") } },
-                        onVoiceInput = { micPermission.launch(android.Manifest.permission.RECORD_AUDIO) },
+                        onVoiceInput = {
+                            if (recognizer == null) Toast.makeText(context, "Voice recognition is unavailable on this device.", Toast.LENGTH_SHORT).show()
+                            else micPermission.launch(android.Manifest.permission.RECORD_AUDIO)
+                        },
                         onClear = { store.clearMessages(); messages = emptyList() },
                         onCare = { destination = Destination.CARE },
                         onMemories = { destination = Destination.MEMORIES },
@@ -146,6 +162,8 @@ private fun YoruHimeApp() {
                                 scope.launch {
                                     val answer = engine.reply(value)
                                     store.addMessage("assistant", answer)
+                                    store.addBondPoint()
+                                    bondCount = store.bondCount()
                                     messages = messages + ChatLine("assistant", answer)
                                     sending = false
                                 }
@@ -155,7 +173,10 @@ private fun YoruHimeApp() {
                     )
                     Destination.MEMORIES -> MemoriesScreen()
                     Destination.CARE -> CareScreen()
-                    Destination.SETTINGS -> SettingsScreen(vault, voiceEnabled) { voiceEnabled = it }
+                    Destination.SETTINGS -> SettingsScreen(vault, voiceEnabled) { enabled ->
+                        voiceEnabled = enabled
+                        preferences.edit().putBoolean("voice_replies_enabled", enabled).apply()
+                    }
                 }
             }
         }
@@ -181,6 +202,8 @@ private fun YoruHimeApp() {
                                 scope.launch {
                                     val answer = engine.replyAboutImage(question, image)
                                     store.addMessage("assistant", answer)
+                                    store.addBondPoint()
+                                    bondCount = store.bondCount()
                                     messages = messages + ChatLine("assistant", answer)
                                     sending = false
                                 }
@@ -464,8 +487,9 @@ private fun CareScreen() {
     var secondsLeft by rememberSaveable { mutableIntStateOf(25 * 60) }
     var running by rememberSaveable { mutableStateOf(false) }
     var checkInOpen by remember { mutableStateOf(false) }
-    var selectedMood by rememberSaveable { mutableStateOf("Okay") }
     val context = LocalContext.current
+    val store = remember { RebornStore(context) }
+    var selectedMood by rememberSaveable { mutableStateOf(store.moodForToday() ?: "Okay") }
     var bedtimeLabel by remember { mutableStateOf(BedtimeScheduler.timeLabel(context)) }
     var pendingBedtime by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     val notificationPermission = rememberLauncherForActivityResult(RequestPermission()) { granted ->
@@ -547,8 +571,8 @@ private fun CareScreen() {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     listOf("Great", "Good", "Okay", "Tired", "Stressed", "Sad").forEach { mood ->
-                        Row(Modifier.fillMaxWidth().clickable { selectedMood = mood; checkInOpen = false }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = selectedMood == mood, onClick = { selectedMood = mood; checkInOpen = false })
+                        Row(Modifier.fillMaxWidth().clickable { selectedMood = mood; store.saveMood(mood); checkInOpen = false }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = selectedMood == mood, onClick = { selectedMood = mood; store.saveMood(mood); checkInOpen = false })
                             Text(mood, color = White)
                         }
                     }

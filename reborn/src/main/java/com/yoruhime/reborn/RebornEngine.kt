@@ -19,16 +19,36 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class ChatLine(val role: String, val content: String)
 
-class RebornStore(context: Context) : SQLiteOpenHelper(context, "yoruhime_reborn.db", null, 1) {
+class RebornStore(context: Context) : SQLiteOpenHelper(context, "yoruhime_reborn.db", null, 2) {
     private val bondPrefs = context.getSharedPreferences("yoruhime_bond", Context.MODE_PRIVATE)
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE messages(id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT NOT NULL, content TEXT NOT NULL, created_at INTEGER NOT NULL)")
         db.execSQL("CREATE TABLE memories(id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT NOT NULL, created_at INTEGER NOT NULL)")
+        db.execSQL("CREATE TABLE moods(day TEXT PRIMARY KEY, mood TEXT NOT NULL, updated_at INTEGER NOT NULL)")
     }
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS moods(day TEXT PRIMARY KEY, mood TEXT NOT NULL, updated_at INTEGER NOT NULL)")
+        }
+    }
+    private fun todayKey(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+    @Synchronized fun saveMood(mood: String) {
+        writableDatabase.execSQL(
+            "INSERT OR REPLACE INTO moods(day,mood,updated_at) VALUES(?,?,?)",
+            arrayOf(todayKey(), mood, System.currentTimeMillis())
+        )
+    }
+    @Synchronized fun moodForToday(): String? {
+        readableDatabase.rawQuery("SELECT mood FROM moods WHERE day=?", arrayOf(todayKey())).use { c ->
+            return if (c.moveToFirst()) c.getString(0) else null
+        }
+    }
     @Synchronized fun addMessage(role: String, content: String) {
         writableDatabase.execSQL("INSERT INTO messages(role,content,created_at) VALUES(?,?,?)", arrayOf(role, content, System.currentTimeMillis()))
         writableDatabase.execSQL("DELETE FROM messages WHERE id NOT IN (SELECT id FROM messages ORDER BY id DESC LIMIT 80)")
@@ -173,9 +193,11 @@ class AyakaEngine(private val store: RebornStore, private val vault: ApiKeyVault
     private fun offlineReply(input: String): String {
         val text = input.lowercase()
         return when {
-            listOf("sad", "depressed", "lonely", "tired", "exhausted", "hurt").any { it in text } ->
+            listOf("sad", "depressed", "lonely", "tired", "exhausted", "hurt").any {
+                Regex("\\b" + Regex.escape(it) + "\\b").containsMatchIn(text)
+            } ->
                 "Hey… come sit with me for a moment. You don't have to pretend you're okay. Want to tell me what happened? I'll listen."
-            listOf("hello", "hi", "hey").any { text.startsWith(it) } ->
+            Regex("^(hello|hi|hey)\\b").containsMatchIn(text) ->
                 "There you are. I was wondering when you'd show up. How has your day been?"
             "thank" in text -> "Hmph. You don't have to thank me for caring about you. Just take good care of yourself, okay?"
             else -> "I want to give that a thoughtful answer, but I'm offline right now. Add your free OpenRouter API key in Settings and I'll be able to think it through with you. For now, tell me a little more?"

@@ -65,15 +65,20 @@ private class FilamentAyakaView @JvmOverloads constructor(
     }
     private var viewer: ModelViewer? = null
     private var released = false
+    private var rendererCreationAttempted = false
     private var firstFrameReported = false
     private val frameLoop = object : ChoreographerHelper() {
         override fun onFrame(frameTimeNanos: Long, frameData: Any?) {
             val current = viewer ?: return
             try {
-                if (android.os.Build.VERSION.SDK_INT >= 33 && frameData is Choreographer.FrameData) {
+                val rendered = if (android.os.Build.VERSION.SDK_INT >= 33 && frameData is Choreographer.FrameData) {
                     current.render(frameData)
                 } else current.render(frameTimeNanos)
-                if (!firstFrameReported) { firstFrameReported = true; report("Ayaka native render loop is active") }
+                if (rendered && !firstFrameReported) {
+                    firstFrameReported = true
+                    report("Ayaka's first native frame was rendered")
+                    Log.i(TAG, "First native Filament frame rendered.")
+                }
             } catch (error: Exception) {
                 Log.e(TAG, "Filament frame failed", error)
             }
@@ -87,7 +92,8 @@ private class FilamentAyakaView @JvmOverloads constructor(
     }
 
     private fun createViewer() {
-        if (released || viewer != null) return
+        if (released || viewer != null || rendererCreationAttempted) return
+        rendererCreationAttempted = true
         try {
             firstFrameReported = false
             val modelViewer = ModelViewer(surface)
@@ -110,22 +116,24 @@ private class FilamentAyakaView @JvmOverloads constructor(
         } catch (error: Throwable) {
             report("Native renderer failed: " + (error.message ?: error.javaClass.simpleName))
             Log.e(TAG, "Unable to initialize native Ayaka renderer", error)
-            viewer?.let { runCatching { it.destroy() } }
+            // ModelViewer owns a detach listener on the SurfaceView. Let that listener
+            // release its Filament engine when this SurfaceView is detached.
             viewer = null
         }
     }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        if (!released && viewer == null) createViewer()
-        frameLoop.post()
+        if (!released && viewer == null && !rendererCreationAttempted) createViewer()
+        if (viewer != null) frameLoop.post()
     }
 
     override fun onDetachedFromWindow() {
         frameLoop.remove()
-        // ModelViewer documents that it must be recreated after its SurfaceView detaches.
-        viewer?.let { current -> runCatching { current.destroy() } }
+        // ModelViewer registers its own SurfaceView detach listener and destroys its
+        // engine there. Do not destroy it here as well: that would double-free Filament.
         viewer = null
+        rendererCreationAttempted = false
         super.onDetachedFromWindow()
     }
 
@@ -133,7 +141,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
         if (released) return
         released = true
         frameLoop.remove()
-        viewer?.let { runCatching { it.destroy() } }
+        // AndroidView removal detaches the SurfaceView; ModelViewer owns that cleanup.
         viewer = null
     }
 }
