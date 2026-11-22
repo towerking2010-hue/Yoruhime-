@@ -10,6 +10,7 @@ android {
         applicationId = "com.yoruhime.reborn"
         minSdk = 26
         targetSdk = 35
+        ndk { abiFilters += listOf("arm64-v8a") }
         versionCode = 1
         versionName = "1.0.0-reborn"
     }
@@ -30,7 +31,6 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.webkit:webkit:1.12.1")
     implementation("com.google.android.filament:filament-android:1.72.0")
     implementation("com.google.android.filament:gltfio-android:1.72.0")
     implementation("com.google.android.filament:filament-utils-android:1.72.0")

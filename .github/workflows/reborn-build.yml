@@ -27,20 +27,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify the bundled Ayaka model (never substitute a sample)
-        working-directory: avatar-web
+      - name: Verify the original Ayaka model (never substitute a sample)
         shell: bash
         run: |
           set -euo pipefail
-          SOURCE_MODEL="public/Ayaka_Tojou 2.vrm"
+          SOURCE_MODEL="avatar-web/public/Ayaka_Tojou 2.vrm"
           if [ ! -s "$SOURCE_MODEL" ]; then
-            echo "::error::Uploaded Ayaka model is missing at avatar-web/public/Ayaka_Tojou 2.vrm."
+            echo "::error::Uploaded Ayaka model is missing at $SOURCE_MODEL."
             exit 1
           fi
           echo "66b0944b3be41da8efe78909340bb64b31afa7262776b07679ce0b2fd1d2a601  $SOURCE_MODEL" | sha256sum --check
-          cp "$SOURCE_MODEL" public/ayaka.vrm
-          npm install --no-audit --no-fund
-          npm run build
       - name: Prepare Filament-compatible Ayaka GLB
         shell: bash
         run: |

@@ -76,6 +76,7 @@ private enum class Destination(val label: String) {
 private fun YoruHimeApp() {
     val context = LocalContext.current
     val store = remember { RebornStore(context) }
+    DisposableEffect(store) { onDispose { store.close() } }
     val vault = remember { ApiKeyVault(context) }
     val engine = remember { AyakaEngine(store, vault) }
     val scope = rememberCoroutineScope()
@@ -172,7 +173,7 @@ private fun YoruHimeApp() {
                         onCamera = { camera.launch(null) }
                     )
                     Destination.MEMORIES -> MemoriesScreen()
-                    Destination.CARE -> CareScreen()
+                    Destination.CARE -> CareScreen(store)
                     Destination.SETTINGS -> SettingsScreen(vault, voiceEnabled) { enabled ->
                         voiceEnabled = enabled
                         preferences.edit().putBoolean("voice_replies_enabled", enabled).apply()
@@ -482,18 +483,24 @@ private fun MemoriesScreen() {
 }
 
 @Composable
-private fun CareScreen() {
+private fun CareScreen(store: RebornStore) {
     var minutes by rememberSaveable { mutableIntStateOf(25) }
     var secondsLeft by rememberSaveable { mutableIntStateOf(25 * 60) }
     var running by rememberSaveable { mutableStateOf(false) }
     var checkInOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val store = remember { RebornStore(context) }
     var selectedMood by rememberSaveable { mutableStateOf(store.moodForToday() ?: "Okay") }
     var bedtimeLabel by remember { mutableStateOf(BedtimeScheduler.timeLabel(context)) }
     var pendingBedtime by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     val notificationPermission = rememberLauncherForActivityResult(RequestPermission()) { granted ->
-        if (granted) pendingBedtime?.let { BedtimeScheduler.schedule(context, it.first, it.second); bedtimeLabel = BedtimeScheduler.timeLabel(context) }
+        if (granted) {
+            pendingBedtime?.let {
+                BedtimeScheduler.schedule(context, it.first, it.second)
+                bedtimeLabel = BedtimeScheduler.timeLabel(context)
+            }
+        } else {
+            Toast.makeText(context, "Allow notifications to receive bedtime reminders.", Toast.LENGTH_SHORT).show()
+        }
         pendingBedtime = null
     }
     LaunchedEffect(running) {
@@ -548,6 +555,9 @@ private fun CareScreen() {
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = {
+                        val savedParts = bedtimeLabel.split(":")
+                        val initialHour = savedParts.getOrNull(0)?.toIntOrNull() ?: 23
+                        val initialMinute = savedParts.getOrNull(1)?.toIntOrNull() ?: 0
                         TimePickerDialog(context, { _, hour, minute ->
                             if (BedtimeScheduler.needsNotificationPermission(context)) {
                                 pendingBedtime = hour to minute
@@ -556,7 +566,7 @@ private fun CareScreen() {
                                 BedtimeScheduler.schedule(context, hour, minute)
                                 bedtimeLabel = BedtimeScheduler.timeLabel(context)
                             }
-                        }, 23, 0, true).show()
+                        }, initialHour, initialMinute, true).show()
                     }) { Text(if (bedtimeLabel == "Not set") "Set reminder" else "Change time") }
                     if (bedtimeLabel != "Not set") OutlinedButton(onClick = { BedtimeScheduler.cancel(context); bedtimeLabel = "Not set" }) { Text("Cancel") }
                 }

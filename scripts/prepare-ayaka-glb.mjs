@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Convert VRM 1.0's GLB container to core glTF 2.0 for Filament gltfio.
-// Core geometry, skin joints, morph targets, textures and PBR fields are retained.
-// VRM-only extension payloads are removed; expression semantics are not yet mapped.
+// Core geometry, skin joints, morph targets, textures and standard glTF extensions are retained.
+// VRM-specific extension payloads are removed; expression semantics are not yet mapped.
 import fs from 'node:fs';
 import path from 'node:path';
 const [input, output] = process.argv.slice(2);
@@ -21,20 +21,29 @@ while (offset < bytes.length) {
 if (!jsonChunk) throw new Error('GLB JSON chunk missing.');
 const doc = JSON.parse(jsonChunk.toString('utf8').trim());
 const removed = new Set();
+const isVrmExtension = name => name.startsWith('VRMC_');
 function clean(value) {
   if (Array.isArray(value)) return value.map(clean);
   if (!value || typeof value !== 'object') return value;
+  if (value.extensions && typeof value.extensions === 'object') {
+    for (const name of Object.keys(value.extensions)) {
+      if (isVrmExtension(name)) {
+        removed.add(name);
+        delete value.extensions[name];
+      }
+    }
+    if (Object.keys(value.extensions).length === 0) delete value.extensions;
+  }
   for (const key of Object.keys(value)) {
-    if (key === 'extensions') {
-      for (const name of Object.keys(value.extensions || {})) removed.add(name);
-      delete value.extensions;
-    } else value[key] = clean(value[key]);
+    if (key !== 'extensions') value[key] = clean(value[key]);
   }
   return value;
 }
 clean(doc);
-doc.extensionsUsed = (doc.extensionsUsed || []).filter(name => !removed.has(name));
-doc.extensionsRequired = (doc.extensionsRequired || []).filter(name => !removed.has(name));
+// Filament gltfio supports standard KHR extensions such as unlit materials and
+// texture transforms. Remove only VRM-specific declarations, not valid glTF data.
+doc.extensionsUsed = (doc.extensionsUsed || []).filter(name => !isVrmExtension(name));
+doc.extensionsRequired = (doc.extensionsRequired || []).filter(name => !isVrmExtension(name));
 if (!doc.extensionsUsed.length) delete doc.extensionsUsed;
 if (!doc.extensionsRequired.length) delete doc.extensionsRequired;
 const json = Buffer.from(JSON.stringify(doc), 'utf8');
