@@ -26,3 +26,11 @@ The renderer uses the timestamp-based frame callback for Android 12 compatibilit
 ## Validation status
 
 CI runs the converter regression test, verifies the original model fingerprint, performs Android unit-test tasks and Android Lint, assembles the debug APK, and verifies APK alignment/signature. CI success is not proof of a successful physical-device render. Galaxy A31 installation, first visible frame, framing, thermal behavior and runtime feature testing are still required.
+
+
+## Startup and emulator validation hardening
+
+- Filament JNI initialization now runs inside the renderer's guarded initialization path rather than a Kotlin class initializer, so native loading failures are reported in the avatar surface instead of escaping during class loading.
+- The Filament viewer is created after the Android SurfaceView attaches. The frame loop starts only after viewer creation succeeds, and the renderer can be recreated after a detach/reattach.
+- Speech recognition and text-to-speech providers are created only after an explicit voice action; optional device services cannot block initial app composition.
+- CI launches the APK on an Android 12 emulator and requires both a live app process and Filament's first rendered-mesh callback. This is an automated smoke test, not a substitute for Galaxy A31 GPU/thermal testing.
