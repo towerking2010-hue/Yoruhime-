@@ -59,12 +59,13 @@ internal fun AyakaAvatar(modifier: Modifier = Modifier) {
                     .build()
                 WebView(context).apply {
                     avatarView = this
-                    setBackgroundColor(AndroidColor.TRANSPARENT)
+                    setBackgroundColor(AndroidColor.rgb(9, 11, 22))
                     overScrollMode = View.OVER_SCROLL_NEVER
                     isVerticalScrollBarEnabled = false
                     isHorizontalScrollBarEnabled = false
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
+                    settings.loadsImagesAutomatically = true
                     settings.allowFileAccess = false
                     settings.allowContentAccess = false
                     settings.loadsImagesAutomatically = true
@@ -89,8 +90,17 @@ internal fun AyakaAvatar(modifier: Modifier = Modifier) {
                         }
 
                         override fun onPageFinished(view: WebView, url: String) {
-                            if (status == "Opening Ayaka's 3D stage…") {
-                                status = "3D stage loaded · preparing her model…"
+                            Log.i("AyakaAvatar", "Avatar page finished: $url")
+                            status = "Stage opened · checking 3D graphics…"
+                            // Inspect support without creating a WebGL context here. The renderer
+                            // must be the first code to request the canvas context and its attributes.
+                            view.evaluateJavascript(
+                                "(function(){var c=document.getElementById('avatar');return 'page='+document.readyState+', canvas='+(!!c)+', size='+(c?c.width+'x'+c.height:'none')+', webgl2-api='+(typeof WebGL2RenderingContext!=='undefined');})()"
+                            ) { result ->
+                                Log.i("AyakaAvatar", "WebView startup diagnostic: $result")
+                                if (!status.contains("ready", true) && !status.contains("failed", true)) {
+                                    status = "Stage opened · $result"
+                                }
                             }
                         }
 
@@ -126,9 +136,10 @@ internal fun AyakaAvatar(modifier: Modifier = Modifier) {
             update = { }
         )
 
-        if (!status.contains("ready", true)) {
-            Surface(
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 14.dp),
+        // Keep diagnostics visible below the home header. Previously they were only
+        // shown on selected failure strings and could sit underneath the native header.
+        Surface(
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 76.dp),
                 color = Color(0xD914182A),
                 shape = RoundedCornerShape(18.dp),
                 shadowElevation = 4.dp
@@ -138,7 +149,7 @@ internal fun AyakaAvatar(modifier: Modifier = Modifier) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(status, color = Color(0xFFE0D4FF), fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                    if (failed) {
+                    if (failed || status.contains("Stage opened", true) || status.contains("checking", true) || status.contains("Retrying", true)) {
                         Button(
                             onClick = {
                                 status = "Retrying Ayaka's 3D stage…"
@@ -151,4 +162,3 @@ internal fun AyakaAvatar(modifier: Modifier = Modifier) {
             }
         }
     }
-}

@@ -13,7 +13,7 @@ const debugMarker = new URLSearchParams(window.location.search).get('debug') ===
 
 function report(message, error) {
   status.textContent = message;
-  status.style.display = message === 'Ayaka is ready' ? 'none' : 'grid';
+  status.style.display = 'grid';
   try {
     if (window.YoruHimeBridge && typeof window.YoruHimeBridge.onStatus === 'function') {
       window.YoruHimeBridge.onStatus(message);
@@ -27,25 +27,25 @@ window.addEventListener('unhandledrejection', e => report('Avatar startup failed
 
 try {
   const gl = canvas.getContext('webgl2', {
-    alpha: true,
+    alpha: false,
     antialias: false,
     depth: true,
     stencil: false,
-    powerPreference: 'low-power',
-    preserveDrawingBuffer: false
+    powerPreference: 'high-performance',
+    preserveDrawingBuffer: true
   });
   if (!gl) throw new Error('WebGL 2 is unavailable in this Android WebView.');
   renderer = new THREE.WebGLRenderer({
     canvas,
     context: gl,
-    alpha: true,
+    alpha: false,
     antialias: false,
-    powerPreference: 'low-power'
+    powerPreference: 'high-performance'
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.0));
   renderer.setSize(Math.max(1, window.innerWidth), Math.max(1, window.innerHeight), false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.setClearColor(0x090b16, 0);
+  renderer.setClearColor(0x090b16, 1);
 } catch (e) {
   report('3D graphics could not start: ' + (e.message || 'WebGL error'), e);
   throw e;
@@ -91,30 +91,16 @@ loader.load('./ayaka.vrm', gltf => {
       if (object.isMesh) object.frustumCulled = false;
     });
 
-    vrm.scene.updateMatrixWorld(true);
-    const bounds = new THREE.Box3().setFromObject(vrm.scene);
-    const size = bounds.getSize(new THREE.Vector3());
-    const center = bounds.getCenter(new THREE.Vector3());
-    const height = size.y;
-    if (!Number.isFinite(height) || height < 0.2 || !Number.isFinite(center.x + center.y + center.z)) {
-      throw new Error('Avatar has invalid 3D bounds: ' + JSON.stringify({ min: bounds.min.toArray(), max: bounds.max.toArray() }));
-    }
-
-    vrm.scene.position.x -= center.x;
-    vrm.scene.position.y -= bounds.min.y;
-    vrm.scene.position.z -= center.z;
-    modelBaseY = vrm.scene.position.y;
-
-    const targetY = height * 0.53;
+    // VRM 1.0 exports a grounded humanoid root. Do not use static SkinnedMesh
+    // geometry bounds for framing: those bounds can exclude the animated skeleton
+    // and move the whole avatar outside the camera on mobile WebGL.
+    vrm.scene.position.set(0, 0, 0);
+    vrm.scene.rotation.set(0, 0, 0);
+    modelBaseY = 0;
+    const targetY = 0.92;
     marker.position.set(0, targetY, 0.18);
     marker.visible = debugMarker;
-
-    // Frame by the actual avatar bounds so different VRM heights remain usable.
-    const distance = Math.max(
-      1.15,
-      (height * 0.5 / Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5))) * 1.16
-    );
-    camera.position.set(0, targetY + height * 0.025, distance);
+    camera.position.set(0, targetY, 3.15);
     camera.lookAt(0, targetY, 0);
     camera.near = 0.01;
     camera.far = 100;
@@ -122,9 +108,7 @@ loader.load('./ayaka.vrm', gltf => {
 
     report('Ayaka model loaded · preparing her first frame…');
     console.info('VRM diagnostics', {
-      height,
-      center: center.toArray(),
-      size: size.toArray(),
+      framing: { targetY, cameraDistance: camera.position.z },
       meshCount: (() => {
         let count = 0;
         vrm.scene.traverse(object => { if (object.isMesh) count++; });
