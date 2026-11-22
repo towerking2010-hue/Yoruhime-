@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import com.google.android.filament.Engine
 import com.google.android.filament.View as FilamentView
 import com.google.android.filament.android.ChoreographerHelper
 import com.google.android.filament.utils.ModelViewer
@@ -159,7 +160,13 @@ private class FilamentAyakaView @JvmOverloads constructor(
             pixelProbeRequested = false
             pixelProbeCompleted = false
             noRenderableReported = false
-            val modelViewer = ModelViewer(surface)
+            // Ayaka's VRM has a large 657-joint rig across three skins. On GLES 3.0
+            // devices (including the Android 12 emulator's SwiftShader), Filament's
+            // masked-unlit skinning shader can exceed GL_MAX_VERTEX_UNIFORM_VECTORS
+            // and abort the native render thread. Vulkan uses a different shader
+            // resource path and avoids that GLES uniform-vector ceiling.
+            val engine = Engine.create(Engine.Backend.VULKAN)
+            val modelViewer = ModelViewer(surface, engine)
             viewer = modelViewer
             modelViewer.view.renderQuality = modelViewer.view.renderQuality.apply {
                 hdrColorBuffer = FilamentView.QualityLevel.MEDIUM
@@ -190,8 +197,8 @@ private class FilamentAyakaView @JvmOverloads constructor(
             }
             check(asset.renderableEntities.isNotEmpty()) { "Ayaka GLB contains no renderable mesh entities." }
             modelViewer.transformToUnitCube()
-            report("Ayaka GLB parsed · loading textures and mesh data…")
-            Log.i(TAG, "Ayaka GLB loaded (" + bytes.size + " bytes).")
+            report("Ayaka GLB parsed · Vulkan renderer loading textures and mesh data…")
+            Log.i(TAG, "Ayaka GLB loaded (" + bytes.size + " bytes) using Vulkan backend.")
         } catch (error: Throwable) {
             report("Native renderer failed: " + (error.message ?: error.javaClass.simpleName))
             Log.e(TAG, "Unable to initialize native Ayaka renderer", error)
