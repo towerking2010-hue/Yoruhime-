@@ -67,7 +67,6 @@ internal fun AyakaAvatar(modifier: Modifier = Modifier) {
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
                     settings.loadsImagesAutomatically = true
-                    settings.blockNetworkLoads = true
                     settings.allowFileAccess = false
                     settings.allowContentAccess = false
                     settings.loadsImagesAutomatically = true
