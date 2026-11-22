@@ -82,26 +82,7 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disable-animations: true
-          script: |
-            set -euo pipefail
-            adb install -r reborn/build/outputs/apk/debug/reborn-debug.apk
-            adb shell am force-stop com.yoruhime.reborn
-            adb shell am start -n com.yoruhime.reborn/.MainActivity
-            sleep 45
-            APP_PID="$(adb shell pidof -s com.yoruhime.reborn | tr -d '\\r')"
-            if [ -z "$APP_PID" ]; then
-              echo "::error::YoruHime process exited after launch."
-              adb logcat -d -t 1000 | grep -E "FATAL EXCEPTION|Fatal signal|AndroidRuntime|AyakaFilament" || true
-              exit 1
-            fi
-            echo "YoruHime stayed alive after launch (PID $APP_PID)."
-            LOGS="$(adb logcat -d -t 2000)"
-            echo "$LOGS" | grep -E "FATAL EXCEPTION|Fatal signal|AndroidRuntime|AyakaFilament" || true
-            if ! echo "$LOGS" | grep -q "Ayaka mesh rendered by Filament"; then
-              echo "::error::Ayaka did not report a rendered mesh on the Android 12 emulator."
-              exit 1
-            fi
-            echo "Ayaka's mesh reached Filament's rendered-frame callback."
+          script: bash scripts/smoke-android-emulator.sh
       - name: Upload Reborn APK
         if: always() && steps.verify_apk.outcome == 'success'
         uses: actions/upload-artifact@v4
