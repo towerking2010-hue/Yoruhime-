@@ -51,9 +51,15 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
-      - name: Run unit tests, Android lint and assemble clean app
-        run: gradle :reborn:testDebugUnitTest :reborn:lintDebug :reborn:assembleDebug
+      - name: Run unit tests and assemble clean app
+        id: build_apk
+        run: gradle :reborn:testDebugUnitTest :reborn:assembleDebug
+      - name: Run Android Lint
+        timeout-minutes: 8
+        run: gradle :reborn:lintDebug
       - name: Verify APK alignment and Android signature schemes
+        if: always() && steps.build_apk.outcome == 'success'
+        id: verify_apk
         shell: bash
         run: |
           set -euo pipefail
@@ -62,6 +68,7 @@ jobs:
           "$BUILD_TOOLS/zipalign" -c -v 4 "$APK"
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
       - name: Upload Reborn APK
+        if: always() && steps.verify_apk.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: yoruhime-reborn-debug-apk
