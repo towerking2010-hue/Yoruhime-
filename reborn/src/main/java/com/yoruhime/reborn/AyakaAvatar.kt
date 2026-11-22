@@ -8,6 +8,18 @@ import android.view.Choreographer
 import android.view.SurfaceView
 import android.widget.FrameLayout
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.google.android.filament.View as FilamentView
@@ -18,18 +30,29 @@ import java.nio.ByteBuffer
 
 @Composable
 internal fun AyakaAvatar(modifier: Modifier = Modifier) {
-    AndroidView(
-        modifier = modifier,
-        factory = { context -> FilamentAyakaView(context) },
-        update = { },
-        onRelease = { it.release() }
-    )
+    var status by remember { mutableStateOf("Starting native 3D renderer…") }
+    Box(modifier) {
+        AndroidView(
+            modifier = Modifier.matchParentSize(),
+            factory = { context -> FilamentAyakaView(context) { status = it } },
+            update = { },
+            onRelease = { it.release() }
+        )
+        Surface(
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 76.dp),
+            color = Color(0xD914182A),
+            contentColor = Color(0xFFE0D4FF)
+        ) {
+            Text(status, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp), fontSize = 11.sp)
+        }
+    }
 }
 
 /** Native Filament avatar surface; rendering no longer depends on Android WebView/WebGL. */
 private class FilamentAyakaView @JvmOverloads constructor(
     context: Context,
-    attrs: AttributeSet? = null
+    attrs: AttributeSet? = null,
+    private val report: (String) -> Unit = {}
 ) : FrameLayout(context, attrs) {
     companion object {
         private const val TAG = "AyakaFilament"
@@ -42,6 +65,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
     }
     private var viewer: ModelViewer? = null
     private var released = false
+    private var firstFrameReported = false
     private val frameLoop = object : ChoreographerHelper() {
         override fun onFrame(frameTimeNanos: Long, frameData: Any?) {
             val current = viewer ?: return
@@ -49,6 +73,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
                 if (android.os.Build.VERSION.SDK_INT >= 33 && frameData is Choreographer.FrameData) {
                     current.render(frameData)
                 } else current.render(frameTimeNanos)
+                if (!firstFrameReported) { firstFrameReported = true; report("Ayaka native render loop is active") }
             } catch (error: Exception) {
                 Log.e(TAG, "Filament frame failed", error)
             }
@@ -79,8 +104,10 @@ private class FilamentAyakaView @JvmOverloads constructor(
             modelViewer.loadModelGlb(ByteBuffer.wrap(bytes))
             check(modelViewer.asset != null) { "Filament could not create Ayaka's glTF asset." }
             modelViewer.transformToUnitCube()
+            report("Ayaka model loaded · starting native render…")
             Log.i(TAG, "Ayaka GLB loaded (" + bytes.size + " bytes).")
         } catch (error: Throwable) {
+            report("Native renderer failed: " + (error.message ?: error.javaClass.simpleName))
             Log.e(TAG, "Unable to initialize native Ayaka renderer", error)
             viewer?.let { runCatching { it.destroy() } }
             viewer = null
