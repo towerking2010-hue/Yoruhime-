@@ -63,8 +63,11 @@ internal fun AyakaAvatar(modifier: Modifier = Modifier) {
                     overScrollMode = View.OVER_SCROLL_NEVER
                     isVerticalScrollBarEnabled = false
                     isHorizontalScrollBarEnabled = false
+                    setLayerType(View.LAYER_TYPE_HARDWARE, null)
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
+                    settings.loadsImagesAutomatically = true
+                    settings.blockNetworkLoads = true
                     settings.allowFileAccess = false
                     settings.allowContentAccess = false
                     settings.loadsImagesAutomatically = true
@@ -89,8 +92,15 @@ internal fun AyakaAvatar(modifier: Modifier = Modifier) {
                         }
 
                         override fun onPageFinished(view: WebView, url: String) {
-                            if (status == "Opening Ayaka's 3D stage…") {
-                                status = "3D stage loaded · preparing her model…"
+                            Log.i("AyakaAvatar", "Avatar page finished: $url")
+                            status = "Stage opened · checking 3D graphics…"
+                            view.evaluateJavascript(
+                                "(function(){var c=document.getElementById('avatar');return 'page='+document.readyState+', canvas='+(!!c)+', webgl2='+(!!(c&&c.getContext('webgl2')))+', webgl='+(!!(c&&c.getContext('webgl')));})()"
+                            ) { result ->
+                                Log.i("AyakaAvatar", "WebView startup diagnostic: $result")
+                                if (!status.contains("ready", true) && !status.contains("failed", true)) {
+                                    status = "Stage opened · $result"
+                                }
                             }
                         }
 
@@ -126,7 +136,7 @@ internal fun AyakaAvatar(modifier: Modifier = Modifier) {
             update = { }
         )
 
-        if (!status.contains("ready", true)) {
+        if (true) {
             Surface(
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 14.dp),
                 color = Color(0xD914182A),
@@ -138,7 +148,7 @@ internal fun AyakaAvatar(modifier: Modifier = Modifier) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(status, color = Color(0xFFE0D4FF), fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                    if (failed) {
+                    if (failed || status.contains("Stage opened", true) || status.contains("checking", true)) {
                         Button(
                             onClick = {
                                 status = "Retrying Ayaka's 3D stage…"
