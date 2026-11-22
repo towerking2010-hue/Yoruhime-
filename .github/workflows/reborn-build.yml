@@ -47,12 +47,14 @@ jobs:
           node scripts/prepare-ayaka-glb.mjs "models/ayaka/Ayaka_Tojou 2.vrm" reborn/src/main/assets/ayaka.glb
           test -s reborn/src/main/assets/ayaka.glb
           test -s reborn/src/main/assets/ayaka-vrm-metadata.json
+          node scripts/verify-ayaka-glb.mjs
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
       - name: Run unit tests and assemble clean app
         id: build_apk
+        timeout-minutes: 15
         run: gradle :reborn:testDebugUnitTest :reborn:assembleDebug
       - name: Run Android Lint
         timeout-minutes: 8
