@@ -94,7 +94,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
     init {
         addView(surface, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         surface.setOnTouchListener { _, event -> viewer?.onTouchEvent(event); true }
-        createViewer()
+        // Wait until Android has attached the SurfaceView before creating Filament.
     }
 
     private fun createViewer() {
@@ -141,8 +141,15 @@ private class FilamentAyakaView @JvmOverloads constructor(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        if (!released && viewer == null && !rendererCreationAttempted) createViewer()
-        if (viewer != null) frameLoop.post()
+        if (!released && viewer == null && !rendererCreationAttempted) {
+            // Posting lets the child SurfaceView finish its own attach dispatch first.
+            surface.post {
+                if (isAttachedToWindow && !released && viewer == null && !rendererCreationAttempted) {
+                    createViewer()
+                    if (viewer != null) frameLoop.post()
+                }
+            }
+        }
     }
 
     override fun onDetachedFromWindow() {
