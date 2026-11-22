@@ -31,6 +31,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.webkit:webkit:1.12.1")
+    implementation("com.google.android.filament:filament-android:1.80.1")
+    implementation("com.google.android.filament:gltfio-android:1.80.1")
+    implementation("com.google.android.filament:filament-utils-android:1.80.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
