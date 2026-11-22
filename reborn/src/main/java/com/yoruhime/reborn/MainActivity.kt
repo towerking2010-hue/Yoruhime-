@@ -85,40 +85,57 @@ private fun YoruHimeApp() {
     val preferences = remember { context.getSharedPreferences("yoruhime_settings", android.content.Context.MODE_PRIVATE) }
     var voiceEnabled by rememberSaveable { mutableStateOf(preferences.getBoolean("voice_replies_enabled", true)) }
     var draft by rememberSaveable { mutableStateOf("") }
-    val tts = remember { TextToSpeech(context) { } }
-    val recognizer = remember { if (SpeechRecognizer.isRecognitionAvailable(context)) SpeechRecognizer.createSpeechRecognizer(context) else null }
-    val micPermission = rememberLauncherForActivityResult(RequestPermission()) { granted ->
-        if (granted && recognizer != null) {
-            recognizer.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+    // Voice services are created only after the user asks to use them. Some Android
+    // builds have missing or unstable speech providers; that must never block startup.
+    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
+    var recognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
+
+    fun startVoiceRecognition() {
+        try {
+            val activeRecognizer = recognizer ?: run {
+                if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+                    Toast.makeText(context, "Voice recognition is unavailable on this device.", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                SpeechRecognizer.createSpeechRecognizer(context).also { recognizer = it }
+            }
+            activeRecognizer.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) = Unit
+                override fun onBeginningOfSpeech() = Unit
+                override fun onRmsChanged(rmsdB: Float) = Unit
+                override fun onBufferReceived(buffer: ByteArray?) = Unit
+                override fun onEndOfSpeech() = Unit
+                override fun onError(error: Int) {
+                    val message = when (error) {
+                        SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "I didn't catch that. Please try again."
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission is needed for voice input."
+                        else -> "Voice input didn't work. Please try again."
+                    }
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                }
+                override fun onResults(results: Bundle?) {
+                    draft = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                }
+                override fun onPartialResults(partialResults: Bundle?) = Unit
+                override fun onEvent(eventType: Int, params: Bundle?) = Unit
+            })
+            activeRecognizer.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
             })
-        } else {
-            Toast.makeText(context, if (granted) "Voice recognition is unavailable on this device." else "Microphone permission is needed for voice input.", Toast.LENGTH_SHORT).show()
+        } catch (error: Throwable) {
+            Toast.makeText(context, "Voice input is unavailable right now.", Toast.LENGTH_SHORT).show()
         }
     }
-    DisposableEffect(recognizer) {
-        recognizer?.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) = Unit
-            override fun onBeginningOfSpeech() = Unit
-            override fun onRmsChanged(rmsdB: Float) = Unit
-            override fun onBufferReceived(buffer: ByteArray?) = Unit
-            override fun onEndOfSpeech() = Unit
-            override fun onError(error: Int) {
-                val message = when (error) {
-                    SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "I didn't catch that. Please try again."
-                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission is needed for voice input."
-                    else -> "Voice input didn't work. Please try again."
-                }
-                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-            }
-            override fun onResults(results: Bundle?) { draft = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty() }
-            override fun onPartialResults(partialResults: Bundle?) = Unit
-            override fun onEvent(eventType: Int, params: Bundle?) = Unit
-        })
-        onDispose { recognizer?.destroy() }
+
+    val micPermission = rememberLauncherForActivityResult(RequestPermission()) { granted ->
+        if (granted) startVoiceRecognition()
+        else Toast.makeText(context, "Microphone permission is needed for voice input.", Toast.LENGTH_SHORT).show()
     }
-    DisposableEffect(tts) { onDispose { tts.stop(); tts.shutdown() } }
+    DisposableEffect(recognizer) { onDispose { runCatching { recognizer?.destroy() } } }
+    DisposableEffect(tts) {
+        onDispose { runCatching { tts?.stop(); tts?.shutdown() } }
+    }
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
     var messages by remember { mutableStateOf(store.messages().ifEmpty { listOf(ChatLine("assistant", "Good evening. You finally came back. Have you eaten yet?")) }) }
     var sending by remember { mutableStateOf(false) }
@@ -145,11 +162,18 @@ private fun YoruHimeApp() {
                         draft = draft,
                         onDraft = { draft = it },
                         sending = sending,
-                        onSpeak = { text -> if (voiceEnabled) { tts.language = Locale.US; tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ayaka-reply") } },
-                        onVoiceInput = {
-                            if (recognizer == null) Toast.makeText(context, "Voice recognition is unavailable on this device.", Toast.LENGTH_SHORT).show()
-                            else micPermission.launch(android.Manifest.permission.RECORD_AUDIO)
+                        onSpeak = { text ->
+                            if (voiceEnabled) {
+                                try {
+                                    val speaker = tts ?: TextToSpeech(context) { } .also { tts = it }
+                                    speaker.language = Locale.US
+                                    speaker.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ayaka-reply")
+                                } catch (_: Throwable) {
+                                    Toast.makeText(context, "Speech output is unavailable right now.", Toast.LENGTH_SHORT).show()
+                                }
+                            }
                         },
+                        onVoiceInput = { micPermission.launch(android.Manifest.permission.RECORD_AUDIO) },
                         onClear = { store.clearMessages(); messages = emptyList() },
                         onCare = { destination = Destination.CARE },
                         onMemories = { destination = Destination.MEMORIES },
