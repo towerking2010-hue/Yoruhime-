@@ -65,6 +65,8 @@ private class FilamentAyakaView @JvmOverloads constructor(
     private var released = false
     private var rendererCreationAttempted = false
     private var firstFrameReported = false
+    private var pixelProbeRequested = false
+    private var pixelProbeCompleted = false
     private var noRenderableReported = false
     private val frameLoop = object : ChoreographerHelper() {
         override fun onFrame(frameTimeNanos: Long) {
@@ -80,10 +82,58 @@ private class FilamentAyakaView @JvmOverloads constructor(
                     report("Ayaka's GLB loaded, but Filament found no renderable meshes.")
                     Log.e(TAG, "Ayaka GLB completed loading with zero renderable entities.")
                     this.remove()
-                } else if (rendered && progress >= 1f && renderableCount > 0 && !firstFrameReported) {
-                    firstFrameReported = true
-                    report("Ayaka mesh rendered · $renderableCount mesh entities")
-                    Log.i(TAG, "Ayaka mesh rendered by Filament ($renderableCount renderable entities).")
+                } else if (rendered && progress >= 1f && renderableCount > 0 && !pixelProbeRequested) {
+                    // A successful beginFrame/render call only proves that Filament submitted
+                    // a frame. It does NOT prove the avatar produced visible pixels. Read back
+                    // one real GPU frame and count pixels that differ from the dark stage.
+                    pixelProbeRequested = true
+                    current.debugGetNextFrameCallback { bitmap ->
+                        try {
+                            val pixels = IntArray(bitmap.width * bitmap.height)
+                            bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                            var visiblePixels = 0
+                            var minX = bitmap.width
+                            var minY = bitmap.height
+                            var maxX = -1
+                            var maxY = -1
+                            for (y in 0 until bitmap.height) {
+                                for (x in 0 until bitmap.width) {
+                                    val color = pixels[y * bitmap.width + x]
+                                    val red = AndroidColor.red(color)
+                                    val green = AndroidColor.green(color)
+                                    val blue = AndroidColor.blue(color)
+                                    // Ignore the near-black stage/background; count actual
+                                    // character-colored output from the Filament framebuffer.
+                                    if (red + green + blue > 70 &&
+                                        (kotlin.math.abs(red - 9) + kotlin.math.abs(green - 11) + kotlin.math.abs(blue - 22)) > 55
+                                    ) {
+                                        visiblePixels++
+                                        if (x < minX) minX = x
+                                        if (x > maxX) maxX = x
+                                        if (y < minY) minY = y
+                                        if (y > maxY) maxY = y
+                                    }
+                                }
+                            }
+                            pixelProbeCompleted = true
+                            val bounds = if (visiblePixels > 0) "$minX,$minY-$maxX,$maxY" else "none"
+                            Log.i(TAG, "Filament framebuffer pixel probe: visiblePixels=$visiblePixels bounds=$bounds size=${bitmap.width}x${bitmap.height}")
+                            if (visiblePixels >= 100) {
+                                firstFrameReported = true
+                                report("Ayaka visible · $visiblePixels rendered pixels")
+                                Log.i(TAG, "Ayaka produced visible framebuffer pixels.")
+                            } else {
+                                report("Meshes loaded, but Ayaka is not visible · $visiblePixels pixels")
+                                Log.e(TAG, "Ayaka mesh entities exist, but framebuffer contains no visible avatar pixels.")
+                            }
+                        } catch (error: Throwable) {
+                            pixelProbeCompleted = true
+                            report("Could not verify Ayaka pixels: ${error.message ?: error.javaClass.simpleName}")
+                            Log.e(TAG, "Framebuffer pixel verification failed", error)
+                        } finally {
+                            bitmap.recycle()
+                        }
+                    }
                 }
             } catch (error: Exception) {
                 Log.e(TAG, "Filament frame failed", error)
@@ -106,6 +156,8 @@ private class FilamentAyakaView @JvmOverloads constructor(
             // the entire Compose activity during class initialization.
             Utils.init()
             firstFrameReported = false
+            pixelProbeRequested = false
+            pixelProbeCompleted = false
             noRenderableReported = false
             val modelViewer = ModelViewer(surface)
             viewer = modelViewer
