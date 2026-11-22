@@ -24,8 +24,11 @@ try {
           creditNotation: 'required',
           licenseUrl: 'https://example.invalid/vrm-test-license',
           redistribution: 'test-only'
-        }
-      }
+        },
+        humanoid: { humanBones: { head: { node: 1 } } },
+        expressions: { preset: { happy: { morphTargetBinds: [{ node: 2, index: 0, weight: 1 }] } } }
+      },
+      VRMC_springBone: { specVersion: '1.0', springs: [{ joints: [{ node: 3 }] }] }
     },
     materials: [{
       extensions: {
@@ -59,11 +62,21 @@ try {
   assert.deepEqual(Object.keys(doc.materials[0].extensions).sort(), ['KHR_materials_unlit', 'KHR_texture_transform']);
   assert.equal(doc.extensions?.VRMC_vrm, undefined);
 
-  const metadata = JSON.parse(fs.readFileSync(path.join(temp, 'ayaka-attribution.json'), 'utf8'));
-  assert.deepEqual(metadata.authors, ['epic_noobster']);
-  assert.equal(metadata.creditNotation, 'required');
-  assert.equal(metadata.licenseUrl, 'https://example.invalid/vrm-test-license');
-  console.log('Converter regression test passed: KHR extensions preserved; VRMC data stripped; attribution retained.');
+  const metadata = JSON.parse(fs.readFileSync(path.join(temp, 'ayaka-vrm-metadata.json'), 'utf8'));
+  assert.equal(metadata.sourceModel, 'source.vrm');
+  const vrm = metadata.extensions.find(item => item.name === 'VRMC_vrm' && item.path === '
+} finally {
+  fs.rmSync(temp, { recursive: true, force: true });
+}
+)?.payload;
+  assert.deepEqual(vrm.meta.authors, ['epic_noobster']);
+  assert.equal(vrm.meta.creditNotation, 'required');
+  assert.equal(vrm.meta.licenseUrl, 'https://example.invalid/vrm-test-license');
+  assert.ok(vrm.humanoid.humanBones.head);
+  assert.ok(vrm.expressions.preset.happy);
+  assert.ok(metadata.extensions.some(item => item.name === 'VRMC_springBone'));
+  assert.ok(metadata.extensions.some(item => item.name === 'VRMC_materials_mtoon'));
+  console.log('Converter regression test passed: KHR extensions preserved; all VRMC metadata retained in sidecar.');
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
 }

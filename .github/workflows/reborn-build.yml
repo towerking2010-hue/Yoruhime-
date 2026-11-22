@@ -46,13 +46,13 @@ jobs:
           mkdir -p reborn/src/main/assets
           node scripts/prepare-ayaka-glb.mjs "avatar-web/public/Ayaka_Tojou 2.vrm" reborn/src/main/assets/ayaka.glb
           test -s reborn/src/main/assets/ayaka.glb
-          test -s reborn/src/main/assets/ayaka-attribution.json
+          test -s reborn/src/main/assets/ayaka-vrm-metadata.json
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
-      - name: Run unit tests and assemble clean app
-        run: gradle :reborn:testDebugUnitTest :reborn:assembleDebug
+      - name: Run unit tests, Android lint and assemble clean app
+        run: gradle :reborn:testDebugUnitTest :reborn:lintDebug :reborn:assembleDebug
       - name: Verify APK alignment and Android signature schemes
         shell: bash
         run: |

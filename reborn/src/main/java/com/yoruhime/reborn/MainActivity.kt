@@ -632,7 +632,7 @@ private fun SettingsScreen(vault: ApiKeyVault, voiceEnabled: Boolean, onVoiceEna
                 Text("Memory stays under your control. Camera capture starts only when you tap Camera.", color = Muted, fontSize = 12.sp)
             }
         }
-        Text("Ayaka model credit: epic_noobster · Original VRM creator and license metadata is bundled with this app.", color = Muted, fontSize = 11.sp)
+        Text("Ayaka model credit: epic_noobster · Original VRM creator, license, expression, humanoid and physics metadata is bundled for future native support.", color = Muted, fontSize = 11.sp)
         Text("YoruHime Reborn · Preview build", color = Muted, fontSize = 11.sp)
     }
 }
