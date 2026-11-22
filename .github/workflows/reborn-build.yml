@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          SOURCE_MODEL="avatar-web/public/Ayaka_Tojou 2.vrm"
+          SOURCE_MODEL="models/ayaka/Ayaka_Tojou 2.vrm"
           if [ ! -s "$SOURCE_MODEL" ]; then
             echo "::error::Uploaded Ayaka model is missing at $SOURCE_MODEL."
             exit 1
@@ -44,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p reborn/src/main/assets
-          node scripts/prepare-ayaka-glb.mjs "avatar-web/public/Ayaka_Tojou 2.vrm" reborn/src/main/assets/ayaka.glb
+          node scripts/prepare-ayaka-glb.mjs "models/ayaka/Ayaka_Tojou 2.vrm" reborn/src/main/assets/ayaka.glb
           test -s reborn/src/main/assets/ayaka.glb
           test -s reborn/src/main/assets/ayaka-vrm-metadata.json
       - name: Set up Gradle
