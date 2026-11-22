@@ -67,6 +67,28 @@ jobs:
           BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)"
           "$BUILD_TOOLS/zipalign" -c -v 4 "$APK"
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+      - name: Launch app on Android 12 emulator
+        if: steps.verify_apk.outcome == 'success'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 32
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            adb install -r reborn/build/outputs/apk/debug/reborn-debug.apk
+            adb shell am force-stop com.yoruhime.reborn
+            adb shell am start -W -n com.yoruhime.reborn/.MainActivity
+            sleep 25
+            APP_PID="$(adb shell pidof -s com.yoruhime.reborn | tr -d '\\r')"
+            if [ -z "$APP_PID" ]; then
+              echo "::error::YoruHime process exited after launch."
+              adb logcat -d -t 1000 | grep -E "FATAL EXCEPTION|Fatal signal|AndroidRuntime|AyakaFilament" || true
+              exit 1
+            fi
+            echo "YoruHime stayed alive after launch (PID $APP_PID)."
+            adb logcat -d -t 1000 | grep -E "FATAL EXCEPTION|Fatal signal|AndroidRuntime|AyakaFilament" || true
       - name: Upload Reborn APK
         if: always() && steps.verify_apk.outcome == 'success'
         uses: actions/upload-artifact@v4
