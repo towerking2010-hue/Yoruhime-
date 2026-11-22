@@ -95,6 +95,9 @@ private class FilamentAyakaView @JvmOverloads constructor(
 
     override fun onDetachedFromWindow() {
         frameLoop.remove()
+        // ModelViewer documents that it must be recreated after its SurfaceView detaches.
+        viewer?.let { current -> runCatching { current.destroy() } }
+        viewer = null
         super.onDetachedFromWindow()
     }
 
