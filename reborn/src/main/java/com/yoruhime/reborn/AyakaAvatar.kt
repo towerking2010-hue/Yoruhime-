@@ -1,7 +1,7 @@
 package com.yoruhime.reborn
 
 import android.content.Context
-import android.graphics.Color
+import android.graphics.Color as AndroidColor
 import android.util.AttributeSet
 import android.util.Log
 import android.view.Choreographer
@@ -60,7 +60,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
     }
 
     private val surface = SurfaceView(context).apply {
-        setBackgroundColor(Color.rgb(9, 11, 22))
+        setBackgroundColor(AndroidColor.rgb(9, 11, 22))
         holder.setFormat(android.graphics.PixelFormat.OPAQUE)
     }
     private var viewer: ModelViewer? = null
@@ -89,6 +89,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
     private fun createViewer() {
         if (released || viewer != null) return
         try {
+            firstFrameReported = false
             val modelViewer = ModelViewer(surface)
             viewer = modelViewer
             modelViewer.view.renderQuality = modelViewer.view.renderQuality.apply {
