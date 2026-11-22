@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.google.android.filament.Engine
+import com.google.android.filament.Viewport
 import com.google.android.filament.View as FilamentView
 import com.google.android.filament.android.ChoreographerHelper
 import com.google.android.filament.utils.ModelViewer
@@ -77,11 +78,17 @@ private class FilamentAyakaView @JvmOverloads constructor(
             // TextureView can attach before its first non-zero layout callback. Filament's
             // debug readback allocates a Bitmap from the viewport, so never render/probe
             // until the platform has delivered real surface dimensions.
-            val viewport = current.view.viewport
-            if (viewport.width <= 0 || viewport.height <= 0) {
-                Log.d(TAG, "Waiting for a sized TextureView surface: ${surface.width}x${surface.height}, viewport=${viewport.width}x${viewport.height}")
-                return
+            var viewport = current.view.viewport
+            if ((viewport.width <= 0 || viewport.height <= 0) && surface.width > 0 && surface.height > 0) {
+                // Some Android 12 TextureView attach sequences create the native swap
+                // chain without delivering UiHelper.onResized. Recover from the actual
+                // measured view size instead of rendering with a zero-sized viewport.
+                current.view.viewport = Viewport(0, 0, surface.width, surface.height)
+                current.camera.setLensProjection(28.0, surface.width.toDouble() / surface.height.toDouble(), 0.05, 1000.0)
+                viewport = current.view.viewport
+                Log.i(TAG, "Recovered TextureView viewport from measured size: ${surface.width}x${surface.height}")
             }
+            if (viewport.width <= 0 || viewport.height <= 0) return
             try {
                 // Use the timestamp overload on every Android version. This keeps the
                 // renderer free of API-33 FrameData references on the Android 12 target.
