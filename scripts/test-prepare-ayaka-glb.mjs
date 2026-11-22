@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Regression test: keep supported KHR glTF extensions and preserve VRM attribution.
+// Regression test: preserve supported KHR extensions and every VRMC payload.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -9,12 +9,19 @@ import { fileURLToPath } from 'node:url';
 
 const scriptPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'prepare-ayaka-glb.mjs');
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'yoruhime-glb-test-'));
+
 try {
   const input = path.join(temp, 'source.vrm');
   const output = path.join(temp, 'ayaka.glb');
   const source = {
     asset: { version: '2.0' },
-    extensionsUsed: ['VRMC_vrm', 'VRMC_springBone', 'VRMC_materials_mtoon', 'KHR_materials_unlit', 'KHR_texture_transform'],
+    extensionsUsed: [
+      'VRMC_vrm',
+      'VRMC_springBone',
+      'VRMC_materials_mtoon',
+      'KHR_materials_unlit',
+      'KHR_texture_transform'
+    ],
     extensionsRequired: ['VRMC_vrm', 'KHR_materials_unlit'],
     extensions: {
       VRMC_vrm: {
@@ -26,9 +33,16 @@ try {
           redistribution: 'test-only'
         },
         humanoid: { humanBones: { head: { node: 1 } } },
-        expressions: { preset: { happy: { morphTargetBinds: [{ node: 2, index: 0, weight: 1 }] } } }
+        expressions: {
+          preset: {
+            happy: { morphTargetBinds: [{ node: 2, index: 0, weight: 1 }] }
+          }
+        }
       },
-      VRMC_springBone: { specVersion: '1.0', springs: [{ joints: [{ node: 3 }] }] }
+      VRMC_springBone: {
+        specVersion: '1.0',
+        springs: [{ joints: [{ node: 3 }] }]
+      }
     },
     materials: [{
       extensions: {
@@ -38,13 +52,16 @@ try {
       }
     }]
   };
+
   const json = Buffer.from(JSON.stringify(source), 'utf8');
   const padded = Buffer.alloc(Math.ceil(json.length / 4) * 4, 0x20);
   json.copy(padded);
+
   const header = Buffer.alloc(12);
   header.write('glTF', 0, 'ascii');
   header.writeUInt32LE(2, 4);
   header.writeUInt32LE(12 + 8 + padded.length, 8);
+
   const chunkHeader = Buffer.alloc(8);
   chunkHeader.writeUInt32LE(padded.length, 0);
   chunkHeader.writeUInt32LE(0x4E4F534A, 4);
@@ -57,26 +74,35 @@ try {
   assert.equal(converted.toString('ascii', 0, 4), 'glTF');
   const jsonLength = converted.readUInt32LE(12);
   const doc = JSON.parse(converted.subarray(20, 20 + jsonLength).toString('utf8').trim());
+
   assert.deepEqual(doc.extensionsUsed, ['KHR_materials_unlit', 'KHR_texture_transform']);
   assert.deepEqual(doc.extensionsRequired, ['KHR_materials_unlit']);
-  assert.deepEqual(Object.keys(doc.materials[0].extensions).sort(), ['KHR_materials_unlit', 'KHR_texture_transform']);
-  assert.equal(doc.extensions?.VRMC_vrm, undefined);
+  assert.deepEqual(
+    Object.keys(doc.materials[0].extensions).sort(),
+    ['KHR_materials_unlit', 'KHR_texture_transform']
+  );
+  assert.equal(doc.extensions, undefined);
 
-  const metadata = JSON.parse(fs.readFileSync(path.join(temp, 'ayaka-vrm-metadata.json'), 'utf8'));
+  const metadata = JSON.parse(
+    fs.readFileSync(path.join(temp, 'ayaka-vrm-metadata.json'), 'utf8')
+  );
   assert.equal(metadata.sourceModel, 'source.vrm');
-  const vrm = metadata.extensions.find(item => item.name === 'VRMC_vrm' && item.path === '
-} finally {
-  fs.rmSync(temp, { recursive: true, force: true });
-}
-)?.payload;
+
+  const vrm = metadata.extensions.find(
+    item => item.name === 'VRMC_vrm' && item.path === 'root'
+  ).payload;
   assert.deepEqual(vrm.meta.authors, ['epic_noobster']);
   assert.equal(vrm.meta.creditNotation, 'required');
   assert.equal(vrm.meta.licenseUrl, 'https://example.invalid/vrm-test-license');
   assert.ok(vrm.humanoid.humanBones.head);
   assert.ok(vrm.expressions.preset.happy);
+
   assert.ok(metadata.extensions.some(item => item.name === 'VRMC_springBone'));
-  assert.ok(metadata.extensions.some(item => item.name === 'VRMC_materials_mtoon'));
-  console.log('Converter regression test passed: KHR extensions preserved; all VRMC metadata retained in sidecar.');
+  assert.ok(metadata.extensions.some(
+    item => item.name === 'VRMC_materials_mtoon' && item.path === 'root.materials[0]'
+  ));
+
+  console.log('Converter regression test passed: KHR extensions preserved; all VRMC metadata retained.');
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
 }
