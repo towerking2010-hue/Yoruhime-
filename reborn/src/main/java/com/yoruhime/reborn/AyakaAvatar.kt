@@ -55,7 +55,6 @@ private class FilamentAyakaView @JvmOverloads constructor(
 ) : FrameLayout(context, attrs) {
     companion object {
         private const val TAG = "AyakaFilament"
-        init { Utils.init() }
     }
 
     private val surface = SurfaceView(context).apply {
@@ -102,6 +101,10 @@ private class FilamentAyakaView @JvmOverloads constructor(
         if (released || viewer != null || rendererCreationAttempted) return
         rendererCreationAttempted = true
         try {
+            // Native library loading must stay inside this guarded path. A missing or
+            // incompatible JNI library should disable the avatar surface, not crash
+            // the entire Compose activity during class initialization.
+            Utils.init()
             firstFrameReported = false
             noRenderableReported = false
             val modelViewer = ModelViewer(surface)
