@@ -162,4 +162,3 @@ internal fun AyakaAvatar(modifier: Modifier = Modifier) {
             }
         }
     }
-}
