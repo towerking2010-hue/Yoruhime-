@@ -143,12 +143,14 @@ private class FilamentAyakaView @JvmOverloads constructor(
         super.onAttachedToWindow()
         if (!released && viewer == null && !rendererCreationAttempted) {
             // Posting lets the child SurfaceView finish its own attach dispatch first.
-            surface.post {
+            // Let Compose draw the companion stage before loading the 20 MB model.
+            // This prevents native setup and GLB parsing from delaying Activity startup.
+            surface.postDelayed({
                 if (isAttachedToWindow && !released && viewer == null && !rendererCreationAttempted) {
                     createViewer()
                     if (viewer != null) frameLoop.post()
                 }
-            }
+            }, 750L)
         }
     }
 
