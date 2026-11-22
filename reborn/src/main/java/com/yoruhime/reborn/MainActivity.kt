@@ -172,7 +172,7 @@ private fun YoruHimeApp() {
                         },
                         onCamera = { camera.launch(null) }
                     )
-                    Destination.MEMORIES -> MemoriesScreen()
+                    Destination.MEMORIES -> MemoriesScreen(store)
                     Destination.CARE -> CareScreen(store)
                     Destination.SETTINGS -> SettingsScreen(vault, voiceEnabled) { enabled ->
                         voiceEnabled = enabled
@@ -455,9 +455,7 @@ private fun HomeScreen(
 }
 
 @Composable
-private fun MemoriesScreen() {
-    val context = LocalContext.current
-    val store = remember { RebornStore(context) }
+private fun MemoriesScreen(store: RebornStore) {
     var note by rememberSaveable { mutableStateOf("") }
     var notes by remember { mutableStateOf(store.memories()) }
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {

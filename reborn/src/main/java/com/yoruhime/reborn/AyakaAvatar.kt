@@ -67,6 +67,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
     private var released = false
     private var rendererCreationAttempted = false
     private var firstFrameReported = false
+    private var noRenderableReported = false
     private val frameLoop = object : ChoreographerHelper() {
         override fun onFrame(frameTimeNanos: Long, frameData: Any?) {
             val current = viewer ?: return
@@ -74,10 +75,17 @@ private class FilamentAyakaView @JvmOverloads constructor(
                 val rendered = if (android.os.Build.VERSION.SDK_INT >= 33 && frameData is Choreographer.FrameData) {
                     current.render(frameData)
                 } else current.render(frameTimeNanos)
-                if (rendered && !firstFrameReported) {
+                val progress = current.progress
+                val renderableCount = current.asset?.renderableEntities?.size ?: 0
+                if (progress >= 1f && renderableCount == 0 && !noRenderableReported) {
+                    noRenderableReported = true
+                    report("Ayaka's GLB loaded, but Filament found no renderable meshes.")
+                    Log.e(TAG, "Ayaka GLB completed loading with zero renderable entities.")
+                    frameLoop.remove()
+                } else if (rendered && progress >= 1f && renderableCount > 0 && !firstFrameReported) {
                     firstFrameReported = true
-                    report("Ayaka's first native frame was rendered")
-                    Log.i(TAG, "First native Filament frame rendered.")
+                    report("Ayaka mesh rendered · $renderableCount mesh entities")
+                    Log.i(TAG, "Ayaka mesh rendered by Filament ($renderableCount renderable entities).")
                 }
             } catch (error: Exception) {
                 Log.e(TAG, "Filament frame failed", error)
@@ -96,6 +104,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
         rendererCreationAttempted = true
         try {
             firstFrameReported = false
+            noRenderableReported = false
             val modelViewer = ModelViewer(surface)
             viewer = modelViewer
             modelViewer.view.renderQuality = modelViewer.view.renderQuality.apply {
@@ -109,9 +118,15 @@ private class FilamentAyakaView @JvmOverloads constructor(
             val bytes = context.assets.open("ayaka.glb").use { it.readBytes() }
             check(bytes.isNotEmpty()) { "Bundled Ayaka GLB is empty." }
             modelViewer.loadModelGlb(ByteBuffer.wrap(bytes))
-            check(modelViewer.asset != null) { "Filament could not create Ayaka's glTF asset." }
+            val asset = checkNotNull(modelViewer.asset) { "Filament could not create Ayaka's glTF asset." }
+            val halfExtent = asset.boundingBox.halfExtent
+            val maxExtent = halfExtent.maxOrNull() ?: 0f
+            check(halfExtent.size >= 3 && halfExtent.all { it.isFinite() } && maxExtent.isFinite() && maxExtent > 0f) {
+                "Ayaka GLB has invalid or empty mesh bounds."
+            }
+            check(asset.renderableEntities.isNotEmpty()) { "Ayaka GLB contains no renderable mesh entities." }
             modelViewer.transformToUnitCube()
-            report("Ayaka model loaded · starting native render…")
+            report("Ayaka GLB parsed · loading textures and mesh data…")
             Log.i(TAG, "Ayaka GLB loaded (" + bytes.size + " bytes).")
         } catch (error: Throwable) {
             report("Native renderer failed: " + (error.message ?: error.javaClass.simpleName))
