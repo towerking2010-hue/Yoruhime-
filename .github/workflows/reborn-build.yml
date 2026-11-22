@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: reborn-${{ github.ref }}
+  group: reborn-v2-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
