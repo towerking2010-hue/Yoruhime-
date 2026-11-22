@@ -83,6 +83,14 @@ jobs:
           profile: pixel_2
           disable-animations: true
           script: bash scripts/smoke-android-emulator.sh
+      - name: Upload Android smoke-test diagnostics
+        if: always() && steps.verify_apk.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: yoruhime-android-smoke-diagnostics
+          path: artifacts/android-smoke/
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Upload Reborn APK
         if: always() && steps.verify_apk.outcome == 'success'
         uses: actions/upload-artifact@v4
