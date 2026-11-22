@@ -74,6 +74,14 @@ private class FilamentAyakaView @JvmOverloads constructor(
     private val frameLoop = object : ChoreographerHelper() {
         override fun onFrame(frameTimeNanos: Long) {
             val current = viewer ?: return
+            // TextureView can attach before its first non-zero layout callback. Filament's
+            // debug readback allocates a Bitmap from the viewport, so never render/probe
+            // until the platform has delivered real surface dimensions.
+            val viewport = current.view.viewport
+            if (viewport.width <= 0 || viewport.height <= 0) {
+                Log.d(TAG, "Waiting for a sized TextureView surface: ${surface.width}x${surface.height}, viewport=${viewport.width}x${viewport.height}")
+                return
+            }
             try {
                 // Use the timestamp overload on every Android version. This keeps the
                 // renderer free of API-33 FrameData references on the Android 12 target.
