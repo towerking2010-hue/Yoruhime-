@@ -23,10 +23,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Set up Node for the offline avatar bundle
+      - name: Set up Node for GLB conversion
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Test the VRM-to-GLB converter
+        run: node scripts/test-prepare-ayaka-glb.mjs
       - name: Verify the original Ayaka model (never substitute a sample)
         shell: bash
         run: |
@@ -44,6 +46,7 @@ jobs:
           mkdir -p reborn/src/main/assets
           node scripts/prepare-ayaka-glb.mjs "avatar-web/public/Ayaka_Tojou 2.vrm" reborn/src/main/assets/ayaka.glb
           test -s reborn/src/main/assets/ayaka.glb
+          test -s reborn/src/main/assets/ayaka-attribution.json
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:

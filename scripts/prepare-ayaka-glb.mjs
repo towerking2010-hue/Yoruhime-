@@ -20,6 +20,12 @@ while (offset < bytes.length) {
 }
 if (!jsonChunk) throw new Error('GLB JSON chunk missing.');
 const doc = JSON.parse(jsonChunk.toString('utf8').trim());
+// Keep the original VRM creator and usage terms before removing VRM-only extensions.
+const vrmMetadata = doc.extensions?.VRMC_vrm?.meta;
+if (!vrmMetadata || typeof vrmMetadata !== 'object') {
+  throw new Error('VRM metadata missing; refusing to discard creator and license attribution.');
+}
+const attribution = JSON.parse(JSON.stringify(vrmMetadata));
 const removed = new Set();
 const isVrmExtension = name => name.startsWith('VRMC_');
 function clean(value) {
@@ -55,4 +61,7 @@ const parts = [header];
 for (const c of chunks) { const h = Buffer.alloc(8); h.writeUInt32LE(c.data.length, 0); h.writeUInt32LE(c.type, 4); parts.push(h, c.data); }
 fs.mkdirSync(path.dirname(output), { recursive: true });
 fs.writeFileSync(output, Buffer.concat(parts));
+const attributionOutput = path.join(path.dirname(output), 'ayaka-attribution.json');
+fs.writeFileSync(attributionOutput, JSON.stringify(attribution, null, 2) + '\n');
+console.log('Preserved VRM creator and license metadata:', attribution.authors?.join(', ') || '(no author listed)');
 console.log('Prepared GLB; stripped extension payloads:', [...removed].join(', ') || '(none)');
