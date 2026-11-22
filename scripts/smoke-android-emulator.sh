@@ -5,12 +5,15 @@ APK="reborn/build/outputs/apk/debug/reborn-debug.apk"
 PACKAGE="com.yoruhime.reborn"
 ACTIVITY="$PACKAGE/.MainActivity"
 
+mkdir -p artifacts/android-smoke
 adb install -r "$APK"
 adb shell am force-stop "$PACKAGE"
 adb shell am start -n "$ACTIVITY"
 sleep 45
 
 APP_PID="$(adb shell pidof -s "$PACKAGE" | tr -d '\r')"
+adb logcat -d -t 5000 > artifacts/android-smoke/logcat.txt || true
+adb exec-out screencap -p > artifacts/android-smoke/home-screen.png || true
 if [[ -z "$APP_PID" ]]; then
   echo "::error::YoruHime process exited after launch."
   adb logcat -d -t 2000 | grep -E "FATAL EXCEPTION|Fatal signal|AndroidRuntime|AyakaFilament" || true
