@@ -26,8 +26,9 @@ if echo "$LOGS" | grep -Eq "FATAL EXCEPTION|Fatal signal"; then
   exit 1
 fi
 
-if echo "$LOGS" | grep -q "Ayaka mesh rendered by Filament"; then
-  echo "Ayaka's mesh reached Filament's rendered-frame callback."
+if echo "$LOGS" | grep -q "Ayaka produced visible framebuffer pixels"; then
+  echo "Ayaka produced visible pixels in Filament's framebuffer."
 else
-  echo "::warning::The emulator kept YoruHime alive but did not confirm an Ayaka rendered frame. Emulator graphics support may be insufficient; physical Galaxy A31 rendering remains unverified."
+  echo "::error::The emulator did not verify visible Ayaka pixels. A loaded mesh or successful render submission is not sufficient."
+  exit 1
 fi
