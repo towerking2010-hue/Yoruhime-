@@ -2,7 +2,7 @@ name: YoruHime Reborn Android Build
 
 on:
   push:
-    branches: [yoruhime/reborn, yoruhime/installable-ayaka-fix]
+    branches: [yoruhime/reborn, yoruhime/installable-ayaka-fix, yoruhime/filament-native-avatar]
   workflow_dispatch:
 
 concurrency:
@@ -41,6 +41,13 @@ jobs:
           cp "$SOURCE_MODEL" public/ayaka.vrm
           npm install --no-audit --no-fund
           npm run build
+      - name: Prepare Filament-compatible Ayaka GLB
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reborn/src/main/assets
+          node scripts/prepare-ayaka-glb.mjs "avatar-web/public/Ayaka_Tojou 2.vrm" reborn/src/main/assets/ayaka.glb
+          test -s reborn/src/main/assets/ayaka.glb
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
