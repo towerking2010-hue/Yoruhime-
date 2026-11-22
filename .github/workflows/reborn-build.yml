@@ -69,9 +69,11 @@ jobs:
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
       - name: Launch app on Android 12 emulator
         if: steps.verify_apk.outcome == 'success'
+        timeout-minutes: 10
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 32
+          api-level: 31
+          target: google_apis
           arch: x86_64
           profile: pixel_2
           disable-animations: true
@@ -79,7 +81,7 @@ jobs:
             set -euo pipefail
             adb install -r reborn/build/outputs/apk/debug/reborn-debug.apk
             adb shell am force-stop com.yoruhime.reborn
-            adb shell am start -W -n com.yoruhime.reborn/.MainActivity
+            adb shell am start -n com.yoruhime.reborn/.MainActivity
             sleep 45
             APP_PID="$(adb shell pidof -s com.yoruhime.reborn | tr -d '\\r')"
             if [ -z "$APP_PID" ]; then
