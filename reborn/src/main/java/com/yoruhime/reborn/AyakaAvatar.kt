@@ -59,11 +59,10 @@ internal fun AyakaAvatar(modifier: Modifier = Modifier) {
                     .build()
                 WebView(context).apply {
                     avatarView = this
-                    setBackgroundColor(AndroidColor.TRANSPARENT)
+                    setBackgroundColor(AndroidColor.rgb(9, 11, 22))
                     overScrollMode = View.OVER_SCROLL_NEVER
                     isVerticalScrollBarEnabled = false
                     isHorizontalScrollBarEnabled = false
-                    setLayerType(View.LAYER_TYPE_HARDWARE, null)
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
                     settings.loadsImagesAutomatically = true
@@ -135,7 +134,7 @@ internal fun AyakaAvatar(modifier: Modifier = Modifier) {
             update = { }
         )
 
-        if (true) {
+        if (failed) {
             Surface(
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 14.dp),
                 color = Color(0xD914182A),
