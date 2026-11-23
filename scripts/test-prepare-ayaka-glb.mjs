@@ -15,7 +15,8 @@ try {
   const output = path.join(temp, 'ayaka.glb');
   const source = {
     asset: { version: '2.0' },
-    nodes: [...Array.from({ length: 7 }, () => ({})), { mesh: 0 }],\n    meshes: [{ primitives: [{ targets: [{}, {}] }] }],
+    nodes: [...Array.from({ length: 7 }, () => ({})), { mesh: 0 }],
+    meshes: [{ primitives: [{ targets: [{}, {}] }] }],
     extensionsUsed: [
       'VRMC_vrm',
       'VRMC_springBone',
@@ -39,7 +40,8 @@ try {
         } },
         expressions: {
           preset: {
-            happy: { morphTargetBinds: [{ node: 7, index: 0, weight: 1 }] },\n            blink: { morphTargetBinds: [{ node: 7, index: 1, weight: 1 }] }
+            happy: { morphTargetBinds: [{ node: 7, index: 0, weight: 1 }] },
+            blink: { morphTargetBinds: [{ node: 7, index: 1, weight: 1 }] }
           }
         }
       },
