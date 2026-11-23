@@ -928,7 +928,8 @@ private fun SettingsScreen(
     onKokoroVoice: (String) -> Unit,
     onInstallKokoro: () -> Unit
 ) {
-    val aiSettings = remember { LocalContext.current.getSharedPreferences("yoruhime_settings", android.content.Context.MODE_PRIVATE) }
+    val settingsContext = LocalContext.current
+    val aiSettings = remember { settingsContext.getSharedPreferences("yoruhime_settings", android.content.Context.MODE_PRIVATE) }
     var provider by rememberSaveable { mutableStateOf(aiSettings.getString("ai_provider", "apinex") ?: "apinex") }
     var model by rememberSaveable { mutableStateOf(aiSettings.getString("ai_model", "free/qwen-3.8-max") ?: "free/qwen-3.8-max") }
     var apiKey by rememberSaveable { mutableStateOf("") }
