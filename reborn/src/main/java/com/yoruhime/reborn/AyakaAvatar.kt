@@ -194,7 +194,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
         requestedMood = mood.lowercase().let {
             when (it) {
                 "annoyed", "irritated", "tsundere" -> "angry"
-                "embarrassed", "shy" -> "shy"
+                "embarrassed", "shy" -> "happy"
                 "worried", "concerned" -> "sad"
                 "listening", "idle" -> "neutral"
                 else -> it
