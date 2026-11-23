@@ -96,7 +96,12 @@ try {
   const neutral = doc.animations.find(animation => animation.name === 'Ayaka_Face_Neutral');
   assert.ok(happy?.channels.some(channel => channel.target.path === 'weights'), 'Happy expression morph animation was not generated.');
   assert.ok(neutral?.channels.some(channel => channel.target.path === 'weights'), 'Blinking morph animation was not generated from left/right blink presets.');
-  for (const name of ['Ayaka_Gesture_Wave', 'Ayaka_Gesture_Pout', 'Ayaka_Gesture_ArmsCrossed', 'Ayaka_Gesture_Dance']) {
+  for (const name of [
+    'Ayaka_Gesture_Wave', 'Ayaka_Gesture_Pout', 'Ayaka_Gesture_ArmsCrossed', 'Ayaka_Gesture_Dance',
+    'Ayaka_Gesture_Nod', 'Ayaka_Gesture_HeadTilt', 'Ayaka_Gesture_Shrug', 'Ayaka_Gesture_Thinking',
+    'Ayaka_Gesture_HandOnHeart', 'Ayaka_Gesture_Bow', 'Ayaka_Gesture_Laugh',
+    'Ayaka_Gesture_ShyLookAway', 'Ayaka_Gesture_Farewell'
+  ]) {
     const gesture = doc.animations.find(animation => animation.name === name);
     assert.ok(gesture?.channels.some(channel => channel.target.path === 'rotation'), name + ' gesture clip was not generated.');
   }
