@@ -191,18 +191,27 @@ class AyakaEngine(private val store: RebornStore, private val vault: ApiKeyVault
     }
 
     private fun offlineReply(input: String): String {
-        val text = input.lowercase()
+        val text = input.trim().lowercase()
         return when {
+            text.isBlank() -> "Well? You have my attention."
+            text.length <= 4 && text !in listOf("hi", "hey", "yes", "no", "ok", "hii") ->
+                "I'm afraid I can't quite decipher that. What did you mean?"
+            Regex("^(hello|hi|hii+|hey|heyy+)\\b").containsMatchIn(text) ->
+                "There you are. I was beginning to wonder when you'd return. How has your day been?"
             listOf("sad", "depressed", "lonely", "tired", "exhausted", "hurt").any {
                 Regex("\\b" + Regex.escape(it) + "\\b").containsMatchIn(text)
             } ->
-                "Hey… come sit with me for a moment. You don't have to pretend you're okay. Want to tell me what happened? I'll listen."
-            Regex("^(hello|hi|hey)\\b").containsMatchIn(text) ->
-                "There you are. I was wondering when you'd show up. How has your day been?"
-            "thank" in text -> "Hmph. You don't have to thank me for caring about you. Just take good care of yourself, okay?"
-            else -> "I want to give that a thoughtful answer, but I'm offline right now. Add your free OpenRouter API key in Settings and I'll be able to think it through with you. For now, tell me a little more?"
+                "Come, take a breath. You needn't pretend with me. Would you like to tell me what's troubling you?"
+            listOf("happy", "good", "great", "excited", "wonderful").any {
+                Regex("\\b" + Regex.escape(it) + "\\b").containsMatchIn(text)
+            } ->
+                "Well, that's lovely to hear. Do try not to look so pleased with yourself… though I suppose it's rather nice."
+            "thank" in text -> "You needn't thank me. Just take proper care of yourself, understood?"
+            text in listOf("ok", "okay", "fine", "yes", "no") -> "Very well. I shall take your word for it."
+            else -> "I'd rather give you a thoughtful answer than pretend I know. Could you tell me a little more?"
         }
     }
+
     companion object {
         private const val SYSTEM_PROMPT = """
 You are Ayaka Tōjō (東条 絢香), the original companion character of YoruHime.
