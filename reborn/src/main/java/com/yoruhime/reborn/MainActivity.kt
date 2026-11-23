@@ -618,9 +618,14 @@ private fun HomeScreen(
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { playGesture("dance"); studioOpen = false }) {
+                    Button(onClick = { playGesture("armscrossed"); studioOpen = false }) {
+                        Icon(Icons.Rounded.Person, null); Spacer(Modifier.width(6.dp)); Text("Cross arms")
+                    }
+                    OutlinedButton(onClick = { playGesture("dance"); studioOpen = false }) {
                         Icon(Icons.Rounded.MusicNote, null); Spacer(Modifier.width(6.dp)); Text("Dance")
                     }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { avatarGesture = ""; manualMood = null; studioOpen = false }) {
                         Text("Back to idle")
                     }
