@@ -95,6 +95,10 @@ try {
   const neutral = doc.animations.find(animation => animation.name === 'Ayaka_Face_Neutral');
   assert.ok(happy?.channels.some(channel => channel.target.path === 'weights'), 'Happy expression morph animation was not generated.');
   assert.ok(neutral?.channels.some(channel => channel.target.path === 'weights'), 'Blinking morph animation was not generated.');
+  for (const name of ['Ayaka_Gesture_Wave', 'Ayaka_Gesture_Pout', 'Ayaka_Gesture_Dance']) {
+    const gesture = doc.animations.find(animation => animation.name === name);
+    assert.ok(gesture?.channels.some(channel => channel.target.path === 'rotation'), name + ' gesture clip was not generated.');
+  }
   assert.ok(doc.buffers?.[0]?.byteLength > 0, 'Animation binary data was not appended.');
   assert.ok(doc.accessors?.length >= 10, 'Animation accessors were not created.');
 
