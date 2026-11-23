@@ -219,6 +219,7 @@ private fun YoruHimeApp() {
                                 avatarSpeaking = false
                                 avatarViseme = "neutral"
                             } else if (kokoroInstalled) {
+                                KokoroVoice.stop()
                                 scope.launch {
                                     try {
                                         val styleRate = when {
