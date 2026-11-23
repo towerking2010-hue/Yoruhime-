@@ -149,7 +149,15 @@ class AyakaEngine(private val store: RebornStore, private val vault: ApiKeyVault
                     val detail = runCatching { JSONObject(response).optJSONObject("error")?.optString("message") }.getOrNull()
                     throw IllegalStateException(detail?.takeIf { it.isNotBlank() } ?: "AI request failed (HTTP " + code + ")")
                 }
-                JSONObject(response).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content").trim()
+                val message = JSONObject(response).optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message") ?: throw IllegalStateException("The AI provider returned no message.")
+                val rawContent = message.opt("content")
+                val answer = when (rawContent) {
+                    is String -> rawContent.trim()
+                    is JSONArray -> (0 until rawContent.length()).mapNotNull { index -> rawContent.optJSONObject(index)?.optString("text")?.takeIf { it.isNotBlank() } }.joinToString("\n").trim()
+                    else -> ""
+                }
+                if (answer.isBlank() || answer.equals("null", true)) throw IllegalStateException("The AI provider returned an empty reply.")
+                answer
             } finally { connection.disconnect() }
         } catch (e: Exception) {
             offlineReply(userText) + " (I'm using an offline response because the free AI connection failed: " + (e.message?.take(100) ?: "connection unavailable") + ".)"
@@ -187,7 +195,7 @@ class AyakaEngine(private val store: RebornStore, private val vault: ApiKeyVault
                 val stream = if (code in 200..299) connection.inputStream else connection.errorStream
                 val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
                 if (code !in 200..299) throw IllegalStateException("Image request failed (HTTP " + code + ")")
-                JSONObject(response).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content").trim()
+                JSONObject(response).optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content")?.trim()?.takeIf { it.isNotBlank() && !it.equals("null", true) } ?: throw IllegalStateException("The AI provider returned an empty image reply.")
             } finally { connection.disconnect() }
         } catch (e: Exception) {
             "I couldn't process that photo just now. " + (e.message?.take(120) ?: "Please try again.") + " Your image stays on this device unless you choose to send it."
