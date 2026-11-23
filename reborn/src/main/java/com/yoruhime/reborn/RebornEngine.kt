@@ -117,7 +117,7 @@ class AyakaEngine(private val store: RebornStore, private val vault: ApiKeyVault
         val settings = context.getSharedPreferences("yoruhime_settings", Context.MODE_PRIVATE)
         val provider = settings.getString("ai_provider", "apinex") ?: "apinex"
         val model = settings.getString("ai_model", "free/qwen-3.8-max") ?: "free/qwen-3.8-max"
-        val apiKey = vault.read(provider)
+        val apiKey = vault.read()
         if (apiKey.isNullOrBlank()) return@withContext offlineReply(userText)
         try {
             val history = store.messages(21).dropLast(1)
