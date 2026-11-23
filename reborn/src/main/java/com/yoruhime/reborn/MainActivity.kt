@@ -171,17 +171,17 @@ private fun YoruHimeApp() {
                                         speaker.language = Locale.US
                                         speaker.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                                             override fun onStart(utteranceId: String?) {
-                                                runOnUiThread { avatarSpeaking = true }
+                                                runOnMainThread { avatarSpeaking = true }
                                             }
                                             override fun onDone(utteranceId: String?) {
-                                                runOnUiThread { avatarSpeaking = false }
+                                                runOnMainThread { avatarSpeaking = false }
                                             }
                                             @Deprecated("Deprecated in Java")
                                             override fun onError(utteranceId: String?) {
-                                                runOnUiThread { avatarSpeaking = false }
+                                                runOnMainThread { avatarSpeaking = false }
                                             }
                                             override fun onError(utteranceId: String?, errorCode: Int) {
-                                                runOnUiThread { avatarSpeaking = false }
+                                                runOnMainThread { avatarSpeaking = false }
                                             }
                                         })
                                         val result = speaker.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ayaka-reply")
@@ -194,9 +194,9 @@ private fun YoruHimeApp() {
                                         lateinit var created: TextToSpeech
                                         created = TextToSpeech(context) { status ->
                                             if (status == TextToSpeech.SUCCESS) {
-                                                runOnUiThread { configureAndSpeak(created) }
+                                                runOnMainThread { configureAndSpeak(created) }
                                             } else {
-                                                runOnUiThread {
+                                                runOnMainThread {
                                                     avatarSpeaking = false
                                                     Toast.makeText(context, "Speech output is unavailable right now.", Toast.LENGTH_SHORT).show()
                                                 }
@@ -306,6 +306,10 @@ private fun TopBar(destination: Destination) {
             Icon(Icons.Rounded.NotificationsNone, null, tint = Lilac)
         }
     }
+}
+
+private fun runOnMainThread(action: () -> Unit) {
+    android.os.Handler(android.os.Looper.getMainLooper()).post(action)
 }
 
 private fun inferAyakaMood(text: String): String {
