@@ -87,6 +87,11 @@ private fun YoruHimeApp() {
     var voiceEnabled by rememberSaveable { mutableStateOf(preferences.getBoolean("voice_replies_enabled", true)) }
     var voicePitch by rememberSaveable { mutableFloatStateOf(preferences.getFloat("voice_pitch", 1.06f)) }
     var voiceRate by rememberSaveable { mutableFloatStateOf(preferences.getFloat("voice_rate", 0.94f)) }
+    var kokoroVoiceId by rememberSaveable { mutableStateOf(preferences.getString("kokoro_voice_id", "bf_emma") ?: "bf_emma") }
+    var kokoroInstalled by remember { mutableStateOf(KokoroVoice.isInstalled(context)) }
+    var kokoroDownloading by remember { mutableStateOf(false) }
+    var kokoroProgress by remember { mutableIntStateOf(0) }
+    var kokoroStatus by remember { mutableStateOf(if (kokoroInstalled) "Offline Kokoro voice installed" else "Android system voice active") }
     var draft by rememberSaveable { mutableStateOf("") }
     // Voice services are created only after the user asks to use them. Some Android
     // builds have missing or unstable speech providers; that must never block startup.
@@ -141,6 +146,47 @@ private fun YoruHimeApp() {
     DisposableEffect(tts) {
         onDispose { runCatching { tts?.stop(); tts?.shutdown() } }
     }
+    fun speakWithSystemTts(text: String) {
+        try {
+            fun configureAndSpeak(speaker: TextToSpeech) {
+                speaker.language = Locale.US
+                speaker.setPitch(voicePitch)
+                speaker.setSpeechRate(voiceRate)
+                speaker.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {
+                        runOnMainThread { avatarSpeaking = true; avatarViseme = "aa" }
+                    }
+                    override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
+                        val safeStart = start.coerceIn(0, text.length)
+                        val safeEnd = end.coerceIn(safeStart, text.length)
+                        runOnMainThread { avatarViseme = inferAyakaViseme(text.substring(safeStart, safeEnd)) }
+                    }
+                    override fun onDone(utteranceId: String?) {
+                        runOnMainThread { avatarSpeaking = false; avatarViseme = "neutral" }
+                    }
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) { runOnMainThread { avatarSpeaking = false; avatarViseme = "neutral" } }
+                    override fun onError(utteranceId: String?, errorCode: Int) { runOnMainThread { avatarSpeaking = false; avatarViseme = "neutral" } }
+                })
+                if (speaker.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ayaka-reply") == TextToSpeech.ERROR) avatarSpeaking = false
+            }
+            val existing = tts
+            if (existing != null) configureAndSpeak(existing) else {
+                lateinit var created: TextToSpeech
+                created = TextToSpeech(context) { status ->
+                    if (status == TextToSpeech.SUCCESS) runOnMainThread { configureAndSpeak(created) }
+                    else runOnMainThread {
+                        avatarSpeaking = false
+                        Toast.makeText(context, "Speech output is unavailable right now.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                tts = created
+            }
+        } catch (_: Throwable) {
+            avatarSpeaking = false
+            Toast.makeText(context, "Speech output is unavailable right now.", Toast.LENGTH_SHORT).show()
+        }
+    }
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
     var messages by remember { mutableStateOf(store.messages().ifEmpty { listOf(ChatLine("assistant", "Good evening. You finally came back. Have you eaten yet?")) }) }
     var sending by remember { mutableStateOf(false) }
@@ -169,63 +215,36 @@ private fun YoruHimeApp() {
                         onDraft = { draft = it },
                         sending = sending,
                         onSpeak = { text ->
-                            if (voiceEnabled) {
-                                try {
-                                    fun configureAndSpeak(speaker: TextToSpeech) {
-                                        speaker.language = Locale.US
-                                        // Gentle, slightly bright delivery. The exact timbre still depends
-                                        // on the speech voice installed on the user's Android device.
-                                        speaker.setPitch(voicePitch)
-                                        speaker.setSpeechRate(voiceRate)
-                                        speaker.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                                            override fun onStart(utteranceId: String?) {
-                                                runOnMainThread { avatarSpeaking = true; avatarViseme = "aa" }
-                                            }
-                                            override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
-                                                val safeStart = start.coerceIn(0, text.length)
-                                                val safeEnd = end.coerceIn(safeStart, text.length)
-                                                val spokenChunk = text.substring(safeStart, safeEnd)
-                                                runOnMainThread { avatarViseme = inferAyakaViseme(spokenChunk) }
-                                            }
-                                            override fun onDone(utteranceId: String?) {
-                                                runOnMainThread { avatarSpeaking = false; avatarViseme = "aa" }
-                                            }
-                                            @Deprecated("Deprecated in Java")
-                                            override fun onError(utteranceId: String?) {
-                                                runOnMainThread { avatarSpeaking = false }
-                                            }
-                                            override fun onError(utteranceId: String?, errorCode: Int) {
-                                                runOnMainThread { avatarSpeaking = false }
-                                            }
-                                        })
-                                        val result = speaker.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ayaka-reply")
-                                        if (result == TextToSpeech.ERROR) avatarSpeaking = false
-                                    }
-                                    val existing = tts
-                                    if (existing != null) {
-                                        configureAndSpeak(existing)
-                                    } else {
-                                        lateinit var created: TextToSpeech
-                                        created = TextToSpeech(context) { status ->
-                                            if (status == TextToSpeech.SUCCESS) {
-                                                runOnMainThread { configureAndSpeak(created) }
-                                            } else {
-                                                runOnMainThread {
-                                                    avatarSpeaking = false
-                                                    avatarViseme = "aa"
-                                                    Toast.makeText(context, "Speech output is unavailable right now.", Toast.LENGTH_SHORT).show()
-                                                }
-                                            }
-                                        }
-                                        tts = created
-                                    }
-                                } catch (_: Throwable) {
-                                    avatarSpeaking = false
-                                    Toast.makeText(context, "Speech output is unavailable right now.", Toast.LENGTH_SHORT).show()
-                                }
-                            } else {
+                            if (!voiceEnabled) {
                                 avatarSpeaking = false
-                            }
+                                avatarViseme = "neutral"
+                            } else if (kokoroInstalled) {
+                                scope.launch {
+                                    try {
+                                        val styleRate = when {
+                                            text.contains("hmph", true) || text.contains("!", true) -> 1.06f
+                                            text.contains("I'm here", true) || text.contains("it's okay", true) -> 0.94f
+                                            else -> 1.0f
+                                        }
+                                        KokoroVoice.speak(
+                                            context = context,
+                                            text = text,
+                                            voiceId = kokoroVoiceId,
+                                            speakingRate = styleRate,
+                                            onStart = { runOnMainThread { avatarSpeaking = true; avatarViseme = "aa" } },
+                                            onViseme = { value -> runOnMainThread { avatarViseme = value } },
+                                            onDone = { runOnMainThread { avatarSpeaking = false; avatarViseme = "neutral" } }
+                                        )
+                                    } catch (error: Throwable) {
+                                        runOnMainThread {
+                                            kokoroStatus = "Kokoro unavailable · using Android voice"
+                                            avatarSpeaking = false
+                                            speakWithSystemTts(text)
+                                            Toast.makeText(context, "Kokoro couldn't run on this device. Using the installed Android voice instead.", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }
+                            } else speakWithSystemTts(text)
                         },
                         avatarSpeaking = avatarSpeaking,
                         avatarViseme = avatarViseme,
@@ -272,6 +291,34 @@ private fun YoruHimeApp() {
                         onVoiceRate = { value ->
                             voiceRate = value
                             preferences.edit().putFloat("voice_rate", value).apply()
+                        },
+                        kokoroInstalled = kokoroInstalled,
+                        kokoroDownloading = kokoroDownloading,
+                        kokoroProgress = kokoroProgress,
+                        kokoroStatus = kokoroStatus,
+                        kokoroVoiceId = kokoroVoiceId,
+                        onKokoroVoice = { value ->
+                            kokoroVoiceId = value
+                            preferences.edit().putString("kokoro_voice_id", value).apply()
+                        },
+                        onInstallKokoro = {
+                            if (!kokoroDownloading && !kokoroInstalled) {
+                                kokoroDownloading = true
+                                kokoroStatus = "Downloading encrypted-checksum-verified model…"
+                                scope.launch {
+                                    try {
+                                        KokoroVoice.download(context) { progress ->
+                                            runOnMainThread { kokoroProgress = progress }
+                                        }
+                                        kokoroInstalled = KokoroVoice.isInstalled(context)
+                                        kokoroStatus = if (kokoroInstalled) "Kokoro installed · speech stays on this phone" else "Download did not complete"
+                                    } catch (error: Throwable) {
+                                        kokoroStatus = "Download failed: ${error.message ?: "unknown error"}"
+                                    } finally {
+                                        kokoroDownloading = false
+                                    }
+                                }
+                            }
                         }
                     )
                 }
