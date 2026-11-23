@@ -163,6 +163,7 @@ private fun YoruHimeApp() {
                 when (destination) {
                     Destination.HOME -> HomeScreen(
                         messages = messages,
+                        voiceEnabled = voiceEnabled,
                         bondCount = bondCount,
                         draft = draft,
                         onDraft = { draft = it },
@@ -367,7 +368,7 @@ private fun inferAyakaMood(text: String): String {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeScreen(
-    messages: List<ChatLine>, bondCount: Int, draft: String, onDraft: (String) -> Unit,
+    messages: List<ChatLine>, voiceEnabled: Boolean, bondCount: Int, draft: String, onDraft: (String) -> Unit,
     sending: Boolean, onSpeak: (String) -> Unit, avatarSpeaking: Boolean, avatarViseme: String, onVoiceInput: () -> Unit,
     onClear: () -> Unit, onCare: () -> Unit, onMemories: () -> Unit,
     onSettings: () -> Unit, onSend: () -> Unit, onCamera: () -> Unit
@@ -378,6 +379,14 @@ private fun HomeScreen(
     var manualMood by rememberSaveable { mutableStateOf<String?>(null) }
     var avatarGesture by rememberSaveable { mutableStateOf("") }
     var gestureRequestId by rememberSaveable { mutableIntStateOf(0) }
+    var lastAutoSpoken by remember { mutableStateOf(messages.lastOrNull { it.role == "assistant" }?.content.orEmpty()) }
+    LaunchedEffect(messages.lastOrNull()?.role, messages.lastOrNull()?.content, voiceEnabled) {
+        val latest = messages.lastOrNull()
+        if (latest?.role == "assistant" && latest.content != lastAutoSpoken) {
+            lastAutoSpoken = latest.content
+            if (voiceEnabled) onSpeak(latest.content)
+        }
+    }
     fun playGesture(name: String) { gestureRequestId += 1; avatarGesture = "$name#$gestureRequestId" }
     val latestAssistantText = messages.lastOrNull { it.role == "assistant" }?.content.orEmpty()
     LaunchedEffect(sending, messages.lastOrNull()?.role, messages.lastOrNull()?.content) {
@@ -835,7 +844,7 @@ private fun SettingsScreen(
         Text(if (configured) "API key saved securely on this device." else "Offline mode · add your free OpenRouter key to enable cloud chat.", color = Muted, fontSize = 12.sp)
         TextButton(onClick = { vault.clear(); configured = false; apiKey = "" }) { Text("Remove API key") }
         Text("AYAKA'S VOICE", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-        SettingToggle("Voice replies", "Allow Ayaka to read the latest reply aloud.", voiceEnabled, onVoiceEnabled)
+        SettingToggle("Voice replies", "Automatically speak each new reply. Tap the speaker to hear it again.", voiceEnabled, onVoiceEnabled)
         Surface(color = Panel, shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Pitch · ${"%.2f".format(Locale.US, voicePitch)}", color = White, fontWeight = FontWeight.SemiBold)
