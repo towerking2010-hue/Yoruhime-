@@ -336,6 +336,8 @@ private fun HomeScreen(
     var avatarMood by rememberSaveable { mutableStateOf("neutral") }
     var manualMood by rememberSaveable { mutableStateOf<String?>(null) }
     var avatarGesture by rememberSaveable { mutableStateOf("") }
+    var gestureRequestId by rememberSaveable { mutableIntStateOf(0) }
+    fun playGesture(name: String) { gestureRequestId += 1; avatarGesture = "$name#$gestureRequestId" }
     val latestAssistantText = messages.lastOrNull { it.role == "assistant" }?.content.orEmpty()
     LaunchedEffect(sending, messages.lastOrNull()?.role, messages.lastOrNull()?.content) {
         if (sending) avatarMood = "listening"
@@ -587,15 +589,15 @@ private fun HomeScreen(
                 Text("Gestures", color = White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Text("Tap a gesture to play it. Ayaka returns to her idle animation when it finishes.", color = Muted, fontSize = 12.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { avatarGesture = "wave"; studioOpen = false }) {
+                    Button(onClick = { playGesture("wave"); studioOpen = false }) {
                         Icon(Icons.Rounded.WavingHand, null); Spacer(Modifier.width(6.dp)); Text("Wave")
                     }
-                    Button(onClick = { avatarGesture = "pout"; manualMood = "angry"; studioOpen = false }) {
+                    Button(onClick = { playGesture("pout"); manualMood = "angry"; studioOpen = false }) {
                         Icon(Icons.Rounded.MoodBad, null); Spacer(Modifier.width(6.dp)); Text("Tsundere pout")
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { avatarGesture = "dance"; studioOpen = false }) {
+                    Button(onClick = { playGesture("dance"); studioOpen = false }) {
                         Icon(Icons.Rounded.MusicNote, null); Spacer(Modifier.width(6.dp)); Text("Dance")
                     }
                     OutlinedButton(onClick = { avatarGesture = ""; manualMood = null; studioOpen = false }) {
