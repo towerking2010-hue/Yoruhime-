@@ -25,6 +25,12 @@ const gltf = JSON.parse(jsonChunk.toString('utf8').trim());
 assert.ok(gltf.meshes?.length >= 3, 'Expected Ayaka face, body, and hair meshes.');
 assert.ok(gltf.skins?.length >= 1, 'Ayaka humanoid skinning data was lost.');
 assert.ok(gltf.nodes?.some(node => Number.isInteger(node.skin)), 'No skinned mesh nodes found.');
+assert.ok(gltf.animations?.some(animation => animation.name === 'Ayaka_Idle'),
+  'The generated Ayaka_Idle animation clip is missing.');
+const idle = gltf.animations.find(animation => animation.name === 'Ayaka_Idle');
+assert.ok(idle.channels.length >= 2, 'Ayaka idle clip must animate both upper arms.');
+assert.ok(idle.channels.every(channel => channel.target?.path === 'rotation'),
+  'Ayaka idle clip contains an unexpected animation target.');
 assert.ok(gltf.images?.length >= 1, 'Ayaka textures were lost.');
 assert.ok(gltf.materials?.length >= 1, 'Ayaka materials were lost.');
 assert.ok(gltf.extensionsUsed?.includes('KHR_materials_unlit'), 'Unlit material extension was lost.');
@@ -40,4 +46,4 @@ assert.ok(vrm?.humanoid?.humanBones, 'Ayaka humanoid bone map was not preserved.
 assert.ok(vrm?.expressions, 'Ayaka VRM expression definitions were not preserved.');
 assert.ok(metadata.extensions.some(item => item.name === 'VRMC_springBone'), 'Ayaka spring-bone metadata was not preserved.');
 
-console.log(`Ayaka GLB verified: ${gltf.meshes.length} meshes, ${gltf.skins.length} skins, ${morphTargets} morph targets per expressive primitive, ${gltf.images.length} images.`);
+console.log(`Ayaka GLB verified: ${gltf.meshes.length} meshes, ${gltf.skins.length} skins, ${morphTargets} morph targets per expressive primitive, ${gltf.images.length} images, ${idle.channels.length} idle channels.`);
