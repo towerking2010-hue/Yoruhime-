@@ -268,6 +268,17 @@ private fun TopBar(destination: Destination) {
     }
 }
 
+private fun inferAyakaMood(text: String): String {
+    val value = text.lowercase()
+    return when {
+        listOf("angry", "annoyed", "irritated", "furious", "hate").any(value::contains) -> "angry"
+        listOf("sad", "lonely", "depressed", "worried", "scared", "tired", "hurt").any(value::contains) -> "sad"
+        listOf("wow", "whoa", "surprised", "unbelievable", "really?!").any(value::contains) -> "surprised"
+        listOf("love", "thank you", "thanks", "happy", "great", "wonderful", "missed you").any(value::contains) -> "happy"
+        listOf("calm", "relaxed", "okay", "fine").any(value::contains) -> "relaxed"
+        else -> "neutral"
+    }
+}
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeScreen(
@@ -277,6 +288,22 @@ private fun HomeScreen(
     onSettings: () -> Unit, onSend: () -> Unit, onCamera: () -> Unit
 ) {
     var chatOpen by rememberSaveable { mutableStateOf(false) }
+    var avatarMood by rememberSaveable { mutableStateOf("neutral") }
+    var avatarSpeaking by rememberSaveable { mutableStateOf(false) }
+    val latestAssistantText = messages.lastOrNull { it.role == "assistant" }?.content.orEmpty()
+    LaunchedEffect(sending, messages.lastOrNull()?.role, messages.lastOrNull()?.content) {
+        if (sending) avatarMood = "listening"
+        else if (messages.lastOrNull()?.role == "assistant") {
+            val latestUserText = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+            avatarMood = inferAyakaMood(latestUserText)
+        } else avatarMood = "neutral"
+    }
+    LaunchedEffect(avatarSpeaking, latestAssistantText) {
+        if (avatarSpeaking) {
+            kotlinx.coroutines.delay((latestAssistantText.length * 42L).coerceIn(900L, 12000L))
+            avatarSpeaking = false
+        }
+    }
 
     Box(
         Modifier.fillMaxSize()
@@ -284,7 +311,7 @@ private fun HomeScreen(
     ) {
         // Ayaka owns the entire home surface. Conversation is a temporary layer,
         // never a permanently allocated half-screen panel.
-        AyakaAvatar(Modifier.fillMaxSize())
+        AyakaAvatar(Modifier.fillMaxSize(), mood = avatarMood, speaking = avatarSpeaking)
 
         Box(
             Modifier.fillMaxSize().background(
@@ -403,7 +430,12 @@ private fun HomeScreen(
                         Text("Talk with Ayaka", color = White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
                     }
                     IconButton(
-                        onClick = { messages.lastOrNull { it.role == "assistant" }?.content?.let(onSpeak) },
+                        onClick = {
+                            messages.lastOrNull { it.role == "assistant" }?.content?.let { spokenText ->
+                                avatarSpeaking = true
+                                onSpeak(spokenText)
+                            }
+                        },
                         enabled = messages.any { it.role == "assistant" }
                     ) { Icon(Icons.AutoMirrored.Rounded.VolumeUp, "Read latest reply aloud", tint = Lilac) }
                     IconButton(onClick = onClear) { Icon(Icons.Rounded.DeleteOutline, "Clear conversation", tint = Muted) }
