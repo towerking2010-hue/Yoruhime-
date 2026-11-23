@@ -81,7 +81,7 @@ private fun YoruHimeApp() {
     val store = remember { RebornStore(context) }
     DisposableEffect(store) { onDispose { store.close() } }
     val vault = remember { ApiKeyVault(context) }
-    val engine = remember { AyakaEngine(store, vault) }
+    val engine = remember { AyakaEngine(store, vault, context) }
     val scope = rememberCoroutineScope()
     val preferences = remember { context.getSharedPreferences("yoruhime_settings", android.content.Context.MODE_PRIVATE) }
     var voiceEnabled by rememberSaveable { mutableStateOf(preferences.getBoolean("voice_replies_enabled", true)) }
