@@ -72,6 +72,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
     private var pixelProbeRequested = false
     private var pixelProbeCompleted = false
     private var noRenderableReported = false
+    private var idleAnimationStartNanos = 0L
     private val frameLoop = object : ChoreographerHelper() {
         override fun onFrame(frameTimeNanos: Long) {
             val current = viewer ?: return
@@ -92,6 +93,18 @@ private class FilamentAyakaView @JvmOverloads constructor(
             try {
                 // Use the timestamp overload on every Android version. This keeps the
                 // renderer free of API-33 FrameData references on the Android 12 target.
+                // Play the build-generated Ayaka_Idle glTF clip on the actual VRM rig.
+                // Filament does not invent motion for a skinned model: the converter
+                // bakes a conservative humanoid animation and this loop advances it.
+                current.animator?.let { animator ->
+                    if (animator.animationCount > 0) {
+                        if (idleAnimationStartNanos == 0L) idleAnimationStartNanos = frameTimeNanos
+                        val duration = animator.getAnimationDuration(0).coerceAtLeast(0.001f)
+                        val elapsedSeconds = ((frameTimeNanos - idleAnimationStartNanos).coerceAtLeast(0L) / 1_000_000_000.0).toFloat()
+                        animator.applyAnimation(0, elapsedSeconds % duration)
+                        animator.updateBoneMatrices()
+                    }
+                }
                 val rendered = current.render(frameTimeNanos)
                 val progress: Float = current.progress
                 val renderableCount: Int = current.asset?.renderableEntities?.size ?: 0
@@ -176,6 +189,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
             firstFrameReported = false
             pixelProbeRequested = false
             pixelProbeCompleted = false
+            idleAnimationStartNanos = 0L
             noRenderableReported = false
             // Ayaka's VRM has a large 657-joint rig across three skins. On GLES 3.0
             // devices (including the Android 12 emulator's SwiftShader), Filament's
@@ -201,10 +215,12 @@ private class FilamentAyakaView @JvmOverloads constructor(
             // Explicitly upload the bind/rest-pose bone matrices so the avatar
             // is valid before an idle-animation system is introduced.
             modelViewer.animator?.updateBoneMatrices()
+            val idleClipCount = modelViewer.animator?.animationCount ?: 0
+            check(idleClipCount > 0) { "Ayaka's procedural idle animation was not generated into the GLB." }
             Log.i(
                 TAG,
                 "Ayaka skeleton initialized: skins=${asset.instance.skinCount}, " +
-                    "animations=${modelViewer.animator?.animationCount ?: 0}, " +
+                    "animations=$idleClipCount, " +
                     "joints=${(0 until asset.instance.skinCount).sumOf { asset.instance.getJointCountAt(it) }}"
             )
             val halfExtent = asset.boundingBox.halfExtent
@@ -214,7 +230,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
             }
             check(asset.renderableEntities.isNotEmpty()) { "Ayaka GLB contains no renderable mesh entities." }
             modelViewer.transformToUnitCube()
-            report("Ayaka GLB parsed · Vulkan renderer loading textures and mesh data…")
+            report("Ayaka loaded · idle animation starting…")
             Log.i(TAG, "Ayaka GLB loaded (" + bytes.size + " bytes) using Vulkan backend.")
         } catch (error: Throwable) {
             report("Native renderer failed: " + (error.message ?: error.javaClass.simpleName))
@@ -245,6 +261,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
         // ModelViewer registers its own SurfaceView detach listener and destroys its
         // engine there. Do not destroy it here as well: that would double-free Filament.
         viewer = null
+        idleAnimationStartNanos = 0L
         rendererCreationAttempted = false
         super.onDetachedFromWindow()
     }
