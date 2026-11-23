@@ -198,6 +198,9 @@ private class FilamentAyakaView @JvmOverloads constructor(
             // resource path and avoids that GLES uniform-vector ceiling.
             val engine = Engine.create(Engine.Backend.VULKAN)
             val modelViewer = ModelViewer(surface, engine)
+            // The frame loop below owns animation timing; disable ModelViewer's default
+            // auto-player so it cannot overwrite our looping idle pose each frame.
+            modelViewer.autoPlayAnimations = false
             viewer = modelViewer
             modelViewer.view.renderQuality = modelViewer.view.renderQuality.apply {
                 hdrColorBuffer = FilamentView.QualityLevel.MEDIUM
