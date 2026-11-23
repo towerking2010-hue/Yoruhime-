@@ -34,6 +34,8 @@ dependencies {
     implementation("com.google.android.filament:filament-android:1.75.0")
     implementation("com.google.android.filament:gltfio-android:1.75.0")
     implementation("com.google.android.filament:filament-utils-android:1.75.0")
+    // Optional Kokoro-82M on-device neural TTS; model is downloaded only on user request.
+    implementation("com.google.mediapipe:tasks-audio:1.2.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
