@@ -253,7 +253,25 @@ function addGestureClips(gltf, binaryChunks, humanoid) {
     { name: 'Ayaka_Gesture_ArmsCrossed', duration: 2.6, times: [0, .25, .55, 1.0, 1.8, 2.3, 2.6],
       bones: { leftUpperArm: ([0, -.55, -.7, -.7, -.7, -.45, 0]), rightUpperArm: ([0, .55, .7, .7, .7, .45, 0]), leftLowerArm: ([0, .65, .9, .9, .9, .55, 0]), rightLowerArm: ([0, -.65, -.9, -.9, -.9, -.55, 0]), chest: ([0, .015, .025, .025, .015, 0, 0]) } },
     { name: 'Ayaka_Gesture_Dance', duration: 3.2, times: [0, .4, .8, 1.2, 1.6, 2, 2.4, 2.8, 3.2],
-      bones: { leftUpperArm: ([0, -.45, -.85, -.45, 0, .45, .85, .45, 0]), rightUpperArm: ([0, .45, .85, .45, 0, -.45, -.85, -.45, 0]), leftLowerArm: ([0, .2, .4, .2, 0, -.2, -.4, -.2, 0]), rightLowerArm: ([0, -.2, -.4, -.2, 0, .2, .4, .2, 0]), spine: ([0, .035, 0, -.035, 0, .035, 0, -.035, 0]), chest: ([0, -.045, 0, .045, 0, -.045, 0, .045, 0]), hips: ([0, .04, 0, -.04, 0, .04, 0, -.04, 0]) } }
+      bones: { leftUpperArm: ([0, -.45, -.85, -.45, 0, .45, .85, .45, 0]), rightUpperArm: ([0, .45, .85, .45, 0, -.45, -.85, -.45, 0]), leftLowerArm: ([0, .2, .4, .2, 0, -.2, -.4, -.2, 0]), rightLowerArm: ([0, -.2, -.4, -.2, 0, .2, .4, .2, 0]), spine: ([0, .035, 0, -.035, 0, .035, 0, -.035, 0]), chest: ([0, -.045, 0, .045, 0, -.045, 0, .045, 0]), hips: ([0, .04, 0, -.04, 0, .04, 0, -.04, 0]) } },
+    { name: 'Ayaka_Gesture_Nod', duration: 1.8, times: [0, .3, .65, 1.0, 1.4, 1.8],
+      bones: { head: [0, .10, .16, .04, 0, 0], neck: [0, .035, .05, .01, 0, 0] } },
+    { name: 'Ayaka_Gesture_HeadTilt', duration: 2.2, times: [0, .35, .7, 1.5, 1.9, 2.2],
+      bones: { head: [0, .08, .13, .13, .06, 0], neck: [0, .025, .04, .04, .02, 0] } },
+    { name: 'Ayaka_Gesture_Shrug', duration: 2.1, times: [0, .3, .6, 1.3, 1.8, 2.1],
+      bones: { leftUpperArm: [0, -.25, -.5, -.5, -.25, 0], rightUpperArm: [0, .25, .5, .5, .25, 0], chest: [0, -.025, 0, 0, 0, 0], head: [0, .04, .07, .07, .02, 0] } },
+    { name: 'Ayaka_Gesture_Thinking', duration: 2.5, times: [0, .35, .7, 1.7, 2.2, 2.5],
+      bones: { rightUpperArm: [0, .35, .48, .48, .25, 0], rightLowerArm: [0, -.45, -.75, -.75, -.35, 0], head: [0, .04, .08, .08, .03, 0] } },
+    { name: 'Ayaka_Gesture_HandOnHeart', duration: 2.0, times: [0, .35, .65, 1.35, 1.7, 2.0],
+      bones: { rightUpperArm: [0, .3, .55, .55, .3, 0], rightLowerArm: [0, -.3, -.55, -.55, -.3, 0], chest: [0, -.025, -.04, -.04, -.02, 0] } },
+    { name: 'Ayaka_Gesture_Bow', duration: 2.2, times: [0, .35, .7, 1.3, 1.8, 2.2],
+      bones: { spine: [0, .08, .18, .18, .08, 0], chest: [0, .06, .12, .12, .05, 0], head: [0, .05, .10, .10, .04, 0] } },
+    { name: 'Ayaka_Gesture_Laugh', duration: 2.0, times: [0, .3, .6, 1.1, 1.6, 2.0],
+      bones: { chest: [0, -.035, -.06, -.04, -.02, 0], head: [0, .04, -.04, .04, .02, 0], leftUpperArm: [0, -.15, -.25, -.15, -.08, 0], rightUpperArm: [0, .15, .25, .15, .08, 0] } },
+    { name: 'Ayaka_Gesture_ShyLookAway', duration: 2.4, times: [0, .3, .6, 1.5, 2.0, 2.4],
+      bones: { head: [0, .08, .16, .16, .08, 0], neck: [0, .04, .07, .07, .03, 0], leftUpperArm: [0, -.12, -.2, -.2, -.1, 0], rightUpperArm: [0, .12, .2, .2, .1, 0] } },
+    { name: 'Ayaka_Gesture_Farewell', duration: 2.8, times: [0, .35, .7, 1.05, 1.4, 1.75, 2.1, 2.45, 2.8],
+      bones: { rightUpperArm: [0, .9, 1.0, .9, 1.0, .9, .6, .25, 0], rightLowerArm: [0, -.5, .6, -.5, .6, -.5, -.25, -.1, 0], head: [0, .025, .04, .025, .04, .025, 0, 0, 0] } }
   ];
   const generated = [];
   for (const definition of definitions) {
