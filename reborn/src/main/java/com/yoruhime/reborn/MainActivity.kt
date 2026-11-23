@@ -354,6 +354,24 @@ private fun inferAyakaViseme(chunk: String): String {
     }
 }
 
+private fun inferAyakaGesture(userText: String, replyText: String): String? {
+    val user = userText.lowercase()
+    val reply = replyText.lowercase()
+    fun containsAny(value: String, terms: List<String>) = terms.any(value::contains)
+
+    // Explicit requests always win; spontaneous gestures are deliberately restrained.
+    if (containsAny(user, listOf("dance for me", "let's dance", "lets dance", "show me a dance"))) return "dance"
+    if (containsAny(user, listOf("wave at me", "give me a wave"))) return "wave"
+    if (containsAny(user, listOf("cross your arms", "fold your arms"))) return "armscrossed"
+    if (containsAny(user, listOf("pout", "sulky", "tsundere"))) return "pout"
+
+    if (containsAny(user, listOf("good morning", "good evening", "good night", "hello", "hey ayaka", "hi ayaka", "i'm back", "im back", "i am back", "missed you"))) return "wave"
+    if (containsAny(user, listOf("you're cute", "you are cute", "beautiful", "pretty", "adorable", "blushing", "teasing you"))) return "pout"
+    if (containsAny(user, listOf("annoyed", "irritated", "stop teasing", "don't tease", "dont tease")) ||
+        containsAny(reply, listOf("hmph", "how rude", "ridiculous"))) return "armscrossed"
+    return null
+}
+
 private fun inferAyakaMood(text: String): String {
     val value = text.lowercase()
     return when {
@@ -395,7 +413,11 @@ private fun HomeScreen(
         if (sending) avatarMood = "listening"
         else if (messages.lastOrNull()?.role == "assistant") {
             val latestUserText = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
-            avatarMood = inferAyakaMood(latestUserText)
+            val latestReply = messages.lastOrNull { it.role == "assistant" }?.content.orEmpty()
+            avatarMood = inferAyakaMood(latestUserText + " " + latestReply)
+            // Local motion planner: gestures are chosen from conversational intent,
+            // not fired for every message. The user can still trigger any gesture in Studio.
+            inferAyakaGesture(latestUserText, latestReply)?.let(::playGesture)
         } else avatarMood = "neutral"
     }
     Box(
