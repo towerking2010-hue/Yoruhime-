@@ -213,7 +213,8 @@ function addFacialClips(gltf, binaryChunks, expressions) {
 }
 const idle = addProceduralIdle(doc, otherChunks, vrmPayload?.humanoid);
 const facialClips = addFacialClips(doc, otherChunks, vrmPayload?.expressions);
-\nconst removed = new Set();
+
+const removed = new Set();
 const isVrmExtension = name => name.startsWith('VRMC_');
 function clean(value) {
   if (Array.isArray(value)) return value.map(clean);
