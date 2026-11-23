@@ -164,8 +164,11 @@ class AyakaEngine(private val store: RebornStore, private val vault: ApiKeyVault
         }
     }
     suspend fun replyAboutImage(userText: String, bitmap: Bitmap): String = withContext(Dispatchers.IO) {
+        val settings = context.getSharedPreferences("yoruhime_settings", Context.MODE_PRIVATE)
+        val provider = settings.getString("ai_provider", "apinex") ?: "apinex"
+        val model = settings.getString("ai_model", "free/qwen-3.8-max") ?: "free/qwen-3.8-max"
         val apiKey = vault.read()
-        if (apiKey.isNullOrBlank()) return@withContext "I can see that you want to share a photo, but image understanding needs your free OpenRouter key. Add it in Settings and try again."
+        if (apiKey.isNullOrBlank()) return@withContext "Image understanding needs the API key for your selected provider. Add it in Settings and try again."
         try {
             val scaled = Bitmap.createScaledBitmap(bitmap, minOf(bitmap.width, 768), (bitmap.height * (minOf(bitmap.width, 768).toFloat() / bitmap.width)).toInt().coerceAtLeast(1), true)
             val bytes = ByteArrayOutputStream()
@@ -181,8 +184,10 @@ class AyakaEngine(private val store: RebornStore, private val vault: ApiKeyVault
                 .put(JSONObject().put("type", "text").put("text", userText))
                 .put(JSONObject().put("type", "image_url").put("image_url", JSONObject().put("url", "data:image/jpeg;base64," + encoded)))
             messages.put(JSONObject().put("role", "user").put("content", content))
-            val body = JSONObject().put("model", "openrouter/free").put("messages", messages).put("max_tokens", 700)
-            val connection = (URL("https://openrouter.ai/api/v1/chat/completions").openConnection() as HttpURLConnection).apply {
+            val safeModel = if (provider == "apinex") model.takeIf { it == "free/qwen-3.8-max" || it == "free/kimi-k3" || it == "free/minimax-m3.1-flash" || it == "free/minimax-m3" } ?: "free/qwen-3.8-max" else "openrouter/free"
+            val endpoint = if (provider == "apinex") "https://api.apinex.bond/v1/chat/completions" else "https://openrouter.ai/api/v1/chat/completions"
+            val body = JSONObject().put("model", safeModel).put("messages", messages).put("max_tokens", 700)
+            val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"; connectTimeout = 20000; readTimeout = 45000; doOutput = true
                 setRequestProperty("Authorization", "Bearer " + apiKey)
                 setRequestProperty("Content-Type", "application/json")
