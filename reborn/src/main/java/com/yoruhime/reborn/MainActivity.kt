@@ -3,6 +3,7 @@ package com.yoruhime.reborn
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.speech.SpeechRecognizer
 import android.speech.RecognizerIntent
 import android.speech.RecognitionListener
@@ -88,6 +89,7 @@ private fun YoruHimeApp() {
     // Voice services are created only after the user asks to use them. Some Android
     // builds have missing or unstable speech providers; that must never block startup.
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
+    var avatarSpeaking by remember { mutableStateOf(false) }
     var recognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
 
     fun startVoiceRecognition() {
@@ -165,14 +167,52 @@ private fun YoruHimeApp() {
                         onSpeak = { text ->
                             if (voiceEnabled) {
                                 try {
-                                    val speaker = tts ?: TextToSpeech(context) { } .also { tts = it }
-                                    speaker.language = Locale.US
-                                    speaker.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ayaka-reply")
+                                    fun configureAndSpeak(speaker: TextToSpeech) {
+                                        speaker.language = Locale.US
+                                        speaker.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                                            override fun onStart(utteranceId: String?) {
+                                                runOnUiThread { avatarSpeaking = true }
+                                            }
+                                            override fun onDone(utteranceId: String?) {
+                                                runOnUiThread { avatarSpeaking = false }
+                                            }
+                                            @Deprecated("Deprecated in Java")
+                                            override fun onError(utteranceId: String?) {
+                                                runOnUiThread { avatarSpeaking = false }
+                                            }
+                                            override fun onError(utteranceId: String?, errorCode: Int) {
+                                                runOnUiThread { avatarSpeaking = false }
+                                            }
+                                        })
+                                        val result = speaker.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ayaka-reply")
+                                        if (result == TextToSpeech.ERROR) avatarSpeaking = false
+                                    }
+                                    val existing = tts
+                                    if (existing != null) {
+                                        configureAndSpeak(existing)
+                                    } else {
+                                        lateinit var created: TextToSpeech
+                                        created = TextToSpeech(context) { status ->
+                                            if (status == TextToSpeech.SUCCESS) {
+                                                runOnUiThread { configureAndSpeak(created) }
+                                            } else {
+                                                runOnUiThread {
+                                                    avatarSpeaking = false
+                                                    Toast.makeText(context, "Speech output is unavailable right now.", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        }
+                                        tts = created
+                                    }
                                 } catch (_: Throwable) {
+                                    avatarSpeaking = false
                                     Toast.makeText(context, "Speech output is unavailable right now.", Toast.LENGTH_SHORT).show()
                                 }
+                            } else {
+                                avatarSpeaking = false
                             }
                         },
+                        avatarSpeaking = avatarSpeaking,
                         onVoiceInput = { micPermission.launch(android.Manifest.permission.RECORD_AUDIO) },
                         onClear = { store.clearMessages(); messages = emptyList() },
                         onCare = { destination = Destination.CARE },
@@ -283,13 +323,12 @@ private fun inferAyakaMood(text: String): String {
 @Composable
 private fun HomeScreen(
     messages: List<ChatLine>, bondCount: Int, draft: String, onDraft: (String) -> Unit,
-    sending: Boolean, onSpeak: (String) -> Unit, onVoiceInput: () -> Unit,
+    sending: Boolean, onSpeak: (String) -> Unit, avatarSpeaking: Boolean, onVoiceInput: () -> Unit,
     onClear: () -> Unit, onCare: () -> Unit, onMemories: () -> Unit,
     onSettings: () -> Unit, onSend: () -> Unit, onCamera: () -> Unit
 ) {
     var chatOpen by rememberSaveable { mutableStateOf(false) }
     var avatarMood by rememberSaveable { mutableStateOf("neutral") }
-    var avatarSpeaking by rememberSaveable { mutableStateOf(false) }
     val latestAssistantText = messages.lastOrNull { it.role == "assistant" }?.content.orEmpty()
     LaunchedEffect(sending, messages.lastOrNull()?.role, messages.lastOrNull()?.content) {
         if (sending) avatarMood = "listening"
@@ -298,13 +337,6 @@ private fun HomeScreen(
             avatarMood = inferAyakaMood(latestUserText)
         } else avatarMood = "neutral"
     }
-    LaunchedEffect(avatarSpeaking, latestAssistantText) {
-        if (avatarSpeaking) {
-            kotlinx.coroutines.delay((latestAssistantText.length * 42L).coerceIn(900L, 12000L))
-            avatarSpeaking = false
-        }
-    }
-
     Box(
         Modifier.fillMaxSize()
             .background(Brush.verticalGradient(listOf(Color(0xFF171329), Color(0xFF090B16), Color(0xFF090B16))))
@@ -432,7 +464,6 @@ private fun HomeScreen(
                     IconButton(
                         onClick = {
                             messages.lastOrNull { it.role == "assistant" }?.content?.let { spokenText ->
-                                avatarSpeaking = true
                                 onSpeak(spokenText)
                             }
                         },
