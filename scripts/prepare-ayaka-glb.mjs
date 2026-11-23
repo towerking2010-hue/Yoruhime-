@@ -255,5 +255,6 @@ fs.writeFileSync(output, Buffer.concat(parts));
 fs.writeFileSync(path.join(path.dirname(output), 'ayaka-vrm-metadata.json'), JSON.stringify(preservedVrm, null, 2) + '\n');
 console.log('Preserved VRM metadata extensions:', [...new Set(vrmExtensions.map(item => item.name))].join(', '));
 console.log('Preserved VRM creator:', vrmMetadata.authors?.join(', ') || '(no author listed)');
-console.log('Generated idle animation:', idle.animatedBones.join(', '), '(' + idle.channelCount + ' channels)');\nconsole.log('Generated facial animation clips:', facialClips.join(', ') || '(no supported VRM morph binds found)');
+console.log('Generated idle animation:', idle.animatedBones.join(', '), '(' + idle.channelCount + ' channels)');
+console.log('Generated facial animation clips:', facialClips.join(', ') || '(no supported VRM morph binds found)');
 console.log('Prepared GLB; stripped extension payloads:', [...removed].join(', ') || '(none)');
