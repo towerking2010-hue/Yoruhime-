@@ -15,7 +15,7 @@ try {
   const output = path.join(temp, 'ayaka.glb');
   const source = {
     asset: { version: '2.0' },
-    nodes: Array.from({ length: 7 }, () => ({})),
+    nodes: [...Array.from({ length: 7 }, () => ({})), { mesh: 0 }],\n    meshes: [{ primitives: [{ targets: [{}, {}] }] }],
     extensionsUsed: [
       'VRMC_vrm',
       'VRMC_springBone',
@@ -39,7 +39,7 @@ try {
         } },
         expressions: {
           preset: {
-            happy: { morphTargetBinds: [{ node: 2, index: 0, weight: 1 }] }
+            happy: { morphTargetBinds: [{ node: 7, index: 0, weight: 1 }] },\n            blink: { morphTargetBinds: [{ node: 7, index: 1, weight: 1 }] }
           }
         }
       },
@@ -90,7 +90,7 @@ try {
   assert.equal(doc.animations[0].name, 'Ayaka_Idle');
   assert.equal(doc.animations[0].channels.length, 6, 'Expected arm, torso, neck and head animation channels.');
   assert.ok(doc.buffers?.[0]?.byteLength > 0, 'Animation binary data was not appended.');
-  assert.ok(doc.accessors?.length >= 7, 'Animation accessors were not created.');
+  assert.ok(doc.accessors?.length >= 10, 'Animation accessors were not created.');
 
   const metadata = JSON.parse(
     fs.readFileSync(path.join(temp, 'ayaka-vrm-metadata.json'), 'utf8')
