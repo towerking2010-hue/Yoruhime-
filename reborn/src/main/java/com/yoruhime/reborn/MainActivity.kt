@@ -385,6 +385,8 @@ private fun HomeScreen(
         if (latest?.role == "assistant" && latest.content != lastAutoSpoken) {
             lastAutoSpoken = latest.content
             if (voiceEnabled) onSpeak(latest.content)
+        } else if (latest?.role != "assistant") {
+            lastAutoSpoken = ""
         }
     }
     fun playGesture(name: String) { gestureRequestId += 1; avatarGesture = "$name#$gestureRequestId" }
