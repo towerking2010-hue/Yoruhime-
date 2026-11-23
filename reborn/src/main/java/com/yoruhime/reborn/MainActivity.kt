@@ -928,6 +928,9 @@ private fun SettingsScreen(
     onKokoroVoice: (String) -> Unit,
     onInstallKokoro: () -> Unit
 ) {
+    val aiSettings = remember { LocalContext.current.getSharedPreferences("yoruhime_settings", android.content.Context.MODE_PRIVATE) }
+    var provider by rememberSaveable { mutableStateOf(aiSettings.getString("ai_provider", "apinex") ?: "apinex") }
+    var model by rememberSaveable { mutableStateOf(aiSettings.getString("ai_model", "free/qwen-3.8-max") ?: "free/qwen-3.8-max") }
     var apiKey by rememberSaveable { mutableStateOf("") }
     var revealKey by rememberSaveable { mutableStateOf(false) }
     var configured by remember { mutableStateOf(vault.read() != null) }
@@ -935,15 +938,37 @@ private fun SettingsScreen(
         Text("PERSONAL SPACE", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
         Text("Settings", color = White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Text("FREE AI CONNECTION", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("Provider", color = White, fontWeight = FontWeight.SemiBold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = provider == "apinex", onClick = {
+                provider = "apinex"; model = "free/qwen-3.8-max"
+                aiSettings.edit().putString("ai_provider", provider).putString("ai_model", model).apply()
+            }, label = { Text("APInex · default") })
+            FilterChip(selected = provider == "openrouter", onClick = {
+                provider = "openrouter"; model = "openrouter/free"
+                aiSettings.edit().putString("ai_provider", provider).putString("ai_model", model).apply()
+            }, label = { Text("OpenRouter") })
+        }
+        OutlinedTextField(value = model, onValueChange = { model = it }, modifier = Modifier.fillMaxWidth(),
+            label = { Text("Model ID") }, singleLine = true, shape = RoundedCornerShape(16.dp))
+        Text(if (provider == "apinex") "Free allowlist: free/qwen-3.8-max, free/kimi-k3, free/minimax-m3.1-flash, free/minimax-m3. Paid IDs are blocked." else "OpenRouter uses its free model router only. No paid fallback.", color = Muted, fontSize = 11.sp)
         OutlinedTextField(
             value = apiKey, onValueChange = { apiKey = it }, modifier = Modifier.fillMaxWidth(),
-            label = { Text("OpenRouter API key") }, placeholder = { Text("sk-or-…") },
+            label = { Text(if (provider == "apinex") "APInex API key" else "OpenRouter API key") }, placeholder = { Text(if (provider == "apinex") "sk-apx-…" else "sk-or-…") },
             singleLine = true, shape = RoundedCornerShape(16.dp),
             visualTransformation = if (revealKey) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = { IconButton(onClick = { revealKey = !revealKey }) { Icon(if (revealKey) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, "Toggle API key visibility") } }
         )
-        Button(onClick = { if (apiKey.isNotBlank()) { vault.save(apiKey); apiKey = ""; configured = true } }, modifier = Modifier.fillMaxWidth()) { Text("Save encrypted API key") }
-        Text(if (configured) "API key saved securely on this device." else "Offline mode · add your free OpenRouter key to enable cloud chat.", color = Muted, fontSize = 12.sp)
+        Button(onClick = {
+            if (apiKey.isNotBlank()) {
+                val allowed = provider != "apinex" || model in setOf("free/qwen-3.8-max", "free/kimi-k3", "free/minimax-m3.1-flash", "free/minimax-m3")
+                if (allowed) {
+                    aiSettings.edit().putString("ai_provider", provider).putString("ai_model", model).apply()
+                    vault.save(apiKey); apiKey = ""; configured = true
+                }
+            }
+        }, modifier = Modifier.fillMaxWidth()) { Text("Save provider, model and encrypted key") }
+        Text(if (configured) "An API key is saved securely on this device. The selected provider/model is used for new chats." else "Offline mode · add your free provider key to enable cloud chat.", color = Muted, fontSize = 12.sp)
         TextButton(onClick = { vault.clear(); configured = false; apiKey = "" }) { Text("Remove API key") }
         Text("AYAKA'S VOICE", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
         SettingToggle("Voice replies", "Automatically speak each new reply. Tap the speaker to hear it again.", voiceEnabled, onVoiceEnabled)
