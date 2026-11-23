@@ -8,7 +8,7 @@ android {
     compileSdk = 35
     defaultConfig {
         applicationId = "com.yoruhime.reborn"
-        minSdk = 26
+        minSdk = 28 // MediaPipe Tasks Audio requires Android 9+; target Galaxy A31 is Android 12.
         targetSdk = 35
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
         versionCode = 1
