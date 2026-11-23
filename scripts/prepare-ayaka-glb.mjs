@@ -136,9 +136,84 @@ function addProceduralIdle(gltf, binaryChunks, humanoid) {
   else binaryChunks.push({ type: 0x004E4942, data: binData });
   return { channelCount: channels.length, animatedBones: targets.map(([name]) => name) };
 }
-const idle = addProceduralIdle(doc, otherChunks, vrmPayload?.humanoid);
 
-const removed = new Set();
+function addFacialClips(gltf, binaryChunks, expressions) {
+  const presets = expressions?.preset || {};
+  const blinkBinds = presets.blink?.morphTargetBinds || [];
+  const available = Object.entries(presets)
+    .filter(([name, value]) => name !== 'blink' && Array.isArray(value?.morphTargetBinds) && value.morphTargetBinds.length)
+    .map(([name]) => name);
+  const states = ['neutral', ...available];
+  const binary = binaryChunks.find(chunk => chunk.type === 0x004E4942);
+  let binData = binary?.data || Buffer.alloc(0);
+  const append = (values, type) => {
+    const pad = (4 - (binData.length % 4)) % 4;
+    if (pad) binData = Buffer.concat([binData, Buffer.alloc(pad)]);
+    const byteOffset = binData.length;
+    const payload = Buffer.alloc(values.length * 4);
+    values.forEach((value, index) => payload.writeFloatLE(value, index * 4));
+    binData = Buffer.concat([binData, payload]);
+    const bufferView = (gltf.bufferViews ||= []).push({ buffer: 0, byteOffset, byteLength: payload.length }) - 1;
+    return (gltf.accessors ||= []).push({
+      bufferView, byteOffset: 0, componentType: 5126,
+      count: type === 'SCALAR' ? values.length : values.length / 4, type
+    }) - 1;
+  };
+  const nodeIndices = new Set([...blinkBinds, ...states.flatMap(name => presets[name]?.morphTargetBinds || [])]
+    .map(bind => bind.node).filter(Number.isInteger));
+  const nodeTargets = new Map();
+  for (const nodeIndex of nodeIndices) {
+    const node = gltf.nodes?.[nodeIndex];
+    const mesh = Number.isInteger(node?.mesh) ? gltf.meshes?.[node.mesh] : null;
+    const count = Math.max(0, ...(mesh?.primitives || []).map(primitive => primitive.targets?.length || 0));
+    if (count > 0) nodeTargets.set(nodeIndex, count);
+  }
+  if (!nodeTargets.size) {
+    if (binary) binary.data = binData;
+    return [];
+  }
+  const times = [0, 1.05, 1.13, 1.21, 2.75, 2.83, 2.91, 4];
+  const timeAccessor = append(times, 'SCALAR');
+  const blinkCurve = [0, 0, 1, 0, 0, 1, 0, 0];
+  const generated = [];
+  for (const state of states) {
+    const baseBinds = presets[state]?.morphTargetBinds || [];
+    const channels = [];
+    const samplers = [];
+    for (const [nodeIndex, targetCount] of nodeTargets) {
+      const weights = times.map((_, key) => {
+        const frame = new Array(targetCount).fill(0);
+        for (const bind of baseBinds) {
+          if (bind.node === nodeIndex && Number.isInteger(bind.index) && bind.index >= 0 && bind.index < targetCount) {
+            frame[bind.index] = Math.max(0, Math.min(1, Number(bind.weight) || 0));
+          }
+        }
+        for (const bind of blinkBinds) {
+          if (bind.node === nodeIndex && Number.isInteger(bind.index) && bind.index >= 0 && bind.index < targetCount) {
+            frame[bind.index] = Math.max(frame[bind.index], Math.max(0, Math.min(1, Number(bind.weight) || 0)) * blinkCurve[key]);
+          }
+        }
+        return frame;
+      });
+      if (!weights.some(frame => frame.some(value => value > 0))) continue;
+      const outputAccessor = append(weights.flat(), 'SCALAR');
+      const sampler = samplers.push({ input: timeAccessor, output: outputAccessor, interpolation: 'LINEAR' }) - 1;
+      channels.push({ sampler, target: { node: nodeIndex, path: 'weights' } });
+    }
+    if (!channels.length) continue;
+    const label = state === 'neutral' ? 'Neutral' : state === 'aa' ? 'Talking' : state[0].toUpperCase() + state.slice(1);
+    const name = 'Ayaka_Face_' + label;
+    gltf.animations.push({ name, samplers, channels });
+    generated.push(name);
+  }
+  gltf.buffers[0].byteLength = binData.length;
+  if (binary) binary.data = binData;
+  else binaryChunks.push({ type: 0x004E4942, data: binData });
+  return generated;
+}
+const idle = addProceduralIdle(doc, otherChunks, vrmPayload?.humanoid);
+const facialClips = addFacialClips(doc, otherChunks, vrmPayload?.expressions);
+\nconst removed = new Set();
 const isVrmExtension = name => name.startsWith('VRMC_');
 function clean(value) {
   if (Array.isArray(value)) return value.map(clean);
@@ -179,5 +254,5 @@ fs.writeFileSync(output, Buffer.concat(parts));
 fs.writeFileSync(path.join(path.dirname(output), 'ayaka-vrm-metadata.json'), JSON.stringify(preservedVrm, null, 2) + '\n');
 console.log('Preserved VRM metadata extensions:', [...new Set(vrmExtensions.map(item => item.name))].join(', '));
 console.log('Preserved VRM creator:', vrmMetadata.authors?.join(', ') || '(no author listed)');
-console.log('Generated idle animation:', idle.animatedBones.join(', '), '(' + idle.channelCount + ' channels)');
+console.log('Generated idle animation:', idle.animatedBones.join(', '), '(' + idle.channelCount + ' channels)');\nconsole.log('Generated facial animation clips:', facialClips.join(', ') || '(no supported VRM morph binds found)');
 console.log('Prepared GLB; stripped extension payloads:', [...removed].join(', ') || '(none)');
