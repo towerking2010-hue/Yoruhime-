@@ -266,7 +266,11 @@ function addGestureClips(gltf, binaryChunks, humanoid) {
       const base = nodes[nodeIndex].rotation || [0, 0, 0, 1];
       const axis = bone === 'spine' || bone === 'chest' || bone === 'hips' ? [0, 1, 0]
         : bone === 'head' ? [0, 0, 1] : [0, 0, 1];
-      const rotations = angles.map(angle => normalize(multiply(base, axisAngle(axis, angle))));
+      // Gesture angles are additive offsets from Ayaka's lowered-arm idle pose.
+      // Starting every gesture at the raw VRM rest pose caused a visible snap before
+      // the first keyframe, then another snap back when the gesture ended.
+      const idleOffset = bone === 'leftUpperArm' ? -1.25 : bone === 'rightUpperArm' ? 1.25 : 0;
+      const rotations = angles.map(angle => normalize(multiply(base, axisAngle(axis, idleOffset + angle))));
       const output = append(rotations.flat(), 'VEC4');
       const sampler = samplers.push({ input: timeAccessor, output, interpolation: 'LINEAR' }) - 1;
       channels.push({ sampler, target: { node: nodeIndex, path: 'rotation' } });
