@@ -918,7 +918,14 @@ private fun SettingsScreen(
     voiceRate: Float,
     onVoiceEnabled: (Boolean) -> Unit,
     onVoicePitch: (Float) -> Unit,
-    onVoiceRate: (Float) -> Unit
+    onVoiceRate: (Float) -> Unit,
+    kokoroInstalled: Boolean,
+    kokoroDownloading: Boolean,
+    kokoroProgress: Int,
+    kokoroStatus: String,
+    kokoroVoiceId: String,
+    onKokoroVoice: (String) -> Unit,
+    onInstallKokoro: () -> Unit
 ) {
     var apiKey by rememberSaveable { mutableStateOf("") }
     var revealKey by rememberSaveable { mutableStateOf(false) }
@@ -940,12 +947,34 @@ private fun SettingsScreen(
         Text("AYAKA'S VOICE", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
         SettingToggle("Voice replies", "Automatically speak each new reply. Tap the speaker to hear it again.", voiceEnabled, onVoiceEnabled)
         Surface(color = Panel, shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Kokoro · offline neural voice", color = White, fontWeight = FontWeight.SemiBold)
+                Text("Optional one-time download (~295 MB). After installation, speech is generated locally without an internet connection or subscription. Android's built-in voice remains the fallback.", color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = kokoroVoiceId == "bf_emma", onClick = { onKokoroVoice("bf_emma") }, label = { Text("Emma · British") })
+                    FilterChip(selected = kokoroVoiceId == "bf_isabella", onClick = { onKokoroVoice("bf_isabella") }, label = { Text("Isabella · British") })
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = kokoroVoiceId == "af_bella", onClick = { onKokoroVoice("af_bella") }, label = { Text("Bella · American") })
+                }
+                Text(kokoroStatus, color = if (kokoroInstalled) Violet else Muted, fontSize = 11.sp)
+                if (kokoroDownloading) {
+                    LinearProgressIndicator(progress = { kokoroProgress / 100f }, modifier = Modifier.fillMaxWidth())
+                    Text("$kokoroProgress% downloaded", color = Muted, fontSize = 11.sp)
+                } else if (!kokoroInstalled) {
+                    Button(onClick = onInstallKokoro, modifier = Modifier.fillMaxWidth()) { Text("Download Kokoro · ~295 MB") }
+                } else {
+                    Text("Kokoro will be used automatically for Ayaka's replies. You can remove the model later in Android app storage.", color = Muted, fontSize = 11.sp)
+                }
+            }
+        }
+        Surface(color = Panel, shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Pitch · ${"%.2f".format(Locale.US, voicePitch)}", color = White, fontWeight = FontWeight.SemiBold)
                 Slider(value = voicePitch, onValueChange = onVoicePitch, valueRange = 0.85f..1.25f)
                 Text("Speaking pace · ${"%.2f".format(Locale.US, voiceRate)}", color = White, fontWeight = FontWeight.SemiBold)
                 Slider(value = voiceRate, onValueChange = onVoiceRate, valueRange = 0.80f..1.10f)
-                Text("Uses the voice installed in Android. These controls tune its pitch and pace; they do not clone Riko's voice or require a paid service.", color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
+                Text("These controls tune the Android system-voice fallback. Kokoro uses its own natural voice identity and selectable speaker profiles.", color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
                 TextButton(onClick = { onVoicePitch(1.06f); onVoiceRate(0.94f) }) { Text("Reset Ayaka voice") }
             }
         }
