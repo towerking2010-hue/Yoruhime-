@@ -112,9 +112,12 @@ class ApiKeyVault(context: Context) {
     }
 }
 
-class AyakaEngine(private val store: RebornStore, private val vault: ApiKeyVault) {
+class AyakaEngine(private val store: RebornStore, private val vault: ApiKeyVault, private val context: Context) {
     suspend fun reply(userText: String): String = withContext(Dispatchers.IO) {
-        val apiKey = vault.read()
+        val settings = context.getSharedPreferences("yoruhime_settings", Context.MODE_PRIVATE)
+        val provider = settings.getString("ai_provider", "apinex") ?: "apinex"
+        val model = settings.getString("ai_model", "free/qwen-3.8-max") ?: "free/qwen-3.8-max"
+        val apiKey = vault.read(provider)
         if (apiKey.isNullOrBlank()) return@withContext offlineReply(userText)
         try {
             val history = store.messages(21).dropLast(1)
@@ -124,9 +127,10 @@ class AyakaEngine(private val store: RebornStore, private val vault: ApiKeyVault
             if (savedMemories.isNotBlank()) messages.put(JSONObject().put("role", "system").put("content", "User-approved memories, use only when relevant: " + savedMemories))
             history.forEach { messages.put(JSONObject().put("role", it.role).put("content", it.content)) }
             messages.put(JSONObject().put("role", "user").put("content", userText))
-            val body = JSONObject().put("model", "openrouter/free").put("messages", messages)
-                .put("temperature", 0.72).put("max_tokens", 240)
-            val connection = (URL("https://openrouter.ai/api/v1/chat/completions").openConnection() as HttpURLConnection).apply {
+            val safeModel = if (provider == "apinex") model.takeIf { it == "free/qwen-3.8-max" || it == "free/kimi-k3" || it == "free/minimax-m3.1-flash" || it == "free/minimax-m3" } ?: "free/qwen-3.8-max" else "openrouter/free"
+            val endpoint = if (provider == "apinex") "https://api.apinex.bond/v1/chat/completions" else "https://openrouter.ai/api/v1/chat/completions"
+            val body = JSONObject().put("model", safeModel).put("messages", messages).put("temperature", 0.72).put("max_tokens", 240)
+            val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = 18000
                 readTimeout = 35000
