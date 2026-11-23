@@ -103,9 +103,17 @@ private class FilamentAyakaView @JvmOverloads constructor(
                 current.animator?.let { animator ->
                     if (animator.animationCount > 0) {
                         if (idleAnimationStartNanos == 0L) idleAnimationStartNanos = frameTimeNanos
-                        val duration = animator.getAnimationDuration(0).coerceAtLeast(0.001f)
                         val elapsedSeconds = ((frameTimeNanos - idleAnimationStartNanos).coerceAtLeast(0L) / 1_000_000_000.0).toFloat()
-                        animator.applyAnimation(0, elapsedSeconds % duration)
+                        if (idleAnimationIndex >= 0) {
+                            val idleDuration = animator.getAnimationDuration(idleAnimationIndex).coerceAtLeast(0.001f)
+                            animator.applyAnimation(idleAnimationIndex, elapsedSeconds % idleDuration)
+                        }
+                        val faceKey = if (requestedSpeaking) "talking" else requestedMood
+                        val faceIndex = faceAnimationIndices[faceKey] ?: faceAnimationIndices["neutral"]
+                        if (faceIndex != null) {
+                            val faceDuration = animator.getAnimationDuration(faceIndex).coerceAtLeast(0.001f)
+                            animator.applyAnimation(faceIndex, elapsedSeconds % faceDuration)
+                        }
                         animator.updateBoneMatrices()
                     }
                 }
@@ -207,6 +215,8 @@ private class FilamentAyakaView @JvmOverloads constructor(
             pixelProbeRequested = false
             pixelProbeCompleted = false
             idleAnimationStartNanos = 0L
+            idleAnimationIndex = -1
+            faceAnimationIndices = emptyMap()
             noRenderableReported = false
             // Ayaka's VRM has a large 657-joint rig across three skins. On GLES 3.0
             // devices (including the Android 12 emulator's SwiftShader), Filament's
@@ -235,8 +245,15 @@ private class FilamentAyakaView @JvmOverloads constructor(
             // Explicitly upload the bind/rest-pose bone matrices so the avatar
             // is valid before an idle-animation system is introduced.
             modelViewer.animator?.updateBoneMatrices()
-            val idleClipCount = modelViewer.animator?.animationCount ?: 0
-            check(idleClipCount > 0) { "Ayaka's procedural idle animation was not generated into the GLB." }
+            val animator = checkNotNull(modelViewer.animator) { "Ayaka animator is unavailable." }
+            val idleClipCount = animator.animationCount
+            idleAnimationIndex = (0 until idleClipCount).firstOrNull { animator.getAnimationName(it) == "Ayaka_Idle" } ?: -1
+            check(idleAnimationIndex >= 0) { "Ayaka's procedural idle animation was not generated into the GLB." }
+            faceAnimationIndices = (0 until idleClipCount).mapNotNull { index ->
+                val name = animator.getAnimationName(index)
+                if (name.startsWith("Ayaka_Face_")) name.removePrefix("Ayaka_Face_").lowercase() to index else null
+            }.toMap()
+            Log.i(TAG, "Ayaka facial clips available: " + faceAnimationIndices.keys.sorted().joinToString())
             Log.i(
                 TAG,
                 "Ayaka skeleton initialized: skins=${asset.instance.skinCount}, " +
