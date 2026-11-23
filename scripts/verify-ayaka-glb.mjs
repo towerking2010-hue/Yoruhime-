@@ -35,7 +35,7 @@ const faceClips = gltf.animations.filter(animation => animation.name.startsWith(
 assert.ok(faceClips.length >= 1, 'Expected at least a generated facial morph animation clip.');
 assert.ok(faceClips.every(animation => animation.channels.some(channel => channel.target?.path === 'weights')),
   'Facial clips must animate morph target weights.');
-const gestureNames = ['Ayaka_Gesture_Wave', 'Ayaka_Gesture_Pout', 'Ayaka_Gesture_Dance'];
+const gestureNames = ['Ayaka_Gesture_Wave', 'Ayaka_Gesture_Pout', 'Ayaka_Gesture_ArmsCrossed', 'Ayaka_Gesture_Dance'];
 for (const name of gestureNames) {
   const gesture = gltf.animations.find(animation => animation.name === name);
   assert.ok(gesture?.channels.some(channel => channel.target?.path === 'rotation'),
@@ -56,4 +56,4 @@ assert.ok(vrm?.humanoid?.humanBones, 'Ayaka humanoid bone map was not preserved.
 assert.ok(vrm?.expressions, 'Ayaka VRM expression definitions were not preserved.');
 assert.ok(metadata.extensions.some(item => item.name === 'VRMC_springBone'), 'Ayaka spring-bone metadata was not preserved.');
 
-console.log(`Ayaka GLB verified: ${gltf.meshes.length} meshes, ${gltf.skins.length} skins, ${morphTargets} morph targets per expressive primitive, ${gltf.images.length} images, ${idle.channels.length} idle channels, ${faceClips.length} facial clips, 3 gesture clips.`);
+console.log(`Ayaka GLB verified: ${gltf.meshes.length} meshes, ${gltf.skins.length} skins, ${morphTargets} morph targets per expressive primitive, ${gltf.images.length} images, ${idle.channels.length} idle channels, ${faceClips.length} facial clips, 4 gesture clips.`);
