@@ -41,7 +41,8 @@ try {
         expressions: {
           preset: {
             happy: { morphTargetBinds: [{ node: 7, index: 0, weight: 1 }] },
-            blink: { morphTargetBinds: [{ node: 7, index: 1, weight: 1 }] }
+            blinkLeft: { morphTargetBinds: [{ node: 7, index: 1, weight: 1 }] },
+            blinkRight: { morphTargetBinds: [{ node: 7, index: 0, weight: 1 }] }
           }
         }
       },
@@ -94,7 +95,7 @@ try {
   const happy = doc.animations.find(animation => animation.name === 'Ayaka_Face_Happy');
   const neutral = doc.animations.find(animation => animation.name === 'Ayaka_Face_Neutral');
   assert.ok(happy?.channels.some(channel => channel.target.path === 'weights'), 'Happy expression morph animation was not generated.');
-  assert.ok(neutral?.channels.some(channel => channel.target.path === 'weights'), 'Blinking morph animation was not generated.');
+  assert.ok(neutral?.channels.some(channel => channel.target.path === 'weights'), 'Blinking morph animation was not generated from left/right blink presets.');
   for (const name of ['Ayaka_Gesture_Wave', 'Ayaka_Gesture_Pout', 'Ayaka_Gesture_ArmsCrossed', 'Ayaka_Gesture_Dance']) {
     const gesture = doc.animations.find(animation => animation.name === name);
     assert.ok(gesture?.channels.some(channel => channel.target.path === 'rotation'), name + ' gesture clip was not generated.');
