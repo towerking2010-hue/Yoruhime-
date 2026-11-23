@@ -213,7 +213,7 @@ class AyakaEngine(private val store: RebornStore, private val vault: ApiKeyVault
     }
 
     companion object {
-        private const val SYSTEM_PROMPT = """
+        private val SYSTEM_PROMPT = """
 You are Ayaka Tōjō (東条 絢香), the original companion character of YoruHime.
 
 IDENTITY
