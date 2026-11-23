@@ -72,7 +72,11 @@ private class FilamentAyakaView @JvmOverloads constructor(
     private var pixelProbeRequested = false
     private var pixelProbeCompleted = false
     private var noRenderableReported = false
-    private var idleAnimationStartNanos = 0L\n    @Volatile private var requestedMood = "neutral"\n    @Volatile private var requestedSpeaking = false\n    private var idleAnimationIndex = -1\n    private var faceAnimationIndices = emptyMap<String, Int>()
+    private var idleAnimationStartNanos = 0L
+    @Volatile private var requestedMood = "neutral"
+    @Volatile private var requestedSpeaking = false
+    private var idleAnimationIndex = -1
+    private var faceAnimationIndices = emptyMap<String, Int>()
     private val frameLoop = object : ChoreographerHelper() {
         override fun onFrame(frameTimeNanos: Long) {
             val current = viewer ?: return
@@ -178,7 +182,20 @@ private class FilamentAyakaView @JvmOverloads constructor(
         // Wait until Android has attached the TextureView before creating Filament.
     }
 
-    fun setExpression(mood: String, speaking: Boolean) {\n        requestedMood = mood.lowercase().let {\n            when (it) {\n                "annoyed", "irritated", "tsundere" -> "angry"\n                "embarrassed", "shy" -> "shy"\n                "worried", "concerned" -> "sad"\n                "listening", "idle" -> "neutral"\n                else -> it\n            }\n        }\n        requestedSpeaking = speaking\n    }\n\n    private fun createViewer() {
+    fun setExpression(mood: String, speaking: Boolean) {
+        requestedMood = mood.lowercase().let {
+            when (it) {
+                "annoyed", "irritated", "tsundere" -> "angry"
+                "embarrassed", "shy" -> "shy"
+                "worried", "concerned" -> "sad"
+                "listening", "idle" -> "neutral"
+                else -> it
+            }
+        }
+        requestedSpeaking = speaking
+    }
+
+    private fun createViewer() {
         if (released || viewer != null || rendererCreationAttempted) return
         rendererCreationAttempted = true
         try {
