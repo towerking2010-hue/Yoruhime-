@@ -211,8 +211,74 @@ function addFacialClips(gltf, binaryChunks, expressions) {
   else binaryChunks.push({ type: 0x004E4942, data: binData });
   return generated;
 }
+
+function addGestureClips(gltf, binaryChunks, humanoid) {
+  const bones = humanoid?.humanBones || {};
+  const nodeFor = name => Number.isInteger(bones[name]?.node) ? bones[name].node : null;
+  const multiply = (a, b) => [
+    a[3]*b[0] + a[0]*b[3] + a[1]*b[2] - a[2]*b[1],
+    a[3]*b[1] - a[0]*b[2] + a[1]*b[3] + a[2]*b[0],
+    a[3]*b[2] + a[0]*b[1] - a[1]*b[0] + a[2]*b[3],
+    a[3]*b[3] - a[0]*b[0] - a[1]*b[1] - a[2]*b[2]
+  ];
+  const axisAngle = (axis, angle) => {
+    const half = angle / 2, v = Math.sin(half);
+    return [axis[0]*v, axis[1]*v, axis[2]*v, Math.cos(half)];
+  };
+  const normalize = q => { const n = Math.hypot(...q); return q.map(v => v / (n || 1)); };
+  const binary = binaryChunks.find(chunk => chunk.type === 0x004E4942);
+  let binData = binary?.data || Buffer.alloc(0);
+  const append = (values, type) => {
+    const pad = (4 - (binData.length % 4)) % 4;
+    if (pad) binData = Buffer.concat([binData, Buffer.alloc(pad)]);
+    const byteOffset = binData.length;
+    const payload = Buffer.alloc(values.length * 4);
+    values.forEach((value, index) => payload.writeFloatLE(value, index * 4));
+    binData = Buffer.concat([binData, payload]);
+    const bufferView = (gltf.bufferViews ||= []).push({ buffer: 0, byteOffset, byteLength: payload.length }) - 1;
+    return (gltf.accessors ||= []).push({
+      bufferView, byteOffset: 0, componentType: 5126,
+      count: type === 'SCALAR' ? values.length : values.length / 4, type
+    }) - 1;
+  };
+  const nodes = gltf.nodes || [];
+  const definitions = [
+    { name: 'Ayaka_Gesture_Wave', duration: 2.4, times: [0, 0.35, 0.7, 1.05, 1.4, 1.75, 2.1, 2.4],
+      bones: { rightUpperArm: ([0, .95, 1.05, .95, 1.05, .95, .4, 0]), rightLowerArm: ([0, -.55, .65, -.55, .65, -.55, -.2, 0]), chest: ([0, .025, 0, -.025, 0, .025, 0, 0]) } },
+    { name: 'Ayaka_Gesture_Pout', duration: 2.8, times: [0, .25, .6, 1.1, 1.8, 2.4, 2.8],
+      bones: { leftUpperArm: ([0, -.55, -.7, -.7, -.7, -.45, 0]), rightUpperArm: ([0, .55, .7, .7, .7, .45, 0]), leftLowerArm: ([0, .65, .9, .9, .9, .55, 0]), rightLowerArm: ([0, -.65, -.9, -.9, -.9, -.55, 0]), head: ([0, .025, .045, .045, .025, -.015, 0]) } },
+    { name: 'Ayaka_Gesture_Dance', duration: 3.2, times: [0, .4, .8, 1.2, 1.6, 2, 2.4, 2.8, 3.2],
+      bones: { leftUpperArm: ([0, -.45, -.85, -.45, 0, .45, .85, .45, 0]), rightUpperArm: ([0, .45, .85, .45, 0, -.45, -.85, -.45, 0]), leftLowerArm: ([0, .2, .4, .2, 0, -.2, -.4, -.2, 0]), rightLowerArm: ([0, -.2, -.4, -.2, 0, .2, .4, .2, 0]), spine: ([0, .035, 0, -.035, 0, .035, 0, -.035, 0]), chest: ([0, -.045, 0, .045, 0, -.045, 0, .045, 0]), hips: ([0, .04, 0, -.04, 0, .04, 0, -.04, 0]) } }
+  ];
+  const generated = [];
+  for (const definition of definitions) {
+    const times = definition.times;
+    const timeAccessor = append(times, 'SCALAR');
+    const channels = [], samplers = [];
+    for (const [bone, angles] of Object.entries(definition.bones)) {
+      const nodeIndex = nodeFor(bone);
+      if (nodeIndex === null || !nodes[nodeIndex]) continue;
+      const base = nodes[nodeIndex].rotation || [0, 0, 0, 1];
+      const axis = bone === 'spine' || bone === 'chest' || bone === 'hips' ? [0, 1, 0]
+        : bone === 'head' ? [0, 0, 1] : [0, 0, 1];
+      const rotations = angles.map(angle => normalize(multiply(base, axisAngle(axis, angle))));
+      const output = append(rotations.flat(), 'VEC4');
+      const sampler = samplers.push({ input: timeAccessor, output, interpolation: 'LINEAR' }) - 1;
+      channels.push({ sampler, target: { node: nodeIndex, path: 'rotation' } });
+    }
+    if (!channels.length) throw new Error('No humanoid nodes available for gesture ' + definition.name);
+    gltf.animations.push({ name: definition.name, samplers, channels });
+    generated.push({ name: definition.name, channels: channels.length });
+  }
+  gltf.buffers[0].byteLength = binData.length;
+  if (binary) binary.data = binData;
+  else binaryChunks.push({ type: 0x004E4942, data: binData });
+  return generated;
+}
+
 const idle = addProceduralIdle(doc, otherChunks, vrmPayload?.humanoid);
 const facialClips = addFacialClips(doc, otherChunks, vrmPayload?.expressions);
+const gestureClips = addGestureClips(doc, otherChunks, vrmPayload?.humanoid);
 
 const removed = new Set();
 const isVrmExtension = name => name.startsWith('VRMC_');
@@ -257,4 +323,5 @@ console.log('Preserved VRM metadata extensions:', [...new Set(vrmExtensions.map(
 console.log('Preserved VRM creator:', vrmMetadata.authors?.join(', ') || '(no author listed)');
 console.log('Generated idle animation:', idle.animatedBones.join(', '), '(' + idle.channelCount + ' channels)');
 console.log('Generated facial animation clips:', facialClips.join(', ') || '(no supported VRM morph binds found)');
+console.log('Generated gesture animation clips:', gestureClips.map(item => item.name + ' (' + item.channels + ' channels)').join(', '));
 console.log('Prepared GLB; stripped extension payloads:', [...removed].join(', ') || '(none)');
