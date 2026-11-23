@@ -85,6 +85,8 @@ private fun YoruHimeApp() {
     val scope = rememberCoroutineScope()
     val preferences = remember { context.getSharedPreferences("yoruhime_settings", android.content.Context.MODE_PRIVATE) }
     var voiceEnabled by rememberSaveable { mutableStateOf(preferences.getBoolean("voice_replies_enabled", true)) }
+    var voicePitch by rememberSaveable { mutableFloatStateOf(preferences.getFloat("voice_pitch", 1.06f)) }
+    var voiceRate by rememberSaveable { mutableFloatStateOf(preferences.getFloat("voice_rate", 0.94f)) }
     var draft by rememberSaveable { mutableStateOf("") }
     // Voice services are created only after the user asks to use them. Some Android
     // builds have missing or unstable speech providers; that must never block startup.
@@ -170,6 +172,10 @@ private fun YoruHimeApp() {
                                 try {
                                     fun configureAndSpeak(speaker: TextToSpeech) {
                                         speaker.language = Locale.US
+                                        // Gentle, slightly bright delivery. The exact timbre still depends
+                                        // on the speech voice installed on the user's Android device.
+                                        speaker.setPitch(voicePitch)
+                                        speaker.setSpeechRate(voiceRate)
                                         speaker.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                                             override fun onStart(utteranceId: String?) {
                                                 runOnMainThread { avatarSpeaking = true; avatarViseme = "aa" }
@@ -249,10 +255,24 @@ private fun YoruHimeApp() {
                     )
                     Destination.MEMORIES -> MemoriesScreen(store)
                     Destination.CARE -> CareScreen(store)
-                    Destination.SETTINGS -> SettingsScreen(vault, voiceEnabled) { enabled ->
-                        voiceEnabled = enabled
-                        preferences.edit().putBoolean("voice_replies_enabled", enabled).apply()
-                    }
+                    Destination.SETTINGS -> SettingsScreen(
+                        vault = vault,
+                        voiceEnabled = voiceEnabled,
+                        voicePitch = voicePitch,
+                        voiceRate = voiceRate,
+                        onVoiceEnabled = { enabled ->
+                            voiceEnabled = enabled
+                            preferences.edit().putBoolean("voice_replies_enabled", enabled).apply()
+                        },
+                        onVoicePitch = { value ->
+                            voicePitch = value
+                            preferences.edit().putFloat("voice_pitch", value).apply()
+                        },
+                        onVoiceRate = { value ->
+                            voiceRate = value
+                            preferences.edit().putFloat("voice_rate", value).apply()
+                        }
+                    )
                 }
             }
         }
@@ -788,7 +808,15 @@ private fun CareCard(icon: androidx.compose.ui.graphics.vector.ImageVector, titl
 }
 
 @Composable
-private fun SettingsScreen(vault: ApiKeyVault, voiceEnabled: Boolean, onVoiceEnabled: (Boolean) -> Unit) {
+private fun SettingsScreen(
+    vault: ApiKeyVault,
+    voiceEnabled: Boolean,
+    voicePitch: Float,
+    voiceRate: Float,
+    onVoiceEnabled: (Boolean) -> Unit,
+    onVoicePitch: (Float) -> Unit,
+    onVoiceRate: (Float) -> Unit
+) {
     var apiKey by rememberSaveable { mutableStateOf("") }
     var revealKey by rememberSaveable { mutableStateOf(false) }
     var configured by remember { mutableStateOf(vault.read() != null) }
@@ -806,7 +834,18 @@ private fun SettingsScreen(vault: ApiKeyVault, voiceEnabled: Boolean, onVoiceEna
         Button(onClick = { if (apiKey.isNotBlank()) { vault.save(apiKey); apiKey = ""; configured = true } }, modifier = Modifier.fillMaxWidth()) { Text("Save encrypted API key") }
         Text(if (configured) "API key saved securely on this device." else "Offline mode · add your free OpenRouter key to enable cloud chat.", color = Muted, fontSize = 12.sp)
         TextButton(onClick = { vault.clear(); configured = false; apiKey = "" }) { Text("Remove API key") }
+        Text("AYAKA'S VOICE", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
         SettingToggle("Voice replies", "Allow Ayaka to read the latest reply aloud.", voiceEnabled, onVoiceEnabled)
+        Surface(color = Panel, shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Pitch · ${"%.2f".format(Locale.US, voicePitch)}", color = White, fontWeight = FontWeight.SemiBold)
+                Slider(value = voicePitch, onValueChange = onVoicePitch, valueRange = 0.85f..1.25f)
+                Text("Speaking pace · ${"%.2f".format(Locale.US, voiceRate)}", color = White, fontWeight = FontWeight.SemiBold)
+                Slider(value = voiceRate, onValueChange = onVoiceRate, valueRange = 0.80f..1.10f)
+                Text("Uses the voice installed in Android. These controls tune its pitch and pace; they do not clone Riko's voice or require a paid service.", color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
+                TextButton(onClick = { onVoicePitch(1.06f); onVoiceRate(0.94f) }) { Text("Reset Ayaka voice") }
+            }
+        }
         Surface(color = Panel, shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.padding(16.dp)) {
                 Text("Privacy first", color = White, fontWeight = FontWeight.SemiBold)
