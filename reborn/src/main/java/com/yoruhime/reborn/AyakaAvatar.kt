@@ -30,13 +30,13 @@ import com.google.android.filament.utils.Utils
 import java.nio.ByteBuffer
 
 @Composable
-internal fun AyakaAvatar(modifier: Modifier = Modifier) {
+internal fun AyakaAvatar(modifier: Modifier = Modifier, mood: String = "neutral", speaking: Boolean = false) {
     var status by remember { mutableStateOf("Starting native 3D renderer…") }
     Box(modifier) {
         AndroidView(
             modifier = Modifier.matchParentSize(),
             factory = { context -> FilamentAyakaView(context) { status = it } },
-            update = { },
+            update = { it.setExpression(mood, speaking) },
             onRelease = { it.release() }
         )
         Surface(
@@ -72,7 +72,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
     private var pixelProbeRequested = false
     private var pixelProbeCompleted = false
     private var noRenderableReported = false
-    private var idleAnimationStartNanos = 0L
+    private var idleAnimationStartNanos = 0L\n    @Volatile private var requestedMood = "neutral"\n    @Volatile private var requestedSpeaking = false\n    private var idleAnimationIndex = -1\n    private var faceAnimationIndices = emptyMap<String, Int>()
     private val frameLoop = object : ChoreographerHelper() {
         override fun onFrame(frameTimeNanos: Long) {
             val current = viewer ?: return
@@ -178,7 +178,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
         // Wait until Android has attached the TextureView before creating Filament.
     }
 
-    private fun createViewer() {
+    fun setExpression(mood: String, speaking: Boolean) {\n        requestedMood = mood.lowercase().let {\n            when (it) {\n                "annoyed", "irritated", "tsundere" -> "angry"\n                "embarrassed", "shy" -> "shy"\n                "worried", "concerned" -> "sad"\n                "listening", "idle" -> "neutral"\n                else -> it\n            }\n        }\n        requestedSpeaking = speaking\n    }\n\n    private fun createViewer() {
         if (released || viewer != null || rendererCreationAttempted) return
         rendererCreationAttempted = true
         try {
