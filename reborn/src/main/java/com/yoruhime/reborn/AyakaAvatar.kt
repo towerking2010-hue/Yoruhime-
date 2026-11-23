@@ -30,13 +30,13 @@ import com.google.android.filament.utils.Utils
 import java.nio.ByteBuffer
 
 @Composable
-internal fun AyakaAvatar(modifier: Modifier = Modifier, mood: String = "neutral", speaking: Boolean = false, gesture: String = "") {
+internal fun AyakaAvatar(modifier: Modifier = Modifier, mood: String = "neutral", speaking: Boolean = false, gesture: String = "", viseme: String = "aa") {
     var status by remember { mutableStateOf("Starting native 3D renderer…") }
     Box(modifier) {
         AndroidView(
             modifier = Modifier.matchParentSize(),
             factory = { context -> FilamentAyakaView(context) { status = it } },
-            update = { it.setAnimation(mood, speaking, gesture) },
+            update = { it.setAnimation(mood, speaking, gesture, viseme) },
             onRelease = { it.release() }
         )
         Surface(
@@ -75,6 +75,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
     private var idleAnimationStartNanos = 0L
     @Volatile private var requestedMood = "neutral"
     @Volatile private var requestedSpeaking = false
+    @Volatile private var requestedViseme = "aa"
     private var idleAnimationIndex = -1
     private var faceAnimationIndices = emptyMap<String, Int>()
     private var gestureAnimationIndices = emptyMap<String, Int>()
@@ -113,7 +114,10 @@ private class FilamentAyakaView @JvmOverloads constructor(
                             val idleDuration = animator.getAnimationDuration(idleAnimationIndex).coerceAtLeast(0.001f)
                             animator.applyAnimation(idleAnimationIndex, elapsedSeconds % idleDuration)
                         }
-                        val faceKey = if (requestedSpeaking) "talking" else requestedMood
+                        val faceKey = if (requestedSpeaking) {
+                            if (faceAnimationIndices.containsKey(requestedViseme)) requestedViseme
+                            else if (faceAnimationIndices.containsKey("aa")) "aa" else "talking"
+                        } else requestedMood
                         val faceIndex = faceAnimationIndices[faceKey] ?: faceAnimationIndices["neutral"]
                         if (faceIndex != null) {
                             val faceDuration = animator.getAnimationDuration(faceIndex).coerceAtLeast(0.001f)
@@ -212,11 +216,12 @@ private class FilamentAyakaView @JvmOverloads constructor(
         // Wait until Android has attached the TextureView before creating Filament.
     }
 
-    fun setAnimation(mood: String, speaking: Boolean, gesture: String) {
+    fun setAnimation(mood: String, speaking: Boolean, gesture: String, viseme: String) {
         if (gesture != lastGestureRequest) {
             requestedGesture = gesture.substringBefore("#").lowercase()
             lastGestureRequest = gesture
         }
+        requestedViseme = viseme.lowercase()
         setExpression(mood, speaking)
     }
 
