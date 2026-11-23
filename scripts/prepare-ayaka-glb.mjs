@@ -139,7 +139,10 @@ function addProceduralIdle(gltf, binaryChunks, humanoid) {
 
 function addFacialClips(gltf, binaryChunks, expressions) {
   const presets = expressions?.preset || {};
-  const blinkBinds = presets.blink?.morphTargetBinds || [];
+  const blinkBinds = presets.blink?.morphTargetBinds || [
+    ...(presets.blinkLeft?.morphTargetBinds || []),
+    ...(presets.blinkRight?.morphTargetBinds || [])
+  ];
   const available = Object.entries(presets)
     .filter(([name, value]) => name !== 'blink' && Array.isArray(value?.morphTargetBinds) && value.morphTargetBinds.length)
     .map(([name]) => name);
