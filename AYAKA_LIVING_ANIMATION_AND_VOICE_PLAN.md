@@ -94,11 +94,14 @@ OpenVoice is a voice-conversion/style layer, not the first Android TTS engine to
 ## Current implementation status
 
 - Native Filament renderer and original Ayaka GLB: working on user's Galaxy A31 by user report.
-- Build-generated idle/facial/gesture clips: present, but gesture quality and blend smoothness still require physical-device validation.
-- Animation Studio: manual expression and gesture test controls exist.
-- Newly added local conversational gesture planner: basic intent heuristics only; it is not an LLM motion model and needs A31 validation.
-- TTS: current app still uses Android system TextToSpeech; pitch/rate and auto-speaking are available. Kokoro is researched but not yet integrated.
-- True audio-clock-driven viseme playback, spring-bone physics, reusable VRMA import, robust crossfading and rich autonomous behavior remain future implementation work.
+- Build-generated idle/facial clips: present. Blink intervals are less repetitive; visual quality still requires A31 validation.
+- Gesture catalogue: wave, pout, arms-crossed, dance, nod, head tilt, shrug, thinking, hand-on-heart, bow, laugh, shy look-away and farewell. Clips are generated from the original Ayaka VRM humanoid map.
+- Animation Studio: manual expression and gesture test controls exist for the expanded catalogue.
+- Local conversational gesture planner: explicit requests and conservative conversational cues select the new clips. This is a deterministic local planner, not an LLM motion generator.
+- Kokoro integration: MediaPipe Tasks Audio 1.2.2 is wired as an optional offline neural TTS engine. The model is NOT bundled in the APK; Settings offers an explicit ~295 MB download, SHA-256 verification, voice selection (bf_emma, bf_isabella, af_bella), and automatic fallback to Android system TTS if model loading or synthesis fails.
+- Kokoro audio playback uses the returned PCM and playback-head timing to drive approximate viseme selection. It is not phoneme-perfect lip sync; validate audio quality, latency, memory and thermal behaviour on the Galaxy A31.
+- OpenVoice remains excluded from the phone runtime because the reference stack is Python/PyTorch-oriented and would add substantial device cost.
+- VRMA import/retargeting, true motion crossfading, spring-bone physics, gaze tracking, generative motion inference and high-quality audio-to-phoneme alignment remain future work; the current clips are a safe first motion set, not arbitrary unlimited animation.
 
 ## Licensing and privacy
 
