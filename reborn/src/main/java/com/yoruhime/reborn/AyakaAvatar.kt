@@ -79,6 +79,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
     private var faceAnimationIndices = emptyMap<String, Int>()
     private var gestureAnimationIndices = emptyMap<String, Int>()
     @Volatile private var requestedGesture = ""
+    private var lastGestureRequest = ""
     private var activeGesture = ""
     private var gestureStartNanos = 0L
     private val frameLoop = object : ChoreographerHelper() {
@@ -212,7 +213,10 @@ private class FilamentAyakaView @JvmOverloads constructor(
     }
 
     fun setAnimation(mood: String, speaking: Boolean, gesture: String) {
-        requestedGesture = gesture.lowercase()
+        if (gesture != lastGestureRequest) {
+            requestedGesture = gesture.substringBefore("#").lowercase()
+            lastGestureRequest = gesture
+        }
         setExpression(mood, speaking)
     }
 
@@ -245,6 +249,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
             faceAnimationIndices = emptyMap()
             gestureAnimationIndices = emptyMap()
             requestedGesture = ""
+            lastGestureRequest = ""
             activeGesture = ""
             gestureStartNanos = 0L
             noRenderableReported = false
