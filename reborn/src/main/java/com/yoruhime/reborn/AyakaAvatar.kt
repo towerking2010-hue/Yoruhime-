@@ -299,7 +299,7 @@ private class FilamentAyakaView @JvmOverloads constructor(
             }.toMap()
             Log.i(TAG, "Ayaka facial clips available: " + faceAnimationIndices.keys.sorted().joinToString())
             Log.i(TAG, "Ayaka gesture clips available: " + gestureAnimationIndices.keys.sorted().joinToString())
-            check(listOf("wave", "pout", "dance").all { gestureAnimationIndices.containsKey(it) }) {
+            check(listOf("wave", "pout", "armscrossed", "dance").all { gestureAnimationIndices.containsKey(it) }) {
                 "Ayaka gesture clips are incomplete."
             }
             Log.i(
