@@ -90,6 +90,7 @@ private fun YoruHimeApp() {
     // builds have missing or unstable speech providers; that must never block startup.
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
     var avatarSpeaking by remember { mutableStateOf(false) }
+    var avatarViseme by remember { mutableStateOf("aa") }
     var recognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
 
     fun startVoiceRecognition() {
@@ -171,10 +172,16 @@ private fun YoruHimeApp() {
                                         speaker.language = Locale.US
                                         speaker.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                                             override fun onStart(utteranceId: String?) {
-                                                runOnMainThread { avatarSpeaking = true }
+                                                runOnMainThread { avatarSpeaking = true; avatarViseme = "aa" }
+                                            }
+                                            override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
+                                                val safeStart = start.coerceIn(0, text.length)
+                                                val safeEnd = end.coerceIn(safeStart, text.length)
+                                                val spokenChunk = text.substring(safeStart, safeEnd)
+                                                runOnMainThread { avatarViseme = inferAyakaViseme(spokenChunk) }
                                             }
                                             override fun onDone(utteranceId: String?) {
-                                                runOnMainThread { avatarSpeaking = false }
+                                                runOnMainThread { avatarSpeaking = false; avatarViseme = "aa" }
                                             }
                                             @Deprecated("Deprecated in Java")
                                             override fun onError(utteranceId: String?) {
@@ -198,6 +205,7 @@ private fun YoruHimeApp() {
                                             } else {
                                                 runOnMainThread {
                                                     avatarSpeaking = false
+                                                    avatarViseme = "aa"
                                                     Toast.makeText(context, "Speech output is unavailable right now.", Toast.LENGTH_SHORT).show()
                                                 }
                                             }
@@ -213,6 +221,7 @@ private fun YoruHimeApp() {
                             }
                         },
                         avatarSpeaking = avatarSpeaking,
+                        avatarViseme = avatarViseme,
                         onVoiceInput = { micPermission.launch(android.Manifest.permission.RECORD_AUDIO) },
                         onClear = { store.clearMessages(); messages = emptyList() },
                         onCare = { destination = Destination.CARE },
@@ -312,6 +321,18 @@ private fun runOnMainThread(action: () -> Unit) {
     android.os.Handler(android.os.Looper.getMainLooper()).post(action)
 }
 
+private fun inferAyakaViseme(chunk: String): String {
+    val value = chunk.lowercase()
+    return when {
+        value.any { it == 'a' } -> "aa"
+        value.any { it == 'e' } -> "ee"
+        value.any { it == 'i' || it == 'y' } -> "ih"
+        value.any { it == 'o' } -> "oh"
+        value.any { it == 'u' } -> "ou"
+        else -> "aa"
+    }
+}
+
 private fun inferAyakaMood(text: String): String {
     val value = text.lowercase()
     return when {
@@ -327,7 +348,7 @@ private fun inferAyakaMood(text: String): String {
 @Composable
 private fun HomeScreen(
     messages: List<ChatLine>, bondCount: Int, draft: String, onDraft: (String) -> Unit,
-    sending: Boolean, onSpeak: (String) -> Unit, avatarSpeaking: Boolean, onVoiceInput: () -> Unit,
+    sending: Boolean, onSpeak: (String) -> Unit, avatarSpeaking: Boolean, avatarViseme: String, onVoiceInput: () -> Unit,
     onClear: () -> Unit, onCare: () -> Unit, onMemories: () -> Unit,
     onSettings: () -> Unit, onSend: () -> Unit, onCamera: () -> Unit
 ) {
@@ -352,7 +373,7 @@ private fun HomeScreen(
     ) {
         // Ayaka owns the entire home surface. Conversation is a temporary layer,
         // never a permanently allocated half-screen panel.
-        AyakaAvatar(Modifier.fillMaxSize(), mood = manualMood ?: avatarMood, speaking = avatarSpeaking, gesture = avatarGesture)
+        AyakaAvatar(Modifier.fillMaxSize(), mood = manualMood ?: avatarMood, speaking = avatarSpeaking, gesture = avatarGesture, viseme = avatarViseme)
 
         Box(
             Modifier.fillMaxSize().background(
