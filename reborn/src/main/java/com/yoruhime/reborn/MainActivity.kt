@@ -364,9 +364,17 @@ private fun inferAyakaGesture(userText: String, replyText: String): String? {
     if (containsAny(user, listOf("wave at me", "give me a wave"))) return "wave"
     if (containsAny(user, listOf("cross your arms", "fold your arms"))) return "armscrossed"
     if (containsAny(user, listOf("pout", "sulky", "tsundere"))) return "pout"
+    if (containsAny(user, listOf("bow", "take a bow"))) return "bow"
+    if (containsAny(user, listOf("say goodbye", "goodbye", "see you later", "see ya", "farewell"))) return "farewell"
 
-    if (containsAny(user, listOf("good morning", "good evening", "good night", "hello", "hey ayaka", "hi ayaka", "i'm back", "im back", "i am back", "missed you"))) return "wave"
-    if (containsAny(user, listOf("you're cute", "you are cute", "beautiful", "pretty", "adorable", "blushing", "teasing you"))) return "pout"
+    if (containsAny(user, listOf("good night", "goodnight", "see you tomorrow"))) return "farewell"
+    if (containsAny(user, listOf("good morning", "good evening", "hello", "hey ayaka", "hi ayaka", "i'm back", "im back", "i am back", "missed you"))) return "wave"
+    if (containsAny(user, listOf("you're cute", "you are cute", "beautiful", "pretty", "adorable", "blushing", "teasing you"))) return "shylookaway"
+    if (containsAny(user, listOf("thank you", "thanks", "appreciate you", "i'm proud of you", "im proud of you"))) return "handonheart"
+    if (containsAny(user, listOf("that's funny", "thats funny", "make me laugh", "joke"))) return "laugh"
+    if (containsAny(user, listOf("what do you think", "hmm", "i wonder", "let me think"))) return "thinking"
+    if (containsAny(user, listOf("yes", "exactly", "you're right", "you are right", "agreed"))) return "nod"
+    if (user.contains("?")) return "headtilt"
     if (containsAny(user, listOf("annoyed", "irritated", "stop teasing", "don't tease", "dont tease")) ||
         containsAny(reply, listOf("hmph", "how rude", "ridiculous"))) return "armscrossed"
     return null
@@ -677,6 +685,21 @@ private fun HomeScreen(
                     OutlinedButton(onClick = { playGesture("dance"); studioOpen = false }) {
                         Icon(Icons.Rounded.MusicNote, null); Spacer(Modifier.width(6.dp)); Text("Dance")
                     }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { playGesture("nod"); studioOpen = false }) { Text("Nod") }
+                    OutlinedButton(onClick = { playGesture("headtilt"); studioOpen = false }) { Text("Head tilt") }
+                    OutlinedButton(onClick = { playGesture("shrug"); studioOpen = false }) { Text("Shrug") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { playGesture("thinking"); studioOpen = false }) { Text("Thinking") }
+                    OutlinedButton(onClick = { playGesture("handonheart"); studioOpen = false }) { Text("Hand on heart") }
+                    OutlinedButton(onClick = { playGesture("bow"); studioOpen = false }) { Text("Bow") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { playGesture("laugh"); studioOpen = false }) { Text("Laugh") }
+                    OutlinedButton(onClick = { playGesture("shylookaway"); manualMood = "shy"; studioOpen = false }) { Text("Shy") }
+                    OutlinedButton(onClick = { playGesture("farewell"); studioOpen = false }) { Text("Farewell") }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { avatarGesture = ""; manualMood = null; studioOpen = false }) {
