@@ -332,7 +332,10 @@ private fun HomeScreen(
     onSettings: () -> Unit, onSend: () -> Unit, onCamera: () -> Unit
 ) {
     var chatOpen by rememberSaveable { mutableStateOf(false) }
+    var studioOpen by rememberSaveable { mutableStateOf(false) }
     var avatarMood by rememberSaveable { mutableStateOf("neutral") }
+    var manualMood by rememberSaveable { mutableStateOf<String?>(null) }
+    var avatarGesture by rememberSaveable { mutableStateOf("") }
     val latestAssistantText = messages.lastOrNull { it.role == "assistant" }?.content.orEmpty()
     LaunchedEffect(sending, messages.lastOrNull()?.role, messages.lastOrNull()?.content) {
         if (sending) avatarMood = "listening"
@@ -347,7 +350,7 @@ private fun HomeScreen(
     ) {
         // Ayaka owns the entire home surface. Conversation is a temporary layer,
         // never a permanently allocated half-screen panel.
-        AyakaAvatar(Modifier.fillMaxSize(), mood = avatarMood, speaking = avatarSpeaking)
+        AyakaAvatar(Modifier.fillMaxSize(), mood = manualMood ?: avatarMood, speaking = avatarSpeaking, gesture = avatarGesture)
 
         Box(
             Modifier.fillMaxSize().background(
@@ -375,6 +378,11 @@ private fun HomeScreen(
                     onClick = onMemories,
                     modifier = Modifier.size(42.dp).clip(CircleShape).background(Panel.copy(alpha = 0.72f))
                 ) { Icon(Icons.Rounded.Bookmarks, "Memories", tint = Lilac) }
+                Spacer(Modifier.width(8.dp))
+                IconButton(
+                    onClick = { studioOpen = true },
+                    modifier = Modifier.size(42.dp).clip(CircleShape).background(Panel.copy(alpha = 0.72f))
+                ) { Icon(Icons.Rounded.AutoAwesome, "Animation studio", tint = Lilac) }
                 Spacer(Modifier.width(8.dp))
                 IconButton(
                     onClick = onSettings,
@@ -540,6 +548,58 @@ private fun HomeScreen(
                     ) {
                         if (sending) CircularProgressIndicator(Modifier.size(18.dp), color = Ink, strokeWidth = 2.dp)
                         else Icon(Icons.AutoMirrored.Rounded.Send, "Send message", tint = Ink)
+                    }
+                }
+            }
+        }
+    }
+
+    if (studioOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { studioOpen = false },
+            containerColor = Panel,
+            contentColor = White,
+            dragHandle = { BottomSheetDefaults.DragHandle(color = Muted) }
+        ) {
+            Column(
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp).padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text("AYAKA ANIMATION STUDIO", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                Text("Expressions", color = White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Choose how Ayaka looks. Auto returns expression selection to conversation-based reactions.", color = Muted, fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = manualMood == null, onClick = { manualMood = null }, label = { Text("Auto") })
+                    FilterChip(selected = manualMood == "neutral", onClick = { manualMood = "neutral" }, label = { Text("Neutral") })
+                    FilterChip(selected = manualMood == "happy", onClick = { manualMood = "happy" }, label = { Text("Happy") })
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = manualMood == "angry", onClick = { manualMood = "angry" }, label = { Text("Tsundere / Angry") })
+                    FilterChip(selected = manualMood == "sad", onClick = { manualMood = "sad" }, label = { Text("Sad") })
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = manualMood == "surprised", onClick = { manualMood = "surprised" }, label = { Text("Surprised") })
+                    FilterChip(selected = manualMood == "relaxed", onClick = { manualMood = "relaxed" }, label = { Text("Relaxed") })
+                    FilterChip(selected = manualMood == "shy", onClick = { manualMood = "shy" }, label = { Text("Shy") })
+                }
+                Divider(color = Color(0xFF393750))
+                Text("Gestures", color = White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Tap a gesture to play it. Ayaka returns to her idle animation when it finishes.", color = Muted, fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { avatarGesture = "wave"; studioOpen = false }) {
+                        Icon(Icons.Rounded.WavingHand, null); Spacer(Modifier.width(6.dp)); Text("Wave")
+                    }
+                    Button(onClick = { avatarGesture = "pout"; manualMood = "angry"; studioOpen = false }) {
+                        Icon(Icons.Rounded.MoodBad, null); Spacer(Modifier.width(6.dp)); Text("Tsundere pout")
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { avatarGesture = "dance"; studioOpen = false }) {
+                        Icon(Icons.Rounded.MusicNote, null); Spacer(Modifier.width(6.dp)); Text("Dance")
+                    }
+                    OutlinedButton(onClick = { avatarGesture = ""; manualMood = null; studioOpen = false }) {
+                        Text("Back to idle")
                     }
                 }
             }
