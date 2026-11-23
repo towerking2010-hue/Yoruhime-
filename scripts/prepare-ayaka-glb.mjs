@@ -175,7 +175,9 @@ function addFacialClips(gltf, binaryChunks, expressions) {
     if (binary) binary.data = binData;
     return [];
   }
-  const times = [0, 1.05, 1.13, 1.21, 2.75, 2.83, 2.91, 4];
+  // Two irregularly spaced blinks over a 7.5-second cycle look less mechanical
+  // than the previous fixed one-second blink loop.
+  const times = [0, 2.35, 2.43, 2.51, 5.75, 5.83, 5.91, 7.5];
   const timeAccessor = append(times, 'SCALAR');
   const blinkCurve = [0, 0, 1, 0, 0, 1, 0, 0];
   const generated = [];
