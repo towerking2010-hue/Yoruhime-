@@ -30,13 +30,13 @@ import com.google.android.filament.utils.Utils
 import java.nio.ByteBuffer
 
 @Composable
-internal fun AyakaAvatar(modifier: Modifier = Modifier, mood: String = "neutral", speaking: Boolean = false) {
+internal fun AyakaAvatar(modifier: Modifier = Modifier, mood: String = "neutral", speaking: Boolean = false, gesture: String = "") {
     var status by remember { mutableStateOf("Starting native 3D renderer…") }
     Box(modifier) {
         AndroidView(
             modifier = Modifier.matchParentSize(),
             factory = { context -> FilamentAyakaView(context) { status = it } },
-            update = { it.setExpression(mood, speaking) },
+            update = { it.setAnimation(mood, speaking, gesture) },
             onRelease = { it.release() }
         )
         Surface(
@@ -77,6 +77,10 @@ private class FilamentAyakaView @JvmOverloads constructor(
     @Volatile private var requestedSpeaking = false
     private var idleAnimationIndex = -1
     private var faceAnimationIndices = emptyMap<String, Int>()
+    private var gestureAnimationIndices = emptyMap<String, Int>()
+    @Volatile private var requestedGesture = ""
+    private var activeGesture = ""
+    private var gestureStartNanos = 0L
     private val frameLoop = object : ChoreographerHelper() {
         override fun onFrame(frameTimeNanos: Long) {
             val current = viewer ?: return
@@ -113,6 +117,23 @@ private class FilamentAyakaView @JvmOverloads constructor(
                         if (faceIndex != null) {
                             val faceDuration = animator.getAnimationDuration(faceIndex).coerceAtLeast(0.001f)
                             animator.applyAnimation(faceIndex, elapsedSeconds % faceDuration)
+                        }
+                        val gestureKey = requestedGesture
+                        if (gestureKey != activeGesture) {
+                            activeGesture = gestureKey
+                            gestureStartNanos = frameTimeNanos
+                        }
+                        val gestureIndex = gestureAnimationIndices[activeGesture]
+                        if (gestureIndex != null) {
+                            val gestureDuration = animator.getAnimationDuration(gestureIndex).coerceAtLeast(0.001f)
+                            val gestureElapsed = ((frameTimeNanos - gestureStartNanos).coerceAtLeast(0L) / 1_000_000_000.0).toFloat()
+                            if (gestureElapsed < gestureDuration) {
+                                animator.applyAnimation(gestureIndex, gestureElapsed)
+                            } else {
+                                requestedGesture = ""
+                                activeGesture = ""
+                                gestureStartNanos = 0L
+                            }
                         }
                         animator.updateBoneMatrices()
                     }
@@ -190,6 +211,11 @@ private class FilamentAyakaView @JvmOverloads constructor(
         // Wait until Android has attached the TextureView before creating Filament.
     }
 
+    fun setAnimation(mood: String, speaking: Boolean, gesture: String) {
+        requestedGesture = gesture.lowercase()
+        setExpression(mood, speaking)
+    }
+
     fun setExpression(mood: String, speaking: Boolean) {
         requestedMood = mood.lowercase().let {
             when (it) {
@@ -217,6 +243,10 @@ private class FilamentAyakaView @JvmOverloads constructor(
             idleAnimationStartNanos = 0L
             idleAnimationIndex = -1
             faceAnimationIndices = emptyMap()
+            gestureAnimationIndices = emptyMap()
+            requestedGesture = ""
+            activeGesture = ""
+            gestureStartNanos = 0L
             noRenderableReported = false
             // Ayaka's VRM has a large 657-joint rig across three skins. On GLES 3.0
             // devices (including the Android 12 emulator's SwiftShader), Filament's
@@ -253,7 +283,15 @@ private class FilamentAyakaView @JvmOverloads constructor(
                 val name = animator.getAnimationName(index)
                 if (name.startsWith("Ayaka_Face_")) name.removePrefix("Ayaka_Face_").lowercase() to index else null
             }.toMap()
+            gestureAnimationIndices = (0 until idleClipCount).mapNotNull { index ->
+                val name = animator.getAnimationName(index)
+                if (name.startsWith("Ayaka_Gesture_")) name.removePrefix("Ayaka_Gesture_").lowercase() to index else null
+            }.toMap()
             Log.i(TAG, "Ayaka facial clips available: " + faceAnimationIndices.keys.sorted().joinToString())
+            Log.i(TAG, "Ayaka gesture clips available: " + gestureAnimationIndices.keys.sorted().joinToString())
+            check(listOf("wave", "pout", "dance").all { gestureAnimationIndices.containsKey(it) }) {
+                "Ayaka gesture clips are incomplete."
+            }
             Log.i(
                 TAG,
                 "Ayaka skeleton initialized: skins=${asset.instance.skinCount}, " +
