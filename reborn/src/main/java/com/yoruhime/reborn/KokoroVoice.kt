@@ -12,6 +12,7 @@ import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.core.Delegate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -27,6 +28,49 @@ internal object KokoroVoice {
     const val MODEL_BYTES_APPROX = 295L * 1024L * 1024L
     private const val MODEL_URL = "https://huggingface.co/litert-community/Kokoro-82M/resolve/main/kokoro_int8_fp16.litertlm"
     private const val MODEL_SHA256 = "e7b931ee5d4b7104012a838c9eee240d19ea69cb3ca269041a3274f83dbb7fa1"
+
+    // Keep the neural runtime warm between replies. Recreating an 82M model for every
+    // sentence would add avoidable latency and memory churn on mid-range phones.
+    private val engineLock = kotlinx.coroutines.sync.Mutex()
+    private val synthesisLock = kotlinx.coroutines.sync.Mutex()
+    @Volatile private var cachedEngine: KokoroTts? = null
+    @Volatile private var cachedModelPath: String? = null
+    @Volatile private var activeTrack: AudioTrack? = null
+
+    fun stop() {
+        activeTrack?.let { track ->
+            try { track.pause(); track.flush(); track.stop() } catch (_: IllegalStateException) {}
+        }
+        activeTrack = null
+    }
+
+    private suspend fun getEngine(model: File, voiceId: String): KokoroTts =
+        engineLock.withLock {
+            val current = cachedEngine
+            if (current != null && cachedModelPath == model.absolutePath) return@withLock current
+            runCatching { current?.close() }
+            val optionsFor: (Delegate) -> TextToSpeechOptions = { delegate ->
+                TextToSpeechOptions(
+                    baseOptions = BaseOptions.builder()
+                        .setModelAssetPath(model.absolutePath)
+                        .setDelegate(delegate)
+                        .build(),
+                    defaultVoiceId = voiceId,
+                    speakingRate = 1.0f,
+                    targetBucket = 64,
+                    cacheDirectory = model.parentFile?.let { File(it, "kokoro-cache").absolutePath }
+                        ?: model.parent
+                )
+            }
+            val created = try {
+                KokoroTts.create(optionsFor(Delegate.GPU))
+            } catch (_: Throwable) {
+                KokoroTts.create(optionsFor(Delegate.CPU))
+            }
+            cachedEngine = created
+            cachedModelPath = model.absolutePath
+            created
+        }
 
     fun modelFile(context: Context) = File(context.filesDir, MODEL_NAME)
     fun isInstalled(context: Context) = modelFile(context).let { it.isFile && it.length() > 0L }
@@ -84,25 +128,10 @@ internal object KokoroVoice {
         onViseme: (String) -> Unit,
         onDone: () -> Unit
     ) = withContext(Dispatchers.IO) {
+        synthesisLock.withLock {
         val model = modelFile(context)
         check(model.isFile && model.length() > 0L) { "Kokoro voice has not been downloaded." }
-        val optionsFor: (Delegate) -> TextToSpeechOptions = { delegate ->
-            TextToSpeechOptions(
-                baseOptions = BaseOptions.builder()
-                    .setModelAssetPath(model.absolutePath)
-                    .setDelegate(delegate)
-                    .build(),
-                defaultVoiceId = voiceId,
-                speakingRate = speakingRate.coerceIn(0.75f, 1.25f),
-                targetBucket = 64,
-                cacheDirectory = context.cacheDir.absolutePath
-            )
-        }
-        val engine = try {
-            KokoroTts.create(optionsFor(Delegate.GPU))
-        } catch (_: Throwable) {
-            KokoroTts.create(optionsFor(Delegate.CPU))
-        }
+        val engine = getEngine(model, voiceId)
         var track: AudioTrack? = null
         try {
             val audio = engine.synthesize(text, SynthesisOptions(voiceId = voiceId))
@@ -123,6 +152,7 @@ internal object KokoroVoice {
                 .setTransferMode(AudioTrack.MODE_STATIC)
                 .build()
             track = audioTrack
+            activeTrack = audioTrack
             check(audioTrack.state == AudioTrack.STATE_INITIALIZED) { "Android audio output could not be initialized." }
             val written = audioTrack.write(samples, 0, samples.size, AudioTrack.WRITE_BLOCKING)
             check(written == samples.size) { "Only $written of ${samples.size} audio samples were queued." }
@@ -131,7 +161,8 @@ internal object KokoroVoice {
             val window = (sampleRate / 20).coerceAtLeast(1)
             var lastViseme = ""
             val started = SystemClock.elapsedRealtime()
-            while (audioTrack.playbackHeadPosition.toLong() < samples.size.toLong()) {
+            while (audioTrack.playState == AudioTrack.PLAYSTATE_PLAYING &&
+                audioTrack.playbackHeadPosition.toLong() < samples.size.toLong()) {
                 val position = audioTrack.playbackHeadPosition.coerceIn(0, samples.size)
                 val from = (position - window).coerceAtLeast(0)
                 val to = position.coerceAtMost(samples.size)
@@ -148,9 +179,10 @@ internal object KokoroVoice {
             }
             onDone()
         } finally {
+            if (activeTrack === track) activeTrack = null
             try { track?.stop() } catch (_: IllegalStateException) {}
             track?.release()
-            engine.close()
+        }
         }
     }
 
