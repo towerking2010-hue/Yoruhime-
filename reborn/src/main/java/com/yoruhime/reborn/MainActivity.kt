@@ -403,31 +403,50 @@ private fun inferAyakaViseme(chunk: String): String {
 }
 
 private fun inferAyakaGesture(userText: String, replyText: String): String? {
-    val user = userText.lowercase()
-    val reply = replyText.lowercase()
-    fun containsAny(value: String, terms: List<String>) = terms.any(value::contains)
+    // Deterministic local intent planner: explicit requests outrank conversational
+    // cues, and phrase matching avoids accidental hits inside unrelated words.
+    fun normalize(value: String) = value.lowercase()
+        .replace(Regex("[^\\p{L}\\p{N}\\s']"), " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+    val user = normalize(userText)
+    val reply = normalize(replyText)
+    fun has(value: String, phrases: List<String>) =
+        phrases.any { phrase -> (" $value ").contains(" $phrase ") }
 
-    // Explicit requests always win; spontaneous gestures are deliberately restrained.
-    if (containsAny(user, listOf("dance for me", "let's dance", "lets dance", "show me a dance"))) return "dance"
-    if (containsAny(user, listOf("wave at me", "give me a wave"))) return "wave"
-    if (containsAny(user, listOf("cross your arms", "fold your arms"))) return "armscrossed"
-    if (containsAny(user, listOf("pout", "sulky", "tsundere"))) return "pout"
-    if (containsAny(user, listOf("bow", "take a bow"))) return "bow"
-    if (containsAny(user, listOf("say goodbye", "goodbye", "see you later", "see ya", "farewell"))) return "farewell"
+    // Direct action commands. Keep this list aligned with clips embedded in Ayaka's GLB.
+    val explicit = listOf(
+        "dance" to listOf("dance for me", "show me a dance", "let us dance", "lets dance", "do a dance", "dance"),
+        "wave" to listOf("wave at me", "give me a wave", "wave hello", "wave to me", "wave"),
+        "armscrossed" to listOf("cross your arms", "fold your arms", "stand with your arms crossed", "arms crossed"),
+        "pout" to listOf("pout", "make a pout", "look sulky", "be sulky", "act tsundere"),
+        "bow" to listOf("take a bow", "bow to me", "give me a bow", "bow"),
+        "farewell" to listOf("say goodbye", "wave goodbye", "see you later", "see ya", "goodbye", "good night", "goodnight", "farewell"),
+        "laugh" to listOf("laugh for me", "show me your laugh", "giggle", "laugh"),
+        "thinking" to listOf("think about it", "show me thinking", "look thoughtful", "think"),
+        "shrug" to listOf("shrug", "give me a shrug"),
+        "nod" to listOf("nod", "nod your head"),
+        "headtilt" to listOf("tilt your head", "head tilt"),
+        "handonheart" to listOf("hand on your heart", "put your hand on your heart", "hand over your heart"),
+        "shylookaway" to listOf("look away shyly", "look shy", "be shy", "act embarrassed"),
+    )
+    explicit.firstOrNull { (_, phrases) -> has(user, phrases) }?.let { return it.first }
 
-    if (containsAny(user, listOf("good night", "goodnight", "see you tomorrow"))) return "farewell"
-    if (containsAny(user, listOf("good morning", "good evening", "hello", "hey ayaka", "hi ayaka", "i'm back", "im back", "i am back", "missed you"))) return "wave"
-    if (containsAny(user, listOf("you're cute", "you are cute", "beautiful", "pretty", "adorable", "blushing", "teasing you"))) return "shylookaway"
-    if (containsAny(user, listOf("thank you", "thanks", "appreciate you", "i'm proud of you", "im proud of you"))) return "handonheart"
-    if (containsAny(user, listOf("that's funny", "thats funny", "make me laugh", "joke"))) return "laugh"
-    if (containsAny(user, listOf("what do you think", "hmm", "i wonder", "let me think"))) return "thinking"
-    if (containsAny(user, listOf("yes", "exactly", "you're right", "you are right", "agreed"))) return "nod"
-    if (user.contains("?")) return "headtilt"
-    if (containsAny(user, listOf("annoyed", "irritated", "stop teasing", "don't tease", "dont tease")) ||
-        containsAny(reply, listOf("hmph", "how rude", "ridiculous"))) return "armscrossed"
-    return null
+    // Natural conversational cues are intentionally less eager than direct commands.
+    return when {
+        has(user, listOf("hello", "hey ayaka", "hi ayaka", "im back", "i am back", "missed you", "good morning", "good evening")) -> "wave"
+        has(user, listOf("you are cute", "youre cute", "beautiful", "pretty", "adorable", "blushing", "teasing you")) -> "shylookaway"
+        has(user, listOf("thank you", "thanks", "appreciate you", "im proud of you", "i am proud of you")) -> "handonheart"
+        has(user, listOf("thats funny", "that is funny", "make me laugh", "tell me a joke")) -> "laugh"
+        has(user, listOf("what do you think", "hmm", "i wonder", "let me think")) -> "thinking"
+        has(user, listOf("yes", "exactly", "you are right", "youre right", "agreed")) -> "nod"
+        has(user, listOf("why", "how", "what", "when", "where", "who")) || user.endsWith("?") -> "headtilt"
+        has(user, listOf("annoyed", "irritated", "stop teasing", "dont tease")) ||
+            has(reply, listOf("hmph", "how rude", "ridiculous")) -> "armscrossed"
+        has(user, listOf("i am sorry", "im sorry", "sorry")) -> "shrug"
+        else -> null
+    }
 }
-
 private fun inferAyakaMood(text: String): String {
     val value = text.lowercase()
     return when {
