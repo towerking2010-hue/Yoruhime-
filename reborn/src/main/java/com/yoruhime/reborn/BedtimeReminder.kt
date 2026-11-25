@@ -1,6 +1,7 @@
 package com.yoruhime.reborn
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -66,8 +67,13 @@ object BedtimeScheduler {
         if (prefs.getBoolean("enabled", false)) schedule(context, prefs.getInt("hour", 23), prefs.getInt("minute", 0))
     }
 
+    @SuppressLint("MissingPermission")
     fun showNotification(context: Context) {
-        if (needsNotificationPermission(context)) return
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) return
+        val compat = NotificationManagerCompat.from(context)
+        if (!compat.areNotificationsEnabled()) return
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= 26) {
             manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Bedtime reminders", NotificationManager.IMPORTANCE_DEFAULT))
@@ -79,7 +85,11 @@ object BedtimeScheduler {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .build()
-        runCatching { NotificationManagerCompat.from(context).notify(REQUEST_ID, notification) }
+        try {
+            compat.notify(REQUEST_ID, notification)
+        } catch (_: SecurityException) {
+            // The user can revoke notification permission between the check and notify.
+        }
     }
 }
 

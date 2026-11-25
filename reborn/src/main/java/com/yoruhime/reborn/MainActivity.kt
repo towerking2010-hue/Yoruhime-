@@ -3,12 +3,14 @@ package com.yoruhime.reborn
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.speech.SpeechRecognizer
 import android.speech.RecognizerIntent
 import android.speech.RecognitionListener
 import android.content.Intent
 import android.app.TimePickerDialog
 import android.view.WindowManager
+import android.widget.Toast
 import java.util.Locale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -27,6 +29,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -75,34 +79,114 @@ private enum class Destination(val label: String) {
 private fun YoruHimeApp() {
     val context = LocalContext.current
     val store = remember { RebornStore(context) }
+    DisposableEffect(store) { onDispose { store.close() } }
     val vault = remember { ApiKeyVault(context) }
-    val engine = remember { AyakaEngine(store, vault) }
+    val engine = remember { AyakaEngine(store, vault, context) }
     val scope = rememberCoroutineScope()
-    var voiceEnabled by rememberSaveable { mutableStateOf(true) }
+    val preferences = remember { context.getSharedPreferences("yoruhime_settings", android.content.Context.MODE_PRIVATE) }
+    var voiceEnabled by rememberSaveable { mutableStateOf(preferences.getBoolean("voice_replies_enabled", true)) }
+    var voicePitch by rememberSaveable { mutableFloatStateOf(preferences.getFloat("voice_pitch", 1.06f)) }
+    var voiceRate by rememberSaveable { mutableFloatStateOf(preferences.getFloat("voice_rate", 0.94f)) }
+    var kokoroVoiceId by rememberSaveable { mutableStateOf(preferences.getString("kokoro_voice_id", "bf_emma") ?: "bf_emma") }
+    var kokoroInstalled by remember { mutableStateOf(KokoroVoice.isInstalled(context)) }
+    var kokoroDownloading by remember { mutableStateOf(false) }
+    var kokoroProgress by remember { mutableIntStateOf(0) }
+    var kokoroStatus by remember { mutableStateOf(if (kokoroInstalled) "Offline Kokoro voice installed" else "Android system voice active") }
     var draft by rememberSaveable { mutableStateOf("") }
-    val tts = remember { TextToSpeech(context) { } }
-    val recognizer = remember { if (SpeechRecognizer.isRecognitionAvailable(context)) SpeechRecognizer.createSpeechRecognizer(context) else null }
+    // Voice services are created only after the user asks to use them. Some Android
+    // builds have missing or unstable speech providers; that must never block startup.
+    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
+    var avatarSpeaking by remember { mutableStateOf(false) }
+    var avatarViseme by remember { mutableStateOf("aa") }
+    var recognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
+
+    fun startVoiceRecognition() {
+        try {
+            val activeRecognizer = recognizer ?: run {
+                if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+                    Toast.makeText(context, "Voice recognition is unavailable on this device.", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                SpeechRecognizer.createSpeechRecognizer(context).also { recognizer = it }
+            }
+            activeRecognizer.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) = Unit
+                override fun onBeginningOfSpeech() = Unit
+                override fun onRmsChanged(rmsdB: Float) = Unit
+                override fun onBufferReceived(buffer: ByteArray?) = Unit
+                override fun onEndOfSpeech() = Unit
+                override fun onError(error: Int) {
+                    val message = when (error) {
+                        SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "I didn't catch that. Please try again."
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission is needed for voice input."
+                        else -> "Voice input didn't work. Please try again."
+                    }
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                }
+                override fun onResults(results: Bundle?) {
+                    draft = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                }
+                override fun onPartialResults(partialResults: Bundle?) = Unit
+                override fun onEvent(eventType: Int, params: Bundle?) = Unit
+            })
+            activeRecognizer.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            })
+        } catch (error: Throwable) {
+            Toast.makeText(context, "Voice input is unavailable right now.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     val micPermission = rememberLauncherForActivityResult(RequestPermission()) { granted ->
-        if (granted) recognizer?.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-        })
+        if (granted) startVoiceRecognition()
+        else Toast.makeText(context, "Microphone permission is needed for voice input.", Toast.LENGTH_SHORT).show()
     }
-    DisposableEffect(recognizer) {
-        recognizer?.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) = Unit
-            override fun onBeginningOfSpeech() = Unit
-            override fun onRmsChanged(rmsdB: Float) = Unit
-            override fun onBufferReceived(buffer: ByteArray?) = Unit
-            override fun onEndOfSpeech() = Unit
-            override fun onError(error: Int) = Unit
-            override fun onResults(results: Bundle?) { draft = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty() }
-            override fun onPartialResults(partialResults: Bundle?) = Unit
-            override fun onEvent(eventType: Int, params: Bundle?) = Unit
-        })
-        onDispose { recognizer?.destroy() }
+    DisposableEffect(recognizer) { onDispose { runCatching { recognizer?.destroy() } } }
+    DisposableEffect(tts) {
+        onDispose { runCatching { tts?.stop(); tts?.shutdown() } }
     }
-    DisposableEffect(tts) { onDispose { tts.stop(); tts.shutdown() } }
+    fun speakWithSystemTts(text: String) {
+        try {
+            fun configureAndSpeak(speaker: TextToSpeech) {
+                speaker.language = Locale.US
+                speaker.setPitch(voicePitch)
+                speaker.setSpeechRate(voiceRate)
+                speaker.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {
+                        runOnMainThread { avatarSpeaking = true; avatarViseme = "aa" }
+                    }
+                    override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
+                        val safeStart = start.coerceIn(0, text.length)
+                        val safeEnd = end.coerceIn(safeStart, text.length)
+                        runOnMainThread { avatarViseme = inferAyakaViseme(text.substring(safeStart, safeEnd)) }
+                    }
+                    override fun onDone(utteranceId: String?) {
+                        runOnMainThread { avatarSpeaking = false; avatarViseme = "neutral" }
+                    }
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) { runOnMainThread { avatarSpeaking = false; avatarViseme = "neutral" } }
+                    override fun onError(utteranceId: String?, errorCode: Int) { runOnMainThread { avatarSpeaking = false; avatarViseme = "neutral" } }
+                })
+                if (speaker.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ayaka-reply") == TextToSpeech.ERROR) avatarSpeaking = false
+            }
+            val existing = tts
+            if (existing != null) configureAndSpeak(existing) else {
+                lateinit var created: TextToSpeech
+                created = TextToSpeech(context) { status ->
+                    if (status == TextToSpeech.SUCCESS) runOnMainThread { configureAndSpeak(created) }
+                    else runOnMainThread {
+                        avatarSpeaking = false
+                        Toast.makeText(context, "Speech output is unavailable right now.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                tts = created
+            }
+        } catch (_: Throwable) {
+            avatarSpeaking = false
+            Toast.makeText(context, "Speech output is unavailable right now.", Toast.LENGTH_SHORT).show()
+        }
+    }
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
     var messages by remember { mutableStateOf(store.messages().ifEmpty { listOf(ChatLine("assistant", "Good evening. You finally came back. Have you eaten yet?")) }) }
     var sending by remember { mutableStateOf(false) }
@@ -125,11 +209,46 @@ private fun YoruHimeApp() {
                 when (destination) {
                     Destination.HOME -> HomeScreen(
                         messages = messages,
+                        voiceEnabled = voiceEnabled,
                         bondCount = bondCount,
                         draft = draft,
                         onDraft = { draft = it },
                         sending = sending,
-                        onSpeak = { text -> if (voiceEnabled) { tts.language = Locale.US; tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ayaka-reply") } },
+                        onSpeak = { text ->
+                            if (!voiceEnabled) {
+                                avatarSpeaking = false
+                                avatarViseme = "neutral"
+                            } else if (kokoroInstalled) {
+                                KokoroVoice.stop()
+                                scope.launch {
+                                    try {
+                                        val styleRate = when {
+                                            text.contains("hmph", true) || text.contains("!", true) -> 1.06f
+                                            text.contains("I'm here", true) || text.contains("it's okay", true) -> 0.94f
+                                            else -> 1.0f
+                                        }
+                                        KokoroVoice.speak(
+                                            context = context,
+                                            text = text,
+                                            voiceId = kokoroVoiceId,
+                                            speakingRate = styleRate,
+                                            onStart = { runOnMainThread { avatarSpeaking = true; avatarViseme = "aa" } },
+                                            onViseme = { value -> runOnMainThread { avatarViseme = value } },
+                                            onDone = { runOnMainThread { avatarSpeaking = false; avatarViseme = "neutral" } }
+                                        )
+                                    } catch (error: Throwable) {
+                                        runOnMainThread {
+                                            kokoroStatus = "Kokoro unavailable · using Android voice"
+                                            avatarSpeaking = false
+                                            speakWithSystemTts(text)
+                                            Toast.makeText(context, "Kokoro couldn't run on this device. Using the installed Android voice instead.", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }
+                            } else speakWithSystemTts(text)
+                        },
+                        avatarSpeaking = avatarSpeaking,
+                        avatarViseme = avatarViseme,
                         onVoiceInput = { micPermission.launch(android.Manifest.permission.RECORD_AUDIO) },
                         onClear = { store.clearMessages(); messages = emptyList() },
                         onCare = { destination = Destination.CARE },
@@ -146,6 +265,8 @@ private fun YoruHimeApp() {
                                 scope.launch {
                                     val answer = engine.reply(value)
                                     store.addMessage("assistant", answer)
+                                    store.addBondPoint()
+                                    bondCount = store.bondCount()
                                     messages = messages + ChatLine("assistant", answer)
                                     sending = false
                                 }
@@ -153,9 +274,54 @@ private fun YoruHimeApp() {
                         },
                         onCamera = { camera.launch(null) }
                     )
-                    Destination.MEMORIES -> MemoriesScreen()
-                    Destination.CARE -> CareScreen()
-                    Destination.SETTINGS -> SettingsScreen(vault, voiceEnabled) { voiceEnabled = it }
+                    Destination.MEMORIES -> MemoriesScreen(store)
+                    Destination.CARE -> CareScreen(store)
+                    Destination.SETTINGS -> SettingsScreen(
+                        vault = vault,
+                        voiceEnabled = voiceEnabled,
+                        voicePitch = voicePitch,
+                        voiceRate = voiceRate,
+                        onVoiceEnabled = { enabled ->
+                            voiceEnabled = enabled
+                            preferences.edit().putBoolean("voice_replies_enabled", enabled).apply()
+                        },
+                        onVoicePitch = { value ->
+                            voicePitch = value
+                            preferences.edit().putFloat("voice_pitch", value).apply()
+                        },
+                        onVoiceRate = { value ->
+                            voiceRate = value
+                            preferences.edit().putFloat("voice_rate", value).apply()
+                        },
+                        kokoroInstalled = kokoroInstalled,
+                        kokoroDownloading = kokoroDownloading,
+                        kokoroProgress = kokoroProgress,
+                        kokoroStatus = kokoroStatus,
+                        kokoroVoiceId = kokoroVoiceId,
+                        onKokoroVoice = { value ->
+                            kokoroVoiceId = value
+                            preferences.edit().putString("kokoro_voice_id", value).apply()
+                        },
+                        onInstallKokoro = {
+                            if (!kokoroDownloading && !kokoroInstalled) {
+                                kokoroDownloading = true
+                                kokoroStatus = "Downloading encrypted-checksum-verified model…"
+                                scope.launch {
+                                    try {
+                                        KokoroVoice.download(context) { progress ->
+                                            runOnMainThread { kokoroProgress = progress }
+                                        }
+                                        kokoroInstalled = KokoroVoice.isInstalled(context)
+                                        kokoroStatus = if (kokoroInstalled) "Kokoro installed · speech stays on this phone" else "Download did not complete"
+                                    } catch (error: Throwable) {
+                                        kokoroStatus = "Download failed: ${error.message ?: "unknown error"}"
+                                    } finally {
+                                        kokoroDownloading = false
+                                    }
+                                }
+                            }
+                        }
+                    )
                 }
             }
         }
@@ -181,6 +347,8 @@ private fun YoruHimeApp() {
                                 scope.launch {
                                     val answer = engine.replyAboutImage(question, image)
                                     store.addMessage("assistant", answer)
+                                    store.addBondPoint()
+                                    bondCount = store.bondCount()
                                     messages = messages + ChatLine("assistant", answer)
                                     sending = false
                                 }
@@ -218,23 +386,103 @@ private fun TopBar(destination: Destination) {
     }
 }
 
+private fun runOnMainThread(action: () -> Unit) {
+    android.os.Handler(android.os.Looper.getMainLooper()).post(action)
+}
+
+private fun inferAyakaViseme(chunk: String): String {
+    val value = chunk.lowercase()
+    return when {
+        value.any { it == 'a' } -> "aa"
+        value.any { it == 'e' } -> "ee"
+        value.any { it == 'i' || it == 'y' } -> "ih"
+        value.any { it == 'o' } -> "oh"
+        value.any { it == 'u' } -> "ou"
+        else -> "aa"
+    }
+}
+
+private fun inferAyakaGesture(userText: String, replyText: String): String? {
+    val user = userText.lowercase()
+    val reply = replyText.lowercase()
+    fun containsAny(value: String, terms: List<String>) = terms.any(value::contains)
+
+    // Explicit requests always win; spontaneous gestures are deliberately restrained.
+    if (containsAny(user, listOf("dance for me", "let's dance", "lets dance", "show me a dance"))) return "dance"
+    if (containsAny(user, listOf("wave at me", "give me a wave"))) return "wave"
+    if (containsAny(user, listOf("cross your arms", "fold your arms"))) return "armscrossed"
+    if (containsAny(user, listOf("pout", "sulky", "tsundere"))) return "pout"
+    if (containsAny(user, listOf("bow", "take a bow"))) return "bow"
+    if (containsAny(user, listOf("say goodbye", "goodbye", "see you later", "see ya", "farewell"))) return "farewell"
+
+    if (containsAny(user, listOf("good night", "goodnight", "see you tomorrow"))) return "farewell"
+    if (containsAny(user, listOf("good morning", "good evening", "hello", "hey ayaka", "hi ayaka", "i'm back", "im back", "i am back", "missed you"))) return "wave"
+    if (containsAny(user, listOf("you're cute", "you are cute", "beautiful", "pretty", "adorable", "blushing", "teasing you"))) return "shylookaway"
+    if (containsAny(user, listOf("thank you", "thanks", "appreciate you", "i'm proud of you", "im proud of you"))) return "handonheart"
+    if (containsAny(user, listOf("that's funny", "thats funny", "make me laugh", "joke"))) return "laugh"
+    if (containsAny(user, listOf("what do you think", "hmm", "i wonder", "let me think"))) return "thinking"
+    if (containsAny(user, listOf("yes", "exactly", "you're right", "you are right", "agreed"))) return "nod"
+    if (user.contains("?")) return "headtilt"
+    if (containsAny(user, listOf("annoyed", "irritated", "stop teasing", "don't tease", "dont tease")) ||
+        containsAny(reply, listOf("hmph", "how rude", "ridiculous"))) return "armscrossed"
+    return null
+}
+
+private fun inferAyakaMood(text: String): String {
+    val value = text.lowercase()
+    return when {
+        listOf("angry", "annoyed", "irritated", "furious", "hate").any(value::contains) -> "angry"
+        listOf("sad", "lonely", "depressed", "worried", "scared", "tired", "hurt").any(value::contains) -> "sad"
+        listOf("wow", "whoa", "surprised", "unbelievable", "really?!").any(value::contains) -> "surprised"
+        listOf("love", "thank you", "thanks", "happy", "great", "wonderful", "missed you").any(value::contains) -> "happy"
+        listOf("calm", "relaxed", "okay", "fine").any(value::contains) -> "relaxed"
+        else -> "neutral"
+    }
+}
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeScreen(
-    messages: List<ChatLine>, bondCount: Int, draft: String, onDraft: (String) -> Unit,
-    sending: Boolean, onSpeak: (String) -> Unit, onVoiceInput: () -> Unit,
+    messages: List<ChatLine>, voiceEnabled: Boolean, bondCount: Int, draft: String, onDraft: (String) -> Unit,
+    sending: Boolean, onSpeak: (String) -> Unit, avatarSpeaking: Boolean, avatarViseme: String, onVoiceInput: () -> Unit,
     onClear: () -> Unit, onCare: () -> Unit, onMemories: () -> Unit,
     onSettings: () -> Unit, onSend: () -> Unit, onCamera: () -> Unit
 ) {
     var chatOpen by rememberSaveable { mutableStateOf(false) }
-
+    var studioOpen by rememberSaveable { mutableStateOf(false) }
+    var avatarMood by rememberSaveable { mutableStateOf("neutral") }
+    var manualMood by rememberSaveable { mutableStateOf<String?>(null) }
+    var avatarGesture by rememberSaveable { mutableStateOf("") }
+    var gestureRequestId by rememberSaveable { mutableIntStateOf(0) }
+    var lastAutoSpoken by remember { mutableStateOf(messages.lastOrNull { it.role == "assistant" }?.content.orEmpty()) }
+    LaunchedEffect(messages.lastOrNull()?.role, messages.lastOrNull()?.content, voiceEnabled) {
+        val latest = messages.lastOrNull()
+        if (latest?.role == "assistant" && latest.content != lastAutoSpoken) {
+            lastAutoSpoken = latest.content
+            if (voiceEnabled) onSpeak(latest.content)
+        } else if (latest?.role != "assistant") {
+            lastAutoSpoken = ""
+        }
+    }
+    fun playGesture(name: String) { gestureRequestId += 1; avatarGesture = "$name#$gestureRequestId" }
+    val latestAssistantText = messages.lastOrNull { it.role == "assistant" }?.content.orEmpty()
+    LaunchedEffect(sending, messages.lastOrNull()?.role, messages.lastOrNull()?.content) {
+        if (sending) avatarMood = "listening"
+        else if (messages.lastOrNull()?.role == "assistant") {
+            val latestUserText = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+            val latestReply = messages.lastOrNull { it.role == "assistant" }?.content.orEmpty()
+            avatarMood = inferAyakaMood(latestUserText + " " + latestReply)
+            // Local motion planner: gestures are chosen from conversational intent,
+            // not fired for every message. The user can still trigger any gesture in Studio.
+            inferAyakaGesture(latestUserText, latestReply)?.let(::playGesture)
+        } else avatarMood = "neutral"
+    }
     Box(
         Modifier.fillMaxSize()
             .background(Brush.verticalGradient(listOf(Color(0xFF171329), Color(0xFF090B16), Color(0xFF090B16))))
     ) {
         // Ayaka owns the entire home surface. Conversation is a temporary layer,
         // never a permanently allocated half-screen panel.
-        AyakaAvatar(Modifier.fillMaxSize())
+        AyakaAvatar(Modifier.fillMaxSize(), mood = manualMood ?: avatarMood, speaking = avatarSpeaking, gesture = avatarGesture, viseme = avatarViseme)
 
         Box(
             Modifier.fillMaxSize().background(
@@ -262,6 +510,11 @@ private fun HomeScreen(
                     onClick = onMemories,
                     modifier = Modifier.size(42.dp).clip(CircleShape).background(Panel.copy(alpha = 0.72f))
                 ) { Icon(Icons.Rounded.Bookmarks, "Memories", tint = Lilac) }
+                Spacer(Modifier.width(8.dp))
+                IconButton(
+                    onClick = { studioOpen = true },
+                    modifier = Modifier.size(42.dp).clip(CircleShape).background(Panel.copy(alpha = 0.72f))
+                ) { Icon(Icons.Rounded.AutoAwesome, "Animation studio", tint = Lilac) }
                 Spacer(Modifier.width(8.dp))
                 IconButton(
                     onClick = onSettings,
@@ -353,9 +606,13 @@ private fun HomeScreen(
                         Text("Talk with Ayaka", color = White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
                     }
                     IconButton(
-                        onClick = { messages.lastOrNull { it.role == "assistant" }?.content?.let(onSpeak) },
+                        onClick = {
+                            messages.lastOrNull { it.role == "assistant" }?.content?.let { spokenText ->
+                                onSpeak(spokenText)
+                            }
+                        },
                         enabled = messages.any { it.role == "assistant" }
-                    ) { Icon(Icons.Rounded.VolumeUp, "Read latest reply aloud", tint = Lilac) }
+                    ) { Icon(Icons.AutoMirrored.Rounded.VolumeUp, "Read latest reply aloud", tint = Lilac) }
                     IconButton(onClick = onClear) { Icon(Icons.Rounded.DeleteOutline, "Clear conversation", tint = Muted) }
                 }
 
@@ -422,7 +679,79 @@ private fun HomeScreen(
                         modifier = Modifier.size(48.dp).clip(CircleShape).background(Violet)
                     ) {
                         if (sending) CircularProgressIndicator(Modifier.size(18.dp), color = Ink, strokeWidth = 2.dp)
-                        else Icon(Icons.Rounded.Send, "Send message", tint = Ink)
+                        else Icon(Icons.AutoMirrored.Rounded.Send, "Send message", tint = Ink)
+                    }
+                }
+            }
+        }
+    }
+
+    if (studioOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { studioOpen = false },
+            containerColor = Panel,
+            contentColor = White,
+            dragHandle = { BottomSheetDefaults.DragHandle(color = Muted) }
+        ) {
+            Column(
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp).padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text("AYAKA ANIMATION STUDIO", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                Text("Expressions", color = White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Choose how Ayaka looks. Auto returns expression selection to conversation-based reactions.", color = Muted, fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = manualMood == null, onClick = { manualMood = null }, label = { Text("Auto") })
+                    FilterChip(selected = manualMood == "neutral", onClick = { manualMood = "neutral" }, label = { Text("Neutral") })
+                    FilterChip(selected = manualMood == "happy", onClick = { manualMood = "happy" }, label = { Text("Happy") })
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = manualMood == "angry", onClick = { manualMood = "angry" }, label = { Text("Tsundere / Angry") })
+                    FilterChip(selected = manualMood == "sad", onClick = { manualMood = "sad" }, label = { Text("Sad") })
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = manualMood == "surprised", onClick = { manualMood = "surprised" }, label = { Text("Surprised") })
+                    FilterChip(selected = manualMood == "relaxed", onClick = { manualMood = "relaxed" }, label = { Text("Relaxed") })
+                    FilterChip(selected = manualMood == "shy", onClick = { manualMood = "shy" }, label = { Text("Shy") })
+                }
+                Divider(color = Color(0xFF393750))
+                Text("Gestures", color = White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Tap a gesture to play it. Ayaka returns to her idle animation when it finishes.", color = Muted, fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { playGesture("wave"); studioOpen = false }) {
+                        Icon(Icons.Rounded.WavingHand, null); Spacer(Modifier.width(6.dp)); Text("Wave")
+                    }
+                    Button(onClick = { playGesture("pout"); manualMood = "angry"; studioOpen = false }) {
+                        Icon(Icons.Rounded.MoodBad, null); Spacer(Modifier.width(6.dp)); Text("Tsundere pout")
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { playGesture("armscrossed"); studioOpen = false }) {
+                        Icon(Icons.Rounded.Person, null); Spacer(Modifier.width(6.dp)); Text("Cross arms")
+                    }
+                    OutlinedButton(onClick = { playGesture("dance"); studioOpen = false }) {
+                        Icon(Icons.Rounded.MusicNote, null); Spacer(Modifier.width(6.dp)); Text("Dance")
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { playGesture("nod"); studioOpen = false }) { Text("Nod") }
+                    OutlinedButton(onClick = { playGesture("headtilt"); studioOpen = false }) { Text("Head tilt") }
+                    OutlinedButton(onClick = { playGesture("shrug"); studioOpen = false }) { Text("Shrug") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { playGesture("thinking"); studioOpen = false }) { Text("Thinking") }
+                    OutlinedButton(onClick = { playGesture("handonheart"); studioOpen = false }) { Text("Hand on heart") }
+                    OutlinedButton(onClick = { playGesture("bow"); studioOpen = false }) { Text("Bow") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { playGesture("laugh"); studioOpen = false }) { Text("Laugh") }
+                    OutlinedButton(onClick = { playGesture("shylookaway"); manualMood = "shy"; studioOpen = false }) { Text("Shy") }
+                    OutlinedButton(onClick = { playGesture("farewell"); studioOpen = false }) { Text("Farewell") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { avatarGesture = ""; manualMood = null; studioOpen = false }) {
+                        Text("Back to idle")
                     }
                 }
             }
@@ -431,9 +760,7 @@ private fun HomeScreen(
 }
 
 @Composable
-private fun MemoriesScreen() {
-    val context = LocalContext.current
-    val store = remember { RebornStore(context) }
+private fun MemoriesScreen(store: RebornStore) {
     var note by rememberSaveable { mutableStateOf("") }
     var notes by remember { mutableStateOf(store.memories()) }
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -459,17 +786,24 @@ private fun MemoriesScreen() {
 }
 
 @Composable
-private fun CareScreen() {
+private fun CareScreen(store: RebornStore) {
     var minutes by rememberSaveable { mutableIntStateOf(25) }
     var secondsLeft by rememberSaveable { mutableIntStateOf(25 * 60) }
     var running by rememberSaveable { mutableStateOf(false) }
     var checkInOpen by remember { mutableStateOf(false) }
-    var selectedMood by rememberSaveable { mutableStateOf("Okay") }
     val context = LocalContext.current
+    var selectedMood by rememberSaveable { mutableStateOf(store.moodForToday() ?: "Okay") }
     var bedtimeLabel by remember { mutableStateOf(BedtimeScheduler.timeLabel(context)) }
     var pendingBedtime by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     val notificationPermission = rememberLauncherForActivityResult(RequestPermission()) { granted ->
-        if (granted) pendingBedtime?.let { BedtimeScheduler.schedule(context, it.first, it.second); bedtimeLabel = BedtimeScheduler.timeLabel(context) }
+        if (granted) {
+            pendingBedtime?.let {
+                BedtimeScheduler.schedule(context, it.first, it.second)
+                bedtimeLabel = BedtimeScheduler.timeLabel(context)
+            }
+        } else {
+            Toast.makeText(context, "Allow notifications to receive bedtime reminders.", Toast.LENGTH_SHORT).show()
+        }
         pendingBedtime = null
     }
     LaunchedEffect(running) {
@@ -524,6 +858,9 @@ private fun CareScreen() {
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = {
+                        val savedParts = bedtimeLabel.split(":")
+                        val initialHour = savedParts.getOrNull(0)?.toIntOrNull() ?: 23
+                        val initialMinute = savedParts.getOrNull(1)?.toIntOrNull() ?: 0
                         TimePickerDialog(context, { _, hour, minute ->
                             if (BedtimeScheduler.needsNotificationPermission(context)) {
                                 pendingBedtime = hour to minute
@@ -532,7 +869,7 @@ private fun CareScreen() {
                                 BedtimeScheduler.schedule(context, hour, minute)
                                 bedtimeLabel = BedtimeScheduler.timeLabel(context)
                             }
-                        }, 23, 0, true).show()
+                        }, initialHour, initialMinute, true).show()
                     }) { Text(if (bedtimeLabel == "Not set") "Set reminder" else "Change time") }
                     if (bedtimeLabel != "Not set") OutlinedButton(onClick = { BedtimeScheduler.cancel(context); bedtimeLabel = "Not set" }) { Text("Cancel") }
                 }
@@ -547,8 +884,8 @@ private fun CareScreen() {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     listOf("Great", "Good", "Okay", "Tired", "Stressed", "Sad").forEach { mood ->
-                        Row(Modifier.fillMaxWidth().clickable { selectedMood = mood; checkInOpen = false }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = selectedMood == mood, onClick = { selectedMood = mood; checkInOpen = false })
+                        Row(Modifier.fillMaxWidth().clickable { selectedMood = mood; store.saveMood(mood); checkInOpen = false }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = selectedMood == mood, onClick = { selectedMood = mood; store.saveMood(mood); checkInOpen = false })
                             Text(mood, color = White)
                         }
                     }
@@ -575,7 +912,26 @@ private fun CareCard(icon: androidx.compose.ui.graphics.vector.ImageVector, titl
 }
 
 @Composable
-private fun SettingsScreen(vault: ApiKeyVault, voiceEnabled: Boolean, onVoiceEnabled: (Boolean) -> Unit) {
+private fun SettingsScreen(
+    vault: ApiKeyVault,
+    voiceEnabled: Boolean,
+    voicePitch: Float,
+    voiceRate: Float,
+    onVoiceEnabled: (Boolean) -> Unit,
+    onVoicePitch: (Float) -> Unit,
+    onVoiceRate: (Float) -> Unit,
+    kokoroInstalled: Boolean,
+    kokoroDownloading: Boolean,
+    kokoroProgress: Int,
+    kokoroStatus: String,
+    kokoroVoiceId: String,
+    onKokoroVoice: (String) -> Unit,
+    onInstallKokoro: () -> Unit
+) {
+    val settingsContext = LocalContext.current
+    val aiSettings = remember { settingsContext.getSharedPreferences("yoruhime_settings", android.content.Context.MODE_PRIVATE) }
+    var provider by rememberSaveable { mutableStateOf(aiSettings.getString("ai_provider", "apinex") ?: "apinex") }
+    var model by rememberSaveable { mutableStateOf(aiSettings.getString("ai_model", "free/qwen-3.8-max") ?: "free/qwen-3.8-max") }
     var apiKey by rememberSaveable { mutableStateOf("") }
     var revealKey by rememberSaveable { mutableStateOf(false) }
     var configured by remember { mutableStateOf(vault.read() != null) }
@@ -583,23 +939,80 @@ private fun SettingsScreen(vault: ApiKeyVault, voiceEnabled: Boolean, onVoiceEna
         Text("PERSONAL SPACE", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
         Text("Settings", color = White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Text("FREE AI CONNECTION", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("Provider", color = White, fontWeight = FontWeight.SemiBold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = provider == "apinex", onClick = {
+                provider = "apinex"; model = "free/qwen-3.8-max"
+                aiSettings.edit().putString("ai_provider", provider).putString("ai_model", model).apply()
+            }, label = { Text("APInex · default") })
+            FilterChip(selected = provider == "openrouter", onClick = {
+                provider = "openrouter"; model = "openrouter/free"
+                aiSettings.edit().putString("ai_provider", provider).putString("ai_model", model).apply()
+            }, label = { Text("OpenRouter") })
+        }
+        OutlinedTextField(value = model, onValueChange = { model = it }, modifier = Modifier.fillMaxWidth(),
+            label = { Text("Model ID") }, singleLine = true, shape = RoundedCornerShape(16.dp))
+        Text(if (provider == "apinex") "Free allowlist: free/qwen-3.8-max, free/kimi-k3, free/minimax-m3.1-flash, free/minimax-m3. Paid IDs are blocked." else "OpenRouter uses its free model router only. No paid fallback.", color = Muted, fontSize = 11.sp)
         OutlinedTextField(
             value = apiKey, onValueChange = { apiKey = it }, modifier = Modifier.fillMaxWidth(),
-            label = { Text("OpenRouter API key") }, placeholder = { Text("sk-or-…") },
+            label = { Text(if (provider == "apinex") "APInex API key" else "OpenRouter API key") }, placeholder = { Text(if (provider == "apinex") "sk-apx-…" else "sk-or-…") },
             singleLine = true, shape = RoundedCornerShape(16.dp),
             visualTransformation = if (revealKey) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = { IconButton(onClick = { revealKey = !revealKey }) { Icon(if (revealKey) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, "Toggle API key visibility") } }
         )
-        Button(onClick = { if (apiKey.isNotBlank()) { vault.save(apiKey); apiKey = ""; configured = true } }, modifier = Modifier.fillMaxWidth()) { Text("Save encrypted API key") }
-        Text(if (configured) "API key saved securely on this device." else "Offline mode · add your free OpenRouter key to enable cloud chat.", color = Muted, fontSize = 12.sp)
+        Button(onClick = {
+            if (apiKey.isNotBlank()) {
+                val allowed = provider != "apinex" || model in setOf("free/qwen-3.8-max", "free/kimi-k3", "free/minimax-m3.1-flash", "free/minimax-m3")
+                if (allowed) {
+                    aiSettings.edit().putString("ai_provider", provider).putString("ai_model", model).apply()
+                    vault.save(apiKey); apiKey = ""; configured = true
+                }
+            }
+        }, modifier = Modifier.fillMaxWidth()) { Text("Save provider, model and encrypted key") }
+        Text(if (configured) "An API key is saved securely on this device. The selected provider/model is used for new chats." else "Offline mode · add your free provider key to enable cloud chat.", color = Muted, fontSize = 12.sp)
         TextButton(onClick = { vault.clear(); configured = false; apiKey = "" }) { Text("Remove API key") }
-        SettingToggle("Voice replies", "Allow Ayaka to read the latest reply aloud.", voiceEnabled, onVoiceEnabled)
+        Text("AYAKA'S VOICE", color = Violet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+        SettingToggle("Voice replies", "Automatically speak each new reply. Tap the speaker to hear it again.", voiceEnabled, onVoiceEnabled)
+        Surface(color = Panel, shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Kokoro · offline neural voice", color = White, fontWeight = FontWeight.SemiBold)
+                Text("Optional one-time download (~295 MB). After installation, speech is generated locally without an internet connection or subscription. Android's built-in voice remains the fallback.", color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = kokoroVoiceId == "bf_emma", onClick = { onKokoroVoice("bf_emma") }, label = { Text("Emma · British") })
+                    FilterChip(selected = kokoroVoiceId == "bf_isabella", onClick = { onKokoroVoice("bf_isabella") }, label = { Text("Isabella · British") })
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = kokoroVoiceId == "af_bella", onClick = { onKokoroVoice("af_bella") }, label = { Text("Bella · American") })
+                }
+                Text(kokoroStatus, color = if (kokoroInstalled) Violet else Muted, fontSize = 11.sp)
+                if (kokoroDownloading) {
+                    LinearProgressIndicator(progress = { kokoroProgress / 100f }, modifier = Modifier.fillMaxWidth())
+                    Text("$kokoroProgress% downloaded", color = Muted, fontSize = 11.sp)
+                } else if (!kokoroInstalled) {
+                    Button(onClick = onInstallKokoro, modifier = Modifier.fillMaxWidth()) { Text("Download Kokoro · ~295 MB") }
+                } else {
+                    Text("Kokoro will be used automatically for Ayaka's replies. You can remove the model later in Android app storage.", color = Muted, fontSize = 11.sp)
+                }
+            }
+        }
+        Surface(color = Panel, shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Pitch · ${"%.2f".format(Locale.US, voicePitch)}", color = White, fontWeight = FontWeight.SemiBold)
+                Slider(value = voicePitch, onValueChange = onVoicePitch, valueRange = 0.85f..1.25f)
+                Text("Speaking pace · ${"%.2f".format(Locale.US, voiceRate)}", color = White, fontWeight = FontWeight.SemiBold)
+                Slider(value = voiceRate, onValueChange = onVoiceRate, valueRange = 0.80f..1.10f)
+                Text("These controls tune the Android system-voice fallback. Kokoro uses its own natural voice identity and selectable speaker profiles.", color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
+                TextButton(onClick = { onVoicePitch(1.06f); onVoiceRate(0.94f) }) { Text("Reset Ayaka voice") }
+            }
+        }
         Surface(color = Panel, shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.padding(16.dp)) {
                 Text("Privacy first", color = White, fontWeight = FontWeight.SemiBold)
                 Text("Memory stays under your control. Camera capture starts only when you tap Camera.", color = Muted, fontSize = 12.sp)
             }
         }
+        Text("Ayaka model credit: epic_noobster · Original VRM creator, license, expression, humanoid and physics metadata is bundled for future native support.", color = Muted, fontSize = 11.sp)
+        Text("Model terms: author-only use · personal/non-profit only · credit required. Redistribution and modification are permitted by the embedded VRM metadata.", color = Muted, fontSize = 11.sp)
         Text("YoruHime Reborn · Preview build", color = Muted, fontSize = 11.sp)
     }
 }

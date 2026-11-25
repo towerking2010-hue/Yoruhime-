@@ -1,0 +1,14 @@
+# Gradle / Android build output
+.gradle/
+**/build/
+local.properties
+*.iml
+
+# Android Studio
+.idea/
+.externalNativeBuild/
+.cxx/
+
+# Node tooling (only used for the model-conversion scripts)
+node_modules/
+npm-debug.log*

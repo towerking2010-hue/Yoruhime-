@@ -1,142 +1,100 @@
-# Ayaka / YoruHime — Interaction and Technical Blueprint
+# YoruHime Reborn — Ayaka architecture
 
-This document records the selected direction for the Android companion. It is a product and engineering plan, not a claim that every planned subsystem is already implemented.
+This document describes the active Reborn implementation and the intended product direction. Planned behavior is not presented as completed functionality.
 
-## 1. The chosen experience: character-first, not chat-first
+## 1. Product experience
 
-The Home destination is one immersive character stage. Ayaka occupies the full usable screen. The interface is deliberately quiet and keeps only a few floating controls visible.
+Ayaka is the centre of YoruHime. The Home destination is an immersive character stage; conversation opens on demand as an overlay. Secondary destinations provide Memories, Care and Settings without permanently splitting the home screen.
 
-- Top edge: YoruHime identity and small shortcuts to Memories and Settings.
-- Main canvas: Ayaka's full-height VRM avatar, with a restrained ambient backdrop.
-- Lower identity area: Ayaka's name, a short presence line and a small relationship indicator.
-- Floating action dock: camera, voice input, open conversation and Care.
-- Conversation: a modal bottom sheet opened on demand. It overlays the character rather than permanently dividing the screen.
-- Keyboard: appears only after the user taps the message composer. The sheet resizes with Android's IME and keeps the latest message and composer accessible.
-- Dismissal: swipe down or Back to return to the uninterrupted character stage.
+Ayaka's personality is mature, elegant, caring, protective and emotionally perceptive. She can be playfully tsundere, but teasing is occasional. Empathy and clarity take priority in serious situations. Riko and MekaHime inform selected design qualities only; Ayaka keeps her own identity.
 
-Secondary destinations (Memories, Care, Settings) remain native screens. They are not permanent navigation chrome on the character stage.
+## 2. Android application structure
 
-## 2. Conversation states
+- `:reborn` is the sole included Android application module.
+- Kotlin and Jetpack Compose own navigation, screens, chat, settings and care tools.
+- `AyakaAvatar.kt` hosts the native Filament avatar surface.
+- `RebornEngine.kt` contains local storage, API-key handling and conversation logic.
+- `BedtimeReminder.kt` manages scheduled bedtime notifications.
 
-The companion should expose a small, understandable state machine:
+The old WebView/Three.js renderer and the former Live2D/Tsubaki prototype are not part of the active Reborn build.
 
-| State | What the user sees | Expected behavior |
-|---|---|---|
-| Present | Ayaka idles naturally | Light breathing, occasional blink, subtle gaze |
-| Listening | Listening indicator near Ayaka | Microphone is active only after explicit tap |
-| Thinking | Small unobtrusive indicator | AI/network work runs off the UI thread |
-| Speaking | Ayaka's mouth/face responds | Voice output and facial expression remain synchronized where supported |
-| Offline | Clear offline status | Local fallback responds honestly; never pretends to have cloud intelligence |
-| Recovering | Visible diagnostic message | Avatar/WebView failures expose a retry path instead of an empty rectangle |
+## 3. Native avatar pipeline
 
-A conversation sheet must not steal microphone permission, start the camera, or upload an image by itself.
+Source model: `models/ayaka/Ayaka_Tojou 2.vrm`.
 
-## 3. Ayaka's character model
+Build-time flow:
 
-Ayaka's identity is independent of Riko and Sakura.
+1. Verify the source model's SHA-256 against the expected creator-supplied file.
+2. Run `scripts/prepare-ayaka-glb.mjs`.
+3. Write `reborn/src/main/assets/ayaka.glb`.
+4. Write `reborn/src/main/assets/ayaka-vrm-metadata.json`.
+5. Load the GLB with Filament gltfio from a native Android `SurfaceView`.
 
-- Core: mature, elegant, caring, protective, emotionally perceptive, warmly affectionate.
-- Surface voice: composed and natural; playful tsundere teasing is occasional, not a constant gimmick.
-- Serious situations: empathy and clarity override teasing.
-- Boundaries: never cruel, humiliating, possessive, coercive or manipulative.
-- Honesty: she must not claim to see, hear, remember or perform an action unless the app supplied that input or completed that action.
-- Memory: only explicitly approved memories are injected into later conversation.
+The converter retains core glTF geometry, skinning, morph targets, textures and supported KHR extensions. VRMC extension payloads are preserved in the metadata sidecar before VRM-specific extensions are removed from the GLB.
 
-### Emotional direction
+The sidecar preserves creator/license data, humanoid mapping, expressions, MToon parameters and spring-bone data. Preservation is not the same as runtime support.
 
-OpenSakura demonstrates why emotion should be structured state rather than a single adjective. YoruHime should eventually use a compact bounded emotion vector (for example: calm, joy, warmth, concern, sadness, frustration, surprise, shyness and playfulness) with slow decay between turns.
+### Known renderer gaps
 
-The model response should provide a small structured affect/action hint alongside the natural-language reply. The app validates the hint against known expressions and motions. Unknown labels are ignored. A second paid or cloud LLM call solely to decide a gesture is intentionally avoided.
+- Full VRM MToon shading fidelity is not implemented.
+- VRM humanoid semantic mapping is incomplete.
+- Spring-bone simulation is not implemented.
+- Named VRM expressions are not yet mapped to native morph-target controls.
+- Blinking, emotion-driven expressions, idle animation and speech lip-sync need implementation and validation.
+- The renderer has not yet been verified on the Galaxy A31.
 
-### Motion direction
+Filament 1.75.0 is pinned because it matches the APIs used by this implementation and the project's Android compile SDK configuration. The current quality/resolution settings are starting values, not measured device benchmarks.
 
-The future motion library should be small and purposeful:
+## 4. Conversation and personality
 
-- Idle: breathe, blink, subtle weight shift.
-- Greeting: small wave, smile, slight bow.
-- Thinking: look aside, thoughtful pose.
-- Listening: attentive gaze and restrained nod.
-- Happy: smile, small celebratory gesture.
-- Shy: blush/averted gaze if the model supports it.
-- Concern: softened expression, slight lean-in.
-- Strict/playful: arms folded or a small pout, used sparingly.
+The conversation engine combines Ayaka's persona instructions, bounded chat history and explicitly approved memories.
 
-Motion transitions must blend smoothly, cancel when a new action arrives, and always return to a neutral idle. Do not trigger a full-body animation for every short message.
+- OpenRouter `openrouter/free` is optional and requires a user-supplied API key.
+- The key is stored using Android Keystore AES-GCM.
+- No paid fallback, subscription, credit purchase or automatic top-up is permitted.
+- The no-key/offline path is a small rule-based response system, not an on-device language model.
+- Network operations must remain off the UI thread.
+- The app must be honest when offline or when a cloud request fails.
 
-## 4. Reference-project adaptations
+A future emotional state system may represent calm, joy, warmth, concern, sadness, frustration, surprise, shyness and playfulness as bounded values with decay over time. It should remain separate from the character's core identity. Structured expression/action hints must be validated against a small known set; unknown labels are ignored.
 
-### Project Riko — https://github.com/rayenfeng/riko_project
+## 5. Voice, camera and privacy
 
-The public repository is MIT-licensed and separates ASR, LLM, TTS and avatar presentation. Its VRM viewer frames the camera from the actual avatar's head height instead of assuming every model has the same proportions. It also treats lip-sync as a separate presentation layer.
+- Speech recognition starts only after an explicit user action and required permission.
+- Text-to-speech uses the Android provider.
+- Camera capture starts only after explicit user action.
+- Captured images remain local until the user confirms sending them.
+- No background camera or microphone session is allowed.
+- Chat history is local. Long-term memories are explicitly created, editable and deletable by the user.
+- Never claim Ayaka saw, heard, remembered or did something unless the app supplied the input or completed the action.
 
-YoruHime adopts the clean turn pipeline, modular boundaries and model-relative framing. Riko's Python desktop runtime, external voice services and character identity are not copied.
+Live AR compositing and camera-based character placement are future work, not implemented features.
 
-### OpenSakura — https://github.com/zeekk0/OpenSakura
+## 6. Companion tools
 
-The harness is MIT-licensed. Its brain owns emotion state, memory, relationship context and persona, while a separate action controller chooses from a known motion library. It decays emotional state over time and stores user-specific memory notes.
+The current source includes foundations for a focus timer, mood check-in, bond indicator and bedtime reminders. Each needs runtime validation, including persistence and Android permission behavior.
 
-YoruHime adopts the separation of concerns and the idea of emotion-aware presentation, simplified for Android. Sakura's character, likeness, VRM, voice model and voice assets are not reused. Its Windows/NVIDIA speech stack is not suitable for this phone target.
+## 7. Galaxy A31 engineering constraints
 
-## 5. Android architecture
-
-### Presentation layer
-- Jetpack Compose owns navigation, the immersive HUD, conversation sheet, memories, care and settings.
-- The home screen does not reserve a permanent chat column.
-- The message composer is focus-driven; keyboard visibility is controlled by Android.
-- WebView is isolated inside the avatar component, not used as the whole application UI.
-
-### Avatar layer
-- Three.js and @pixiv/three-vrm render a locally bundled VRM.
-- AndroidX WebViewAssetLoader serves the compiled Vite bundle from app assets.
-- The WebView must remain hardware accelerated.
-- The WebGL context is requested explicitly and failures are reported to the native Compose layer.
-- The canvas is capped at 30 FPS and its device pixel ratio is bounded for mid-range hardware.
-- A local VRM is loaded from app assets; no remote avatar CDN is required at runtime.
-- When the activity is backgrounded, animation should pause; when the user returns, it resumes without starting the camera.
-
-### Companion engine
-- One request per user turn, with bounded conversation history.
-- OpenRouter openrouter/free only when a user-provided key exists.
-- No automatic paid model fallback, top-ups or hidden credit use.
-- Offline fallback is a small rule-based response path, not an on-device LLM.
-- Network requests run on IO dispatchers and have bounded connect/read timeouts.
-- Errors are translated into clear, non-technical in-character feedback without hiding the actual connection state.
-
-### Memory and privacy
-- Chat history is local.
-- Long-term memory is opt-in and user-editable.
-- API key is encrypted with Android Keystore AES-GCM.
-- Camera activation is explicit.
-- A captured image remains local until the user confirms the send action.
-- No telemetry or background recording is introduced.
-
-## 6. Galaxy A31 performance rules
-
-- 30 FPS cap; do not chase 60 FPS.
-- Bound WebGL pixel ratio (currently 1.25).
-- Avoid expensive post-processing, real-time shadows and multiple full-screen render passes.
-- Keep the avatar mesh/materials and animation clips modest.
+- Target: Samsung Galaxy A31, Android 12, arm64-v8a.
+- Keep rendering and animation work modest; avoid unnecessary post-processing and background activity.
 - Pause rendering when the app is not visible.
-- Do not run local 7B/8B language models, desktop speech stacks or GPU model downloads on this phone.
-- Use Android's installed speech recognition and TTS providers as the initial zero-cost voice path.
-- Do not keep camera frames or microphone streams running outside a user-initiated session.
-- Validate memory pressure, thermal behavior, keyboard resizing and WebView process recovery on the actual device.
+- Do not attempt to run a large local language model or desktop-class speech stack on this device.
+- Validate startup, first visible frame, memory pressure, thermal behavior, battery use, keyboard resizing, permission denial and background/foreground recovery on the physical phone.
 
-## 7. Release gates
+## 8. Release gates
 
-A CI-green APK is only a build artifact. Before calling a build reliable, test on a Galaxy A31 / Android 12:
+A successful CI build only proves the configured build checks passed. Before calling a build reliable, test on the Galaxy A31:
 
-1. Install alongside the legacy app without overwriting it.
-2. Confirm the avatar page loads and native status changes to ready.
-3. Confirm the VRM itself is visible at the intended scale and facing direction.
-4. Rotate/tap the avatar and verify expressions.
-5. Open the chat sheet, focus the composer, show/hide the keyboard, send, scroll and dismiss.
-6. Test voice permission grant/deny and transcription.
-7. Test camera permission/capture and verify no image is uploaded before confirmation.
-8. Test no-key offline mode, invalid key, no network, and free-route unavailability.
-9. Background and resume the app; verify rendering resumes and no camera/microphone remains active.
-10. Inspect battery, temperature and memory during a longer session.
+1. Install and launch; verify no startup crash.
+2. Verify Ayaka is visibly rendered at the correct scale and orientation.
+3. Exercise chat, scrolling, keyboard, navigation and app resume.
+4. Test offline/no-key mode, invalid keys, no network and free-route unavailability.
+5. Test voice permission grant/denial and speech output.
+6. Test camera capture and explicit send confirmation.
+7. Test memory controls, mood persistence and bedtime notifications.
+8. Monitor memory, temperature, frame pacing and battery during a longer session.
 
-## 8. Current known gaps
+## 9. Model attribution
 
-The current bundled VRM is pixiv's AvatarSample_B, a temporary licensed sample, not the final Ayaka model. The current avatar runtime has basic idle sway, blink and tap-triggered happy expression; it does not yet have the full motion library, emotion engine, dialogue-to-action mapping or a custom Ayaka voice. The new immersive layout and native startup diagnostics are committed, but physical Galaxy A31 verification remains outstanding.
+Ayaka's VRM was created by epic_noobster. Preserve the embedded VRM metadata and `models/ayaka/MODEL-CREDITS.md`. The stated permissions are author-only, personal/non-profit use with credit required. Do not infer commercial rights from permission to modify or redistribute the file.
